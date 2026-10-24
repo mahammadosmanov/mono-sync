@@ -10,4 +10,7 @@ versioning: [SemVer](https://semver.org).
 - `mono-proto`: wire messages with postcard encoding.
 - `mono-net`: QUIC transport with host fingerprint pinning and pairing token.
 - CI on Linux, macOS and Windows; `cargo-deny`; dependabot.
-- `mono-input`: edge-crossing router (layout state machine) and pressed-key guard (release-all on disconnect).
+- `mono-input`: edge-crossing router, host and guest engines, pressed-key guard (release-all on disconnect), rdev OS backend.
+- `mono-cli`: `mono host` and `mono guest` commands (pre-alpha, not yet verified on real hardware).
+- Hotkey Ctrl+Alt(Option)+Esc returns control to the host.
+- ADR-0010: centre-warp motion capture.
