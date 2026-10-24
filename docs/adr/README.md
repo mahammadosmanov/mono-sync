@@ -15,5 +15,6 @@ supersedes it and update the old one's status.
 | [0007](0007-lan-only-scope.md) | LAN-only scope | Accepted |
 | [0008](0008-git-workflow.md) | Git workflow and commit conventions | Accepted |
 | [0009](0009-dual-license.md) | Dual license MIT OR Apache-2.0 | Accepted |
+| [0010](0010-center-warp-motion-capture.md) | Read remote motion as offset from a parked centre cursor | Accepted (revisit criteria) |
 
 Template: [0000-template.md](0000-template.md)
