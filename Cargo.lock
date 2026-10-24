@@ -445,6 +445,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mono-input"
+version = "0.1.0"
+dependencies = [
+ "mono-proto",
+]
+
+[[package]]
 name = "mono-net"
 version = "0.1.0"
 dependencies = [

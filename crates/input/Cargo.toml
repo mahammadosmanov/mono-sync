@@ -1,0 +1,9 @@
+[package]
+name = "mono-input"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+mono-proto = { path = "../proto", version = "0.1.0" }
