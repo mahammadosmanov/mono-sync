@@ -35,6 +35,7 @@ Input Monitoring permission once input features land.
 |---|---|
 | `crates/proto` | Wire messages |
 | `crates/net` | QUIC transport, pairing handshake |
+| `crates/input` | Layout router, stuck-key guard (OS backends next) |
 | `docs/` | PRD, architecture, ADRs, threat model, test plan |
 
 ## Contributing
