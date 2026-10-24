@@ -1,0 +1,19 @@
+[package]
+name = "mono-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "mono"
+path = "src/main.rs"
+
+[dependencies]
+mono-proto = { path = "../proto", version = "0.1.0" }
+mono-net = { path = "../net", version = "0.1.0" }
+mono-input = { path = "../input", version = "0.1.0" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+getrandom = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
