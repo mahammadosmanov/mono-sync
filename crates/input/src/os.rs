@@ -1,7 +1,10 @@
 //! Thin OS glue over `rdev` (ADR-0005). No decisions are made here: events
 //! are converted and handed to the pure engines.
 // Host mode is stubbed on Linux (not supported yet), so helpers are unused there.
-#![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code, unused_imports))]
+#![cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(dead_code, unused_imports)
+)]
 
 use crate::guest::Act;
 use crate::host::{Ev, HostEngine, Step};
