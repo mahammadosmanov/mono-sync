@@ -32,6 +32,10 @@ impl Edge {
 
 pub type PeerId = u32;
 
+/// Pixels inside the edge where a returning cursor is placed, so a zero-delta
+/// event does not bounce it straight back out.
+const INSET: f64 = 2.0;
+
 /// A peer attached to a host edge.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Link {
@@ -98,10 +102,12 @@ impl Router {
 
     fn local(&mut self, (x, y): (f64, f64), (dx, dy): (f64, f64)) -> Vec<Out> {
         let at = |edge: Edge| match edge {
-            Edge::Left => x <= 0.0 && dx < 0.0,
-            Edge::Right => x >= self.host.w - 1.0 && dx > 0.0,
-            Edge::Top => y <= 0.0 && dy < 0.0,
-            Edge::Bottom => y >= self.host.h - 1.0 && dy > 0.0,
+            // The OS clamps the cursor at the edge, so pushing against it
+            // shows up as zero delta: "not moving away" counts as pushing.
+            Edge::Left => x <= 0.0 && dx <= 0.0,
+            Edge::Right => x >= self.host.w - 1.0 && dx >= 0.0,
+            Edge::Top => y <= 0.0 && dy <= 0.0,
+            Edge::Bottom => y >= self.host.h - 1.0 && dy >= 0.0,
         };
         let Some((i, l)) = self.links.iter().enumerate().find(|(_, l)| at(l.edge)) else {
             return vec![];
@@ -149,10 +155,10 @@ impl Router {
                 (y / l.size.h).clamp(0.0, 1.0),
             );
             let (hx, hy) = match l.edge {
-                Edge::Left => (0.0, fy * self.host.h),
-                Edge::Right => (self.host.w - 1.0, fy * self.host.h),
-                Edge::Top => (fx * self.host.w, 0.0),
-                Edge::Bottom => (fx * self.host.w, self.host.h - 1.0),
+                Edge::Left => (INSET, fy * self.host.h),
+                Edge::Right => (self.host.w - 1.0 - INSET, fy * self.host.h),
+                Edge::Top => (fx * self.host.w, INSET),
+                Edge::Bottom => (fx * self.host.w, self.host.h - 1.0 - INSET),
             };
             return vec![Out::Leave {
                 peer: l.peer,
@@ -204,6 +210,12 @@ mod tests {
         let mut r = router(Edge::Right);
         assert!(r.motion((500.0, 500.0), (5.0, 0.0)).is_empty());
         assert!(!r.is_remote());
+    }
+
+    #[test]
+    fn pushing_against_clamped_edge_enters() {
+        let mut r = router(Edge::Right);
+        assert_eq!(r.motion((1919.0, 0.0), (0.0, 0.0)).len(), 1);
     }
 
     #[test]
@@ -277,7 +289,7 @@ mod tests {
                 host_y,
             } => {
                 assert_eq!(peer, 7);
-                assert_eq!(host_x, 1919.0);
+                assert_eq!(host_x, 1917.0);
                 assert!((host_y - (253.5 / 500.0) * 1080.0).abs() < 1.0);
             }
             o => panic!("unexpected {o:?}"),
