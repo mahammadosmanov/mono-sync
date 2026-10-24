@@ -4,3 +4,4 @@ pub mod guard;
 pub mod guest;
 pub mod host;
 pub mod layout;
+pub mod os;

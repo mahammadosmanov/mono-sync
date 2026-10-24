@@ -7,3 +7,10 @@ publish = false
 
 [dependencies]
 mono-proto = { path = "../proto", version = "0.1.0" }
+rdev = "0.5"
+anyhow = "1"
+tokio = { version = "1", features = ["sync"] }
+
+# grab (swallowing input) is feature-gated in rdev; on Linux it needs evdev, which we do not support yet.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+rdev = { version = "0.5", features = ["unstable_grab"] }
