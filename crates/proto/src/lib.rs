@@ -13,6 +13,12 @@ pub enum Msg {
         token: String,
     },
     HelloOk,
+    /// Guest -> host after `HelloOk`: size of the guest's screen in its own
+    /// coordinates, so the host can track the virtual cursor.
+    Screen {
+        w: u32,
+        h: u32,
+    },
     /// Cursor enters the guest at fractional position (0..1) of its screen.
     Enter {
         x: f32,
@@ -62,6 +68,7 @@ mod tests {
                 version: VERSION,
                 token: "t".into(),
             },
+            Msg::Screen { w: 2560, h: 1440 },
             Msg::Enter { x: 0.0, y: 0.5 },
             Msg::Key {
                 key: Key::KeyA,
