@@ -1,0 +1,14 @@
+[package]
+name = "mono-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mono-proto = { path = "../proto" }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+sha2 = "0.10"
+anyhow = "1"

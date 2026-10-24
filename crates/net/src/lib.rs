@@ -1,0 +1,331 @@
+//! QUIC transport. Host (owns keyboard/mouse) listens; guest connects.
+//!
+//! Trust model: guest pins the host's certificate fingerprint (stops an
+//! impostor host injecting input); host requires the pairing token (stops
+//! strangers receiving keystrokes). Both travel together in a pairing code.
+use anyhow::{bail, Context, Result};
+use mono_proto::{Msg, VERSION};
+use quinn::{Connection, Endpoint};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
+use sha2::{Digest, Sha256};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+use tokio::sync::mpsc;
+
+const MAX_FRAME: usize = 64 * 1024;
+
+pub struct Identity {
+    cert: CertificateDer<'static>,
+    key: PrivatePkcs8KeyDer<'static>,
+}
+
+impl Identity {
+    pub fn generate() -> Result<Self> {
+        let ck = rcgen::generate_simple_self_signed(vec!["mono".into()])?;
+        Ok(Self {
+            cert: ck.cert.der().clone(),
+            key: PrivatePkcs8KeyDer::from(ck.signing_key.serialize_der()),
+        })
+    }
+    pub fn fingerprint(&self) -> String {
+        fingerprint(&self.cert)
+    }
+}
+
+fn fingerprint(c: &CertificateDer<'_>) -> String {
+    Sha256::digest(c.as_ref())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+fn transport() -> Arc<quinn::TransportConfig> {
+    let mut t = quinn::TransportConfig::default();
+    t.keep_alive_interval(Some(Duration::from_secs(2)));
+    t.max_idle_timeout(Some(Duration::from_secs(10).try_into().unwrap()));
+    t.datagram_receive_buffer_size(Some(64 * 1024));
+    Arc::new(t)
+}
+
+/// An established, authenticated link. `recv` yields messages from both the
+/// reliable stream and datagrams.
+pub struct Session {
+    conn: Connection,
+    tx: quinn::SendStream,
+    rx: mpsc::Receiver<Msg>,
+}
+
+impl Session {
+    async fn start(conn: Connection, tx: quinn::SendStream, mut rs: quinn::RecvStream) -> Self {
+        let (out, rx) = mpsc::channel(1024);
+        let o = out.clone();
+        tokio::spawn(async move {
+            while let Ok(m) = read_frame(&mut rs).await {
+                if o.send(m).await.is_err() {
+                    break;
+                }
+            }
+        });
+        let c = conn.clone();
+        tokio::spawn(async move {
+            while let Ok(d) = c.read_datagram().await {
+                if let Ok(m) = Msg::decode(&d) {
+                    if out.try_send(m).is_err() {
+                        // queue full: drop lossy motion rather than lag
+                    }
+                }
+            }
+        });
+        Self { conn, tx, rx }
+    }
+
+    pub async fn send(&mut self, m: &Msg) -> Result<()> {
+        if m.is_lossy() {
+            self.conn.send_datagram(m.encode().into())?;
+        } else {
+            write_frame(&mut self.tx, m).await?;
+        }
+        Ok(())
+    }
+
+    /// `None` when the peer is gone.
+    pub async fn recv(&mut self) -> Option<Msg> {
+        self.rx.recv().await
+    }
+}
+
+async fn write_frame(s: &mut quinn::SendStream, m: &Msg) -> Result<()> {
+    let b = m.encode();
+    s.write_all(&(b.len() as u32).to_be_bytes()).await?;
+    s.write_all(&b).await?;
+    Ok(())
+}
+
+async fn read_frame(s: &mut quinn::RecvStream) -> Result<Msg> {
+    let mut len = [0u8; 4];
+    s.read_exact(&mut len).await?;
+    let n = u32::from_be_bytes(len) as usize;
+    if n > MAX_FRAME {
+        bail!("frame too large: {n}");
+    }
+    let mut buf = vec![0u8; n];
+    s.read_exact(&mut buf).await?;
+    Ok(Msg::decode(&buf)?)
+}
+
+pub struct Host {
+    ep: Endpoint,
+    token: String,
+}
+
+impl Host {
+    pub fn bind(addr: SocketAddr, id: &Identity, token: String) -> Result<Self> {
+        let provider = rustls::crypto::ring::default_provider();
+        let tls = rustls::ServerConfig::builder_with_provider(provider.into())
+            .with_safe_default_protocol_versions()?
+            .with_no_client_auth()
+            .with_single_cert(
+                vec![id.cert.clone()],
+                PrivateKeyDer::Pkcs8(id.key.clone_key()),
+            )?;
+        let mut cfg = quinn::ServerConfig::with_crypto(Arc::new(
+            quinn::crypto::rustls::QuicServerConfig::try_from(tls)?,
+        ));
+        cfg.transport_config(transport());
+        Ok(Self {
+            ep: Endpoint::server(cfg, addr)?,
+            token,
+        })
+    }
+
+    pub fn local_addr(&self) -> Result<SocketAddr> {
+        Ok(self.ep.local_addr()?)
+    }
+
+    /// Wait for one guest that presents the right token. Bad guests are
+    /// dropped and the wait continues.
+    pub async fn accept(&self) -> Result<Session> {
+        loop {
+            let Some(inc) = self.ep.accept().await else {
+                bail!("endpoint closed")
+            };
+            match self.handshake(inc).await {
+                Ok(s) => return Ok(s),
+                Err(e) => eprintln!("rejected guest: {e:#}"),
+            }
+        }
+    }
+
+    async fn handshake(&self, inc: quinn::Incoming) -> Result<Session> {
+        let conn = inc.await?;
+        let (tx, mut rs) = tokio::time::timeout(Duration::from_secs(5), conn.accept_bi())
+            .await
+            .context("no stream")??;
+        let hello = tokio::time::timeout(Duration::from_secs(5), read_frame(&mut rs))
+            .await
+            .context("no hello")??;
+        match hello {
+            Msg::Hello { version, token } if version == VERSION && ct_eq(&token, &self.token) => {}
+            Msg::Hello { version, .. } if version != VERSION => bail!("version {version}"),
+            _ => bail!("bad token"),
+        }
+        let mut s = Session::start(conn, tx, rs).await;
+        s.send(&Msg::HelloOk).await?;
+        Ok(s)
+    }
+}
+
+fn ct_eq(a: &str, b: &str) -> bool {
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |d, (x, y)| d | (x ^ y)) == 0
+}
+
+#[derive(Debug)]
+struct Pin(String);
+
+impl rustls::client::danger::ServerCertVerifier for Pin {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        _: &[CertificateDer<'_>],
+        _: &ServerName<'_>,
+        _: &[u8],
+        _: UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        if ct_eq(&fingerprint(end_entity), &self.0) {
+            Ok(rustls::client::danger::ServerCertVerified::assertion())
+        } else {
+            Err(rustls::Error::General("host fingerprint mismatch".into()))
+        }
+    }
+    fn verify_tls12_signature(
+        &self,
+        m: &[u8],
+        c: &CertificateDer<'_>,
+        d: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(
+            m,
+            c,
+            d,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
+    }
+    fn verify_tls13_signature(
+        &self,
+        m: &[u8],
+        c: &CertificateDer<'_>,
+        d: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(
+            m,
+            c,
+            d,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
+    }
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
+}
+
+pub async fn connect(addr: SocketAddr, fingerprint: &str, token: &str) -> Result<Session> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let tls = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(Pin(fingerprint.to_string())))
+        .with_no_client_auth();
+    let mut cfg = quinn::ClientConfig::new(Arc::new(
+        quinn::crypto::rustls::QuicClientConfig::try_from(tls)?,
+    ));
+    cfg.transport_config(transport());
+    let bind: SocketAddr = if addr.is_ipv6() {
+        "[::]:0"
+    } else {
+        "0.0.0.0:0"
+    }
+    .parse()?;
+    let mut ep = Endpoint::client(bind)?;
+    ep.set_default_client_config(cfg);
+    let conn = ep
+        .connect(addr, "mono")?
+        .await
+        .context("connect (fingerprint wrong?)")?;
+    let (mut tx, rs) = conn.open_bi().await?;
+    write_frame(
+        &mut tx,
+        &Msg::Hello {
+            version: VERSION,
+            token: token.into(),
+        },
+    )
+    .await?;
+    let mut s = Session::start(conn, tx, rs).await;
+    match tokio::time::timeout(Duration::from_secs(5), s.recv()).await {
+        Ok(Some(Msg::HelloOk)) => Ok(s),
+        _ => bail!("host refused (wrong token or version)"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mono_proto::Key;
+
+    fn lo() -> SocketAddr {
+        "127.0.0.1:0".parse().unwrap()
+    }
+
+    #[tokio::test]
+    async fn happy_path_reliable_and_datagram() {
+        let id = Identity::generate().unwrap();
+        let host = Host::bind(lo(), &id, "secret".into()).unwrap();
+        let addr = host.local_addr().unwrap();
+        let fp = id.fingerprint();
+        let g = tokio::spawn(async move { connect(addr, &fp, "secret").await.unwrap() });
+        let mut hs = host.accept().await.unwrap();
+        let mut gs = g.await.unwrap();
+
+        hs.send(&Msg::Key {
+            key: Key::KeyA,
+            down: true,
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            gs.recv().await,
+            Some(Msg::Key {
+                key: Key::KeyA,
+                down: true
+            })
+        );
+
+        hs.send(&Msg::Move { dx: 5, dy: -5 }).await.unwrap();
+        assert_eq!(gs.recv().await, Some(Msg::Move { dx: 5, dy: -5 }));
+    }
+
+    #[tokio::test]
+    async fn wrong_token_refused() {
+        let id = Identity::generate().unwrap();
+        let host = Host::bind(lo(), &id, "secret".into()).unwrap();
+        let addr = host.local_addr().unwrap();
+        let fp = id.fingerprint();
+        tokio::spawn(async move {
+            let _ = host.accept().await;
+        });
+        assert!(connect(addr, &fp, "nope").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn wrong_fingerprint_refused() {
+        let id = Identity::generate().unwrap();
+        let host = Host::bind(lo(), &id, "secret".into()).unwrap();
+        let addr = host.local_addr().unwrap();
+        tokio::spawn(async move {
+            let _ = host.accept().await;
+        });
+        let bad = "00".repeat(32);
+        assert!(connect(addr, &bad, "secret").await.is_err());
+    }
+}
