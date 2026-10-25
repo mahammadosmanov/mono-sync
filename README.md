@@ -48,6 +48,7 @@ macOS: the terminal running `mono` needs Accessibility and Input Monitoring
 | `crates/proto` | Wire messages |
 | `crates/net` | QUIC transport, pairing handshake |
 | `crates/input` | Layout router, host/guest engines, stuck-key guard, rdev OS glue |
+| `crates/clip` | Text clipboard sync |
 | `crates/cli` | The `mono` binary |
 | `docs/` | PRD, architecture, ADRs, threat model, test plan |
 

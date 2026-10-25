@@ -56,7 +56,7 @@ impl GuestEngine {
                 vec![Act::Button { button, down }]
             }
             Msg::Wheel { dx, dy } => vec![Act::Wheel { dx, dy }],
-            Msg::Hello { .. } | Msg::HelloOk | Msg::Screen { .. } => vec![],
+            Msg::Hello { .. } | Msg::HelloOk | Msg::Screen { .. } | Msg::Clip { .. } => vec![],
         }
     }
 
