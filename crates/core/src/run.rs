@@ -455,6 +455,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     }
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();
+    let overlay = mono_input::overlay::Overlay::start();
     loop {
         core.sh.state(format!("Connecting to {addr}"));
         let mut session = match connect(addr, fp, token).await {
@@ -485,6 +486,11 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         }
         core.sh.state("Connected");
         let mut engine = GuestEngine::new(screen);
+        let overlay_on = cfg.draw_cursor || !mono_input::overlay::mouse_present();
+        if overlay_on {
+            core.sh
+                .note("No mouse on this computer: mono-sync draws the cursor itself");
+        }
         let mut probes = 0u8;
         let mut woke = false;
         loop {
@@ -500,7 +506,13 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                             probes = 3;
                             woke = true;
                         }
+                        if matches!(m, Msg::Leave) {
+                            overlay.hide();
+                        }
                         for a in engine.on_msg(&m) {
+                            if let (true, mono_input::guest::Act::MoveTo(x, y)) = (overlay_on, a) {
+                                overlay.show_at(x as i32, y as i32);
+                            }
                             let target = if let mono_input::guest::Act::MoveTo(x, y) = a { Some((x, y)) } else { None };
                             match os::inject(&a) {
                                 Err(e) => core.sh.note(format!("Injecting input failed: {e:#}")),
@@ -523,6 +535,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                 },
             }
         }
+        overlay.hide();
         for a in engine.on_disconnect() {
             let _ = os::inject(&a);
         }

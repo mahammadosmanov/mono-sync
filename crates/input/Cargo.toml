@@ -16,4 +16,4 @@ tokio = { version = "1", features = ["sync"] }
 rdev = { version = "0.5", features = ["unstable_grab"] }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
+winapi = { version = "0.3", features = ["winuser", "wingdi", "libloaderapi"] }
