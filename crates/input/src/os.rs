@@ -12,10 +12,7 @@ use crate::layout::{PeerId, Size};
 use anyhow::{anyhow, Result};
 use mono_proto::Msg;
 use rdev::EventType;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn screen_size() -> Result<Size> {
@@ -78,23 +75,34 @@ fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>) {
     }
 }
 
-/// Blocks the calling thread, grabbing all input. Needs Accessibility +
-/// Input Monitoring permission on macOS. When `alive` turns false, control
-/// returns to the host on the next event.
+pub type SharedEngine = Arc<Mutex<HostEngine>>;
+
+fn lock(e: &SharedEngine) -> std::sync::MutexGuard<'_, HostEngine> {
+    e.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+/// Replace the engine's layout (new guest connected).
+pub fn set_engine(e: &SharedEngine, new: HostEngine) {
+    *lock(e) = new;
+}
+
+/// Take control back locally (guest gone). Sends nothing: the link is dead.
+pub fn release_host(e: &SharedEngine) {
+    if let Some((x, y)) = lock(e).force_local().warp {
+        warp(x, y);
+    }
+}
+
+/// Blocks the calling thread, grabbing all input for the life of the process.
+/// With no links in the engine every event passes through untouched.
+/// Needs Accessibility + Input Monitoring permission on macOS.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub fn run_host(
-    engine: HostEngine,
-    tx: UnboundedSender<(PeerId, Msg)>,
-    alive: Arc<AtomicBool>,
-) -> Result<()> {
-    use std::cell::RefCell;
-    let engine = RefCell::new(engine);
+pub fn run_host(engine: SharedEngine, tx: UnboundedSender<(PeerId, Msg)>) -> Result<()> {
     rdev::grab(move |event| {
-        if !alive.load(Ordering::Relaxed) {
-            apply(&engine.borrow_mut().force_local(), &tx);
-        }
-        let Some(ev) = convert(&event.event_type) else { return Some(event) };
-        let step = engine.borrow_mut().on_event(ev);
+        let Some(ev) = convert(&event.event_type) else {
+            return Some(event);
+        };
+        let step = lock(&engine).on_event(ev);
         apply(&step, &tx);
         if step.swallow {
             None
@@ -102,15 +110,11 @@ pub fn run_host(
             Some(event)
         }
     })
-    .map_err(|e| anyhow!("input grab failed: {e:?} (macOS: grant Accessibility and Input Monitoring to this terminal/app)"))
+    .map_err(|e| anyhow!("input grab failed: {e:?} (macOS: grant Accessibility and Input Monitoring to this app)"))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub fn run_host(
-    _: HostEngine,
-    _: UnboundedSender<(PeerId, Msg)>,
-    _: Arc<AtomicBool>,
-) -> Result<()> {
+pub fn run_host(_: SharedEngine, _: UnboundedSender<(PeerId, Msg)>) -> Result<()> {
     Err(anyhow!(
         "host mode is not supported on this OS yet (Windows and macOS only)"
     ))

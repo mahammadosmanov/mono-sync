@@ -17,4 +17,7 @@ mono-input = { path = "../input", version = "0.1.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 getrandom = "0.3"
+dirs = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
