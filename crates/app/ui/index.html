@@ -40,7 +40,7 @@
   <div class="card" id="perm" style="display:none;border-color:var(--bad)">
     <h2 style="color:var(--bad)">One tap needed</h2>
     <div id="permText"></div>
-    <div class="row"><button class="primary" id="permOpen">Open Settings</button></div>
+    <div class="row" id="permBtns"></div>
     <div class="sub">In the list, switch on <b>mono-sync</b>. This window continues by itself.</div>
   </div>
 
@@ -124,7 +124,15 @@ async function refresh() {
       $('dl').value = cfg.download_dir || s.download_dir; showRole();
     }
     $('perm').style.display = s.needs && s.needs.length ? '' : 'none';
-    $('permText').textContent = 'macOS is asking for: ' + (s.needs || []).join(' and ') + '.';
+    $('permText').textContent = 'macOS needs your OK for: ' + (s.needs || []).join(' and ') + '.';
+    const pb = $('permBtns'), want = (s.needs || []).join('|');
+    if (pb.dataset.want !== want) {
+      pb.dataset.want = want; pb.textContent = '';
+      for (const n of s.needs || []) {
+        const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Open ' + n + ' settings';
+        b.onclick = () => invoke('open_permission_settings', { name: n }); pb.appendChild(b);
+      }
+    }
     $('drop').style.opacity = s.connected ? 1 : .5;
   } catch (e) { $('state').textContent = 'Error: ' + e; $('state').className = 'pill bad'; }
 }
@@ -137,7 +145,6 @@ $('save').onclick = async () => {
   try { await invoke('save', { config }); dirty = false; m.className = 'msg ok'; m.textContent = 'Saved.'; refresh(); }
   catch (e) { m.className = 'msg err'; m.textContent = String(e); }
 };
-$('permOpen').onclick = () => invoke('open_permission_settings');
 $('open').onclick = () => invoke('open_folder');
 $('quit').onclick = () => invoke('quit');
 for (const [btn, id] of [['copyAddr','hostAddr'],['copyCode','hostCode']])

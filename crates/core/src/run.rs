@@ -325,7 +325,8 @@ fn wait_for_permissions(sh: &Shared, block: bool) -> bool {
                 missing.join(" and ")
             ));
         }
-        for m in &missing {
+        // One page at a time: opening two panes at once leaves the user on the last one.
+        if let Some(m) = missing.first() {
             if opened.insert(m) {
                 os::open_permission_settings(m);
             }

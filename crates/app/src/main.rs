@@ -64,13 +64,8 @@ fn open_path(target: &str) {
 }
 
 #[tauri::command]
-fn open_permission_settings() {
-    for n in [
-        mono_core::os_names::ACCESSIBILITY,
-        mono_core::os_names::INPUT_MONITORING,
-    ] {
-        mono_core::open_permission_settings(n);
-    }
+fn open_permission_settings(name: String) {
+    mono_core::open_permission_settings(&name);
 }
 
 #[tauri::command]
