@@ -8,6 +8,10 @@ Linux, macOS and Windows; `cargo deny check`.
 Covered: protocol round trips, malformed input rejection, QUIC sessions on
 loopback (reliable and datagram paths), wrong token and wrong fingerprint refusal.
 
+`scripts/e2e-loopback.py` (run locally, needs a release build): two real
+processes pair, transfer a 5 MiB file both ways, reject path traversal, reject
+unauthenticated control-panel calls, and reconnect after the guest restarts.
+
 ## Manual cross-OS checklist (per milestone)
 
 CI cannot grant OS input permissions or move a real cursor, so these run by
@@ -26,6 +30,12 @@ point resolution (Retina and Windows DPI scaling are the likely failures).
 - [ ] Kill the host process while a mouse button is held: button released.
 - [ ] Hotkey returns control to host.
 - [ ] Different DPI/resolution screens: cursor lands at the proportional position.
+
+### Clipboard, files, panel (alpha)
+- [ ] Copy text on A, paste on B, and the reverse.
+- [ ] Drop a 1 GB file on the panel; it arrives with the same SHA-256.
+- [ ] Unplug network 5 s, replug: guest reconnects without clicking.
+- [ ] Change direction in the panel; cursor crosses the new edge.
 
 ### Later milestones
 Pairing/discovery (M2), clipboard and file hash verification (M3), UI flows (M4),

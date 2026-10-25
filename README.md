@@ -4,10 +4,10 @@ One keyboard and mouse across several computers on the same network, plus
 quick file and clipboard transfer between them. Windows and macOS first;
 open source; LAN-only; no accounts, no cloud.
 
-> **Status: pre-alpha (M1).** Encrypted transport, routing logic and the
-> `mono host` / `mono guest` commands are implemented and unit/loopback tested.
-> **Not yet verified on real Mac + Windows hardware**: that is the next step.
-> No installers yet; build from source.
+> **Status: alpha.** Keyboard, mouse, text clipboard and file transfer work
+> between two computers on one LAN. Tested end to end on loopback and Mac to
+> Windows by hand. Not yet: 3+ computers, multi-monitor layouts, tray icon,
+> installers, code signing. Expect rough edges.
 
 ## Goals
 
@@ -30,16 +30,26 @@ cargo test --workspace
 Linux needs `libx11-dev libxi-dev libxtst-dev`. macOS needs Accessibility and
 Input Monitoring permission once input features land.
 
-## Try it (pre-alpha, build from source)
+## Use it
 
-1. On both machines: `cargo build --release -p mono-cli` (binary: `target/release/mono`).
-2. Allow UDP port 24800 in the host's firewall.
-3. Host (the machine with the keyboard): `mono host --edge right`. It prints a pairing code.
-4. Guest: `mono guest <host-ip>:24800 <pairing-code>`.
-5. Push the cursor through the host's right edge. `Ctrl+Alt(Option)+Esc` returns control.
+1. Download `mono-x86_64-pc-windows-msvc.exe` (Windows) or the macOS binary from
+   the latest [release](https://github.com/mahammadosmanov/mono-sync/releases), or build:
+   `cargo build --release -p mono-cli`.
+2. Run it on **both** computers. A browser tab (control panel) opens.
+3. Computer with the keyboard and mouse: choose **Host**, pick the side where
+   the other computer sits, Save. It shows an address and a pairing code.
+4. Other computer: choose **Guest**, enter the address and code, Save.
+5. Push the cursor through the chosen edge. `Ctrl+Alt(Option)+Esc` returns control.
+6. Copy text on one side and paste on the other. Drop files on the panel to send them.
 
-macOS: the terminal running `mono` needs Accessibility and Input Monitoring
-(System Settings → Privacy & Security). The pairing code changes on every run.
+Windows may show SmartScreen (unsigned): More info, Run anyway. macOS: grant
+**Accessibility** and **Input Monitoring** to the app that launched `mono`
+(Terminal), then restart it. Windows firewall: allow `mono` on private networks
+if asked (UDP 24800 on the host). Settings live in `%APPDATA%\mono-sync` or
+`~/Library/Application Support/mono-sync`.
+
+Command line is still available: `mono host --edge left`, `mono guest <ip:port> <code>`,
+`--no-browser` to skip opening the panel.
 
 ## Layout
 
@@ -49,7 +59,8 @@ macOS: the terminal running `mono` needs Accessibility and Input Monitoring
 | `crates/net` | QUIC transport, pairing handshake |
 | `crates/input` | Layout router, host/guest engines, stuck-key guard, rdev OS glue |
 | `crates/clip` | Text clipboard sync |
-| `crates/cli` | The `mono` binary |
+| `crates/cli` | The `mono` binary: runner, settings, control panel |
+| `scripts/` | Loopback end-to-end test |
 | `docs/` | PRD, architecture, ADRs, threat model, test plan |
 
 ## Contributing

@@ -201,9 +201,15 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     let host_screen = os::screen_size()?;
     let mut rx = core.input_rx.lock().await;
     let mut clip = core.clip.lock().await;
+    let mut next: Option<mono_net::Session> = None;
     loop {
-        core.sh.state("Waiting for the other computer to connect");
-        let mut session = srv.accept().await?;
+        let mut session = match next.take() {
+            Some(s) => s,
+            None => {
+                core.sh.state("Waiting for the other computer to connect");
+                srv.accept().await?
+            }
+        };
         let guest = match tokio::time::timeout(Duration::from_secs(5), session.recv()).await {
             Ok(Some(Msg::Screen { w, h })) => Size {
                 w: f64::from(w),
@@ -242,6 +248,8 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                     Some(_) => {}
                     None => break,
                 },
+                // A paired guest reconnecting replaces a stale connection at once.
+                n = srv.accept() => { next = Some(n?); break }
             }
         }
         os::release_host(&core.engine);

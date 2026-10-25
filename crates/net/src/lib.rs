@@ -94,6 +94,13 @@ pub struct Session {
     rx: mpsc::Receiver<Msg>,
 }
 
+impl Drop for Session {
+    /// Tell the peer right away instead of leaving it to wait for the idle timeout.
+    fn drop(&mut self) {
+        self.conn.close(0u32.into(), b"bye");
+    }
+}
+
 impl Session {
     async fn start(conn: Connection, tx: quinn::SendStream, mut rs: quinn::RecvStream) -> Self {
         let (out, rx) = mpsc::channel(1024);
@@ -408,7 +415,7 @@ mod tests {
         let addr = host.local_addr().unwrap();
         let fp = id.fingerprint();
         let g = tokio::spawn(async move { connect(addr, &fp, "t").await.is_ok() });
-        host.accept().await.unwrap();
+        let _hs = host.accept().await.unwrap();
         assert!(g.await.unwrap());
         assert!(Identity::from_text("zz\nzz").is_err());
         assert!(Identity::from_text("").is_err());

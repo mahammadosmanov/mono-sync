@@ -1,6 +1,7 @@
 //! mono: one keyboard and mouse across computers on the same LAN.
 mod config;
 mod run;
+mod web;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -14,6 +15,9 @@ use config::{Config, EdgeCfg, Role};
 struct Cli {
     #[command(subcommand)]
     cmd: Option<Cmd>,
+    /// Do not open the control panel in the browser.
+    #[arg(long, global = true)]
+    no_browser: bool,
 }
 
 #[derive(Subcommand)]
@@ -56,8 +60,10 @@ impl From<EdgeArg> for EdgeCfg {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
     let mut cfg = Config::load()?;
-    match Cli::parse().cmd {
+    let open_browser = cli.cmd.is_none() && !cli.no_browser;
+    match cli.cmd {
         Some(Cmd::Host { bind, edge }) => {
             cfg.role = Role::Host;
             cfg.bind = bind;
@@ -72,6 +78,11 @@ async fn main() -> Result<()> {
     }
     cfg.save()?;
     let core = run::Core::new()?;
+    let web = web::start(core.clone())?;
+    println!("Control panel: {}", web.url);
+    if open_browser {
+        web::open_path(&web.url);
+    }
     core.apply(cfg);
     for _ in 0..20 {
         if let (_, _, Some(code), _) = core.sh.snapshot() {
