@@ -10,15 +10,7 @@ name = "mono"
 path = "src/main.rs"
 
 [dependencies]
-mono-proto = { path = "../proto", version = "0.1.0" }
-mono-net = { path = "../net", version = "0.1.0" }
-mono-clip = { path = "../clip", version = "0.1.0" }
-mono-input = { path = "../input", version = "0.1.0" }
+mono-core = { path = "../core", version = "0.1.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-getrandom = "0.3"
-dirs = "7"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tiny_http = "0.12"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
