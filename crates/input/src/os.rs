@@ -87,9 +87,13 @@ mod perm {
         fn CGRequestListenEventAccess() -> bool;
         fn CGRequestPostEventAccess() -> bool;
     }
-    pub fn granted() -> bool {
-        // SAFETY: plain C queries with no arguments.
-        unsafe { AXIsProcessTrusted() && CGPreflightListenEventAccess() }
+    pub fn accessibility() -> bool {
+        // SAFETY: plain C query with no arguments.
+        unsafe { AXIsProcessTrusted() }
+    }
+    pub fn input_monitoring() -> bool {
+        // SAFETY: plain C query with no arguments.
+        unsafe { CGPreflightListenEventAccess() }
     }
     pub fn request() {
         // SAFETY: plain C calls; they only show the system permission prompts.
@@ -100,23 +104,55 @@ mod perm {
     }
 }
 
-/// macOS needs Accessibility + Input Monitoring before input can be grabbed or
-/// injected. Always true elsewhere.
-pub fn permissions_granted() -> bool {
+pub const ACCESSIBILITY: &str = "Accessibility";
+pub const INPUT_MONITORING: &str = "Input Monitoring";
+
+/// Permissions macOS still withholds (always empty elsewhere).
+pub fn missing_permissions() -> Vec<&'static str> {
     #[cfg(target_os = "macos")]
     {
-        perm::granted()
+        let mut v = vec![];
+        if !perm::accessibility() {
+            v.push(ACCESSIBILITY);
+        }
+        if !perm::input_monitoring() {
+            v.push(INPUT_MONITORING);
+        }
+        v
     }
     #[cfg(not(target_os = "macos"))]
     {
-        true
+        vec![]
     }
+}
+
+pub fn permissions_granted() -> bool {
+    missing_permissions().is_empty()
 }
 
 /// Show the system permission prompts (macOS); no-op elsewhere.
 pub fn request_permissions() {
     #[cfg(target_os = "macos")]
     perm::request();
+}
+
+/// Open the System Settings page where `name` is switched on (macOS).
+pub fn open_permission_settings(name: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let pane = if name == INPUT_MONITORING {
+            "Privacy_ListenEvent"
+        } else {
+            "Privacy_Accessibility"
+        };
+        let _ = std::process::Command::new("open")
+            .arg(format!(
+                "x-apple.systempreferences:com.apple.preference.security?{pane}"
+            ))
+            .spawn();
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = name;
 }
 
 pub type SharedEngine = Arc<Mutex<HostEngine>>;

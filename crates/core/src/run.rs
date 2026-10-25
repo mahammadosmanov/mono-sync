@@ -33,6 +33,8 @@ pub struct Status {
     pub log: VecDeque<String>,
     pub code: Option<String>,
     pub conn: Option<Connection>,
+    /// OS permissions still missing (macOS).
+    pub needs: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -111,6 +113,8 @@ pub struct View {
     pub log: Vec<String>,
     pub code: Option<String>,
     pub connected: bool,
+    /// Permissions the user still has to switch on; empty when all is well.
+    pub needs: Vec<String>,
     pub config: Config,
     pub download_dir: String,
     /// This computer's LAN address with the host port, if one could be found.
@@ -205,6 +209,7 @@ impl Core {
             log,
             code,
             connected,
+            needs: self.sh.with(|s| s.needs.clone()),
             download_dir: config.download_dir().display().to_string(),
             config,
             address: local_ip().map(|i| format!("{i}:24800")),
@@ -255,24 +260,9 @@ impl Core {
         }
         let core = self.clone();
         std::thread::spawn(move || {
-            // Wait for the OS permission instead of failing: the user grants it in
-            // System Settings and sharing starts by itself.
-            if !os::permissions_granted() {
-                os::request_permissions();
-                core.sh.note(
-                    "macOS permission needed: System Settings > Privacy & Security > Accessibility and Input Monitoring > turn on mono-sync",
-                );
-                while !os::permissions_granted() {
-                    core.sh
-                        .state("Waiting for macOS permission (Accessibility + Input Monitoring)");
-                    std::thread::sleep(Duration::from_secs(2));
-                }
-                core.sh.note("Permission granted");
-                core.sh.state(if core.sh.snapshot().3 {
-                    "Connected"
-                } else {
-                    "Waiting for the other computer to connect"
-                });
+            if !wait_for_permissions(&core.sh, true) {
+                core.grab_running.store(false, Ordering::SeqCst);
+                return;
             }
             let r = os::run_host(core.engine.clone(), core.input_tx.clone());
             core.grab_running.store(false, Ordering::SeqCst);
@@ -301,6 +291,52 @@ impl Core {
                 }
             }
         });
+    }
+}
+
+/// macOS: ask for each missing permission, open its Settings page once, and wait
+/// (polling) until the user has switched it on. `block` = report in the status
+/// line too. Returns false if it gave up.
+fn wait_for_permissions(sh: &Shared, block: bool) -> bool {
+    use std::collections::HashSet;
+    let mut opened: HashSet<&'static str> = HashSet::new();
+    let mut announced = false;
+    loop {
+        let missing = os::missing_permissions();
+        sh.with(|s| s.needs = missing.iter().map(|m| m.to_string()).collect());
+        if missing.is_empty() {
+            if announced {
+                sh.note("Permissions granted");
+                if block {
+                    sh.state(if sh.snapshot().3 {
+                        "Connected"
+                    } else {
+                        "Waiting for the other computer to connect"
+                    });
+                }
+            }
+            return true;
+        }
+        if !announced {
+            announced = true;
+            os::request_permissions();
+            sh.note(format!(
+                "macOS needs your OK: turn on mono-sync under {} (Settings opened for you)",
+                missing.join(" and ")
+            ));
+        }
+        for m in &missing {
+            if opened.insert(m) {
+                os::open_permission_settings(m);
+            }
+        }
+        if block {
+            sh.state(format!(
+                "Waiting for macOS permission: {}",
+                missing.join(" + ")
+            ));
+        }
+        std::thread::sleep(Duration::from_secs(2));
     }
 }
 
@@ -406,11 +442,11 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     }
     let screen = os::screen_size().unwrap_or(core.screen);
     if !os::permissions_granted() {
-        // Injecting input needs Accessibility on macOS; ask now, keep connecting.
-        os::request_permissions();
-        core.sh.note(
-            "macOS permission needed: Accessibility > turn on mono-sync, then restart the app",
-        );
+        // Injecting input needs Accessibility on macOS; guide the user, keep connecting.
+        let sh = core.sh.clone();
+        std::thread::spawn(move || {
+            wait_for_permissions(&sh, false);
+        });
     }
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();

@@ -64,6 +64,16 @@ fn open_path(target: &str) {
 }
 
 #[tauri::command]
+fn open_permission_settings() {
+    for n in [
+        mono_core::os_names::ACCESSIBILITY,
+        mono_core::os_names::INPUT_MONITORING,
+    ] {
+        mono_core::open_permission_settings(n);
+    }
+}
+
+#[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
 }
@@ -89,6 +99,7 @@ fn main() {
             save,
             send_files,
             open_folder,
+            open_permission_settings,
             quit
         ])
         .setup(move |app| {
