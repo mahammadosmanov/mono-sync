@@ -14,5 +14,7 @@ versioning: [SemVer](https://semver.org).
 - `mono-cli`: `mono host` and `mono guest` commands (pre-alpha, not yet verified on real hardware).
 - Hotkey Ctrl+Alt(Option)+Esc returns control to the host.
 - `mono-clip`: text clipboard sync in both directions with echo suppression (48 KiB cap).
+- Control panel (ADR-0012): `mono` opens a local web page to choose role and direction, paste the pairing code, drop files to send, see status and log.
+- Persistent identity and settings: the pairing code survives restarts. Guest reconnects automatically; a reconnecting guest replaces a stale connection immediately.
 - `mono-net::file`: verified file transfer on its own QUIC stream, safe names, no overwrite (ADR-0011).
 - ADR-0010: centre-warp motion capture.

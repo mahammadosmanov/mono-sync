@@ -32,6 +32,43 @@ impl Identity {
     pub fn fingerprint(&self) -> String {
         fingerprint(&self.cert)
     }
+
+    /// Text form for the config directory: two hex lines (certificate, key).
+    /// The key is a secret: callers must write it with owner-only permissions.
+    pub fn to_text(&self) -> String {
+        format!(
+            "{}\n{}\n",
+            hex(self.cert.as_ref()),
+            hex(self.key.secret_pkcs8_der())
+        )
+    }
+
+    pub fn from_text(s: &str) -> Result<Self> {
+        let mut l = s.lines();
+        let (c, k) = (
+            l.next().context("missing cert")?,
+            l.next().context("missing key")?,
+        );
+        Ok(Self {
+            cert: CertificateDer::from(unhex(c)?),
+            key: PrivatePkcs8KeyDer::from(unhex(k)?),
+        })
+    }
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+fn unhex(s: &str) -> Result<Vec<u8>> {
+    let s = s.trim();
+    if !s.len().is_multiple_of(2) || !s.is_ascii() {
+        bail!("bad hex");
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).context("bad hex"))
+        .collect()
 }
 
 fn fingerprint(c: &CertificateDer<'_>) -> String {
@@ -55,6 +92,13 @@ pub struct Session {
     conn: Connection,
     tx: quinn::SendStream,
     rx: mpsc::Receiver<Msg>,
+}
+
+impl Drop for Session {
+    /// Tell the peer right away instead of leaving it to wait for the idle timeout.
+    fn drop(&mut self) {
+        self.conn.close(0u32.into(), b"bye");
+    }
 }
 
 impl Session {
@@ -359,6 +403,22 @@ mod tests {
             e => panic!("{e:?}"),
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn identity_survives_save_and_load() {
+        let id = Identity::generate().unwrap();
+        let back = Identity::from_text(&id.to_text()).unwrap();
+        assert_eq!(id.fingerprint(), back.fingerprint());
+        // the reloaded identity must still work for TLS
+        let host = Host::bind(lo(), &back, "t".into()).unwrap();
+        let addr = host.local_addr().unwrap();
+        let fp = id.fingerprint();
+        let g = tokio::spawn(async move { connect(addr, &fp, "t").await.is_ok() });
+        let _hs = host.accept().await.unwrap();
+        assert!(g.await.unwrap());
+        assert!(Identity::from_text("zz\nzz").is_err());
+        assert!(Identity::from_text("").is_err());
     }
 
     #[tokio::test]
