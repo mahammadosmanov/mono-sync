@@ -478,8 +478,14 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
             .await?;
         core.attach(session.connection(), cfg.download_dir());
         core.sh.note(format!("Connected to {addr}"));
+        let di = os::display_info();
+        if !di.is_empty() {
+            core.sh
+                .note(format!("Screens: {di}; sharing {}x{}", screen.w, screen.h));
+        }
         core.sh.state("Connected");
         let mut engine = GuestEngine::new(screen);
+        let mut probes = 0u8;
         loop {
             tokio::select! {
                 Some(text) = clip.out.recv() => {
@@ -487,9 +493,24 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                 }
                 m = session.recv() => match m {
                     Some(Msg::Clip { text }) => { let _ = clip.sink.send(text); }
-                    Some(m) => for a in { if matches!(m, Msg::Enter { .. }) { core.sh.note("Cursor arrived from the other computer"); } engine.on_msg(&m) } {
-                        if let Err(e) = os::inject(&a) { core.sh.note(format!("{e:#}")); }
-                    },
+                    Some(m) => {
+                        if matches!(m, Msg::Enter { .. }) {
+                            core.sh.note("Cursor arrived from the other computer");
+                            probes = 3;
+                        }
+                        for a in engine.on_msg(&m) {
+                            let target = if let mono_input::guest::Act::MoveTo(x, y) = a { Some((x, y)) } else { None };
+                            match os::inject(&a) {
+                                Err(e) => core.sh.note(format!("Injecting input failed: {e:#}")),
+                                Ok(()) => if let (Some((x, y)), true) = (target, probes > 0) {
+                                    probes -= 1;
+                                    if let Some((cx, cy)) = os::cursor_pos() {
+                                        core.sh.note(format!("Moved cursor to ({x:.0},{y:.0}); OS reports ({cx},{cy})"));
+                                    }
+                                }
+                            }
+                        }
+                    }
                     None => break,
                 },
             }

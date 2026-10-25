@@ -171,6 +171,43 @@ pub fn open_permission_settings(name: &str) {
     let _ = name;
 }
 
+/// Where the OS says the cursor is right now (Windows only; used for diagnostics).
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    #[cfg(windows)]
+    {
+        use winapi::{shared::windef::POINT, um::winuser::GetCursorPos};
+        let mut p = POINT { x: 0, y: 0 };
+        // SAFETY: `p` is a valid out-pointer for the duration of the call.
+        if unsafe { GetCursorPos(&mut p) } != 0 {
+            return Some((p.x, p.y));
+        }
+    }
+    None
+}
+
+/// One line describing the monitors, for the log (Windows only).
+pub fn display_info() -> String {
+    #[cfg(windows)]
+    {
+        use winapi::um::winuser::*;
+        // SAFETY: plain value queries.
+        unsafe {
+            return format!(
+                "monitors={} primary={}x{} virtual={}x{} at ({},{})",
+                GetSystemMetrics(SM_CMONITORS),
+                GetSystemMetrics(SM_CXSCREEN),
+                GetSystemMetrics(SM_CYSCREEN),
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+                GetSystemMetrics(SM_XVIRTUALSCREEN),
+                GetSystemMetrics(SM_YVIRTUALSCREEN)
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    String::new()
+}
+
 pub type SharedEngine = Arc<Mutex<HostEngine>>;
 
 fn lock(e: &SharedEngine) -> std::sync::MutexGuard<'_, HostEngine> {
