@@ -9,7 +9,7 @@ versioning: [SemVer](https://semver.org).
 - macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
 
 ### Fixed
-- Windows: injected cursor ignored the virtual desktop origin, so with several monitors it landed on the wrong one (vendored rdev patch).
+- Windows: injected cursor landed on the wrong place or monitor (SendInput absolute coordinates); now placed with SetCursorPos in screen pixels (vendored rdev patch).
 - Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
 - Log shows when the cursor moves to or returns from the other computer.
 - macOS: app crashed on the first key press (rdev read the typed character off the main thread). Vendored rdev with a patch (vendor/rdev/MONO-SYNC-PATCH.md).

@@ -6,12 +6,10 @@ use winapi::ctypes::{c_int, c_short};
 use winapi::shared::minwindef::{DWORD, UINT, WORD};
 use winapi::shared::ntdef::LONG;
 use winapi::um::winuser::{
-    GetSystemMetrics, INPUT_u, SendInput, INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT,
-    KEYEVENTF_KEYUP, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN,
-    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE,
-    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL,
-    MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-    WHEEL_DELTA,
+    INPUT_u, SendInput, SetCursorPos, INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT,
+    KEYEVENTF_KEYUP, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+    MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+    MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, WHEEL_DELTA,
 };
 /// Not defined in win32 but define here for clarity
 static KEYEVENTF_KEYDOWN: DWORD = 0;
@@ -116,25 +114,16 @@ pub fn simulate(event_type: &EventType) -> Result<(), SimulateError> {
             Ok(())
         }
         EventType::MouseMove { x, y } => {
-            // mono-sync patch: `x`,`y` are screen coordinates (primary monitor's top-left
-            // is 0,0). With several monitors the virtual desktop can start at a
-            // negative offset; subtract it, otherwise the cursor lands on the wrong
-            // monitor. Normalise over (size - 1) so the last pixel maps to 65535.
-            let (vx, vy) = unsafe { (GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN)) };
-            let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
-            let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
-            if width <= 1 || height <= 1 {
+            // mono-sync patch: place the cursor with SetCursorPos in screen pixels.
+            // The SendInput "absolute" path needs 0..65535 normalisation over the
+            // virtual desktop, which drifts or lands on the wrong monitor with
+            // several monitors / mixed DPI. SetCursorPos takes the same pixel
+            // coordinates GetSystemMetrics reports, so it stays exact.
+            let ok = unsafe { SetCursorPos(*x as c_int, *y as c_int) };
+            if ok == 0 {
                 return Err(SimulateError);
             }
-            let nx = (((*x as i64) - vx as i64) * 65535 / (width as i64 - 1)).clamp(0, 65535) as i32;
-            let ny = (((*y as i64) - vy as i64) * 65535 / (height as i64 - 1)).clamp(0, 65535) as i32;
-
-            sim_mouse_event(
-                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
-                0,
-                nx,
-                ny,
-            )
+            Ok(())
         }
     }
 }
