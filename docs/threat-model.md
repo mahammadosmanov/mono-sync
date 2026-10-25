@@ -25,7 +25,7 @@ of transferred files.
 | T7 | Path traversal or overwrite via file transfer | Sanitize names, write to a download dir only, no overwrite without consent | M3 |
 | T8 | Clipboard leaks secrets to peers | Opt-in clipboard sync; never logged | M3 |
 | T9 | A3 abuses injection permission | Rely on OS permissions; no listening on localhost without auth | Ongoing |
-| T10 | A web page in the user's browser calls the local control panel (CSRF, DNS rebinding) to change settings or send files | Random per-run key required on every request; loopback Host header check; no CORS headers; CSP | Done (M4 alpha) |
+| T10 | (Retired) local control panel reachable from web pages | The browser panel was replaced by a Tauri window with in-process commands (ADR-0013); no local HTTP server remains | N/A |
 | T11 | Identity key or pairing token read by another local user | Files in the per-user config dir written owner-only (0600 on Unix; Windows relies on the user profile ACL) | Done |
 
 ## Accepted limits
