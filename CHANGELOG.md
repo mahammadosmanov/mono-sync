@@ -7,12 +7,9 @@ versioning: [SemVer](https://semver.org).
 
 ### Changed
 - macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
-
-### Added
-- Windows guest without a mouse: mono-sync draws the cursor itself (Windows shows no pointer when no mouse is attached). Setting "draw it myself" forces it (ADR-0014).
+- Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 
 ### Fixed
-- Windows guest: wakes the cursor with a real mouse input when Windows reports it hidden (SetCursorPos alone does not un-hide it); log shows cursor visibility.
 - Windows: injected cursor landed on the wrong place or monitor (SendInput absolute coordinates); now placed with SetCursorPos in screen pixels (vendored rdev patch).
 - Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
 - Log shows when the cursor moves to or returns from the other computer.
