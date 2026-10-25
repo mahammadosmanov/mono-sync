@@ -42,6 +42,10 @@ pub enum Msg {
         dx: i64,
         dy: i64,
     },
+    /// Clipboard text changed on the sender. Appended last: keeps old encodings valid.
+    Clip {
+        text: String,
+    },
 }
 
 impl Msg {
@@ -80,6 +84,9 @@ mod tests {
             },
             Msg::Move { dx: -3, dy: 7 },
             Msg::Wheel { dx: 0, dy: -120 },
+            Msg::Clip {
+                text: "héllo".into(),
+            },
         ] {
             assert_eq!(Msg::decode(&m.encode()).unwrap(), m);
         }

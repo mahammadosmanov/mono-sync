@@ -65,6 +65,23 @@ impl From<EdgeArg> for Edge {
 
 const PEER: u32 = 1;
 
+/// Clipboard watcher thread -> async channel; plus the sink for incoming text.
+fn clip_bridge() -> (
+    mpsc::UnboundedReceiver<String>,
+    std::sync::mpsc::Sender<String>,
+) {
+    let (rx, sink) = mono_clip::spawn();
+    let (tx, arx) = mpsc::unbounded_channel();
+    std::thread::spawn(move || {
+        while let Ok(t) = rx.recv() {
+            if tx.send(t).is_err() {
+                break;
+            }
+        }
+    });
+    (arx, sink)
+}
+
 fn random_token() -> Result<String> {
     let mut b = [0u8; 16];
     getrandom::fill(&mut b).map_err(|e| anyhow::anyhow!("rng: {e}"))?;
@@ -115,17 +132,26 @@ async fn host(bind: SocketAddr, edge: Edge) -> Result<()> {
     // The grab loop blocks its thread for the life of the process.
     let grab = std::thread::spawn(move || os::run_host(engine, tx, a));
 
+    let (clip_out, clip_in) = clip_bridge();
+    let mut clip_out = clip_out;
     let mut tick = tokio::time::interval(std::time::Duration::from_millis(500));
     loop {
         tokio::select! {
             _ = tick.tick() => if grab.is_finished() { break },
+            Some(text) = clip_out.recv() => {
+                if session.send(&Msg::Clip { text }).await.is_err() { break }
+            }
             Some((_, m)) = rx.recv() => {
                 if let Err(e) = session.send(&m).await {
                     eprintln!("send failed: {e:#}");
                     break;
                 }
             }
-            m = session.recv() => if m.is_none() { eprintln!("guest disconnected"); break },
+            m = session.recv() => match m {
+                Some(Msg::Clip { text }) => { let _ = clip_in.send(text); }
+                Some(_) => {}
+                None => { eprintln!("guest disconnected"); break }
+            },
             _ = tokio::signal::ctrl_c() => break,
         }
     }
@@ -152,9 +178,14 @@ async fn guest(addr: SocketAddr, code: &str) -> Result<()> {
     println!("Connected to {addr}. Ctrl+C to quit.");
 
     let mut engine = GuestEngine::new(screen);
+    let (mut clip_out, clip_in) = clip_bridge();
     loop {
         tokio::select! {
+            Some(text) = clip_out.recv() => {
+                if session.send(&Msg::Clip { text }).await.is_err() { break }
+            }
             m = session.recv() => match m {
+                Some(Msg::Clip { text }) => { let _ = clip_in.send(text); }
                 Some(m) => for a in engine.on_msg(&m) {
                     if let Err(e) = os::inject(&a) { eprintln!("{e:#}"); }
                 },
