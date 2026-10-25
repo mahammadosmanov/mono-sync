@@ -154,6 +154,8 @@ pub fn validate(cfg: &Config) -> Result<()> {
 
 pub struct Core {
     pub sh: Shared,
+    /// Fallback when the OS cannot report a display (headless CI).
+    screen: Size,
     engine: SharedEngine,
     input_tx: mpsc::UnboundedSender<(PeerId, Msg)>,
     input_rx: AsyncMutex<mpsc::UnboundedReceiver<(PeerId, Msg)>>,
@@ -180,6 +182,7 @@ impl Core {
         });
         Ok(Arc::new(Core {
             sh: Shared::default(),
+            screen,
             engine: Arc::new(Mutex::new(HostEngine::new(screen, vec![]))),
             input_tx,
             input_rx: AsyncMutex::new(input_rx),
@@ -289,7 +292,7 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     core.sh
         .with(|s| s.code = Some(format!("{}:{}", id.fingerprint(), token)));
     core.ensure_grab();
-    let host_screen = os::screen_size()?;
+    let host_screen = os::screen_size().unwrap_or(core.screen);
     let mut rx = core.input_rx.lock().await;
     let mut clip = core.clip.lock().await;
     let mut next: Option<mono_net::Session> = None;
@@ -363,7 +366,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     if fp.len() != 64 || token.is_empty() {
         bail!("pairing code looks incomplete; copy it again from the host");
     }
-    let screen = os::screen_size()?;
+    let screen = os::screen_size().unwrap_or(core.screen);
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();
     loop {
