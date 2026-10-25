@@ -1,3 +1,5 @@
+// mono-sync: vendored third-party code; its upstream warnings must not fail our CI (RUSTFLAGS=-D warnings).
+#![allow(warnings)]
 //! Simple library to listen and send events to keyboard and mouse on MacOS, Windows and Linux
 //! (x11).
 //!
