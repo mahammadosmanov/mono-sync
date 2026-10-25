@@ -73,6 +73,22 @@ async fn pair_transfer_and_reconnect() {
     })
     .await;
 
+    // host settings saved again (e.g. direction changed): same port must rebind and the guest return
+    let mut hc = Config::load().unwrap();
+    hc.role = Role::Host;
+    hc.bind = "127.0.0.1:24816".into();
+    hc.download_dir = in_host.display().to_string();
+    host.save_and_apply(hc).unwrap();
+    until("reconnected after host re-save", || {
+        host.view().connected && guest.view().connected
+    })
+    .await;
+    assert!(
+        !host.view().state.contains("Error"),
+        "{}",
+        host.view().state
+    );
+
     // bad pairing code is rejected up front
     let mut bad = Config::load().unwrap();
     bad.role = Role::Guest;

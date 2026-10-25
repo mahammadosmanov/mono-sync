@@ -169,6 +169,13 @@ pub struct Host {
     token: String,
 }
 
+impl Drop for Host {
+    /// Release the UDP port now, so settings can be re-applied without "address in use".
+    fn drop(&mut self) {
+        self.ep.close(0u32.into(), b"host stopped");
+    }
+}
+
 impl Host {
     pub fn bind(addr: SocketAddr, id: &Identity, token: String) -> Result<Self> {
         let provider = rustls::crypto::ring::default_provider();

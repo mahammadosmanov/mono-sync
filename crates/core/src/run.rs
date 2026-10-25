@@ -307,7 +307,19 @@ impl Core {
 async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     let (id, token) = config::load_identity()?;
     let bind: SocketAddr = cfg.bind.parse().context("bad listen address")?;
-    let srv = Host::bind(bind, &id, token.clone())?;
+    // The previous listener may need a moment to release the port after Save.
+    let mut tries = 0;
+    let srv = loop {
+        match Host::bind(bind, &id, token.clone()) {
+            Ok(s) => break s,
+            Err(e) if tries < 10 => {
+                tries += 1;
+                let _ = e;
+                tokio::time::sleep(Duration::from_millis(300)).await;
+            }
+            Err(e) => return Err(e),
+        }
+    };
     core.sh
         .with(|s| s.code = Some(format!("{}:{}", id.fingerprint(), token)));
     core.ensure_grab();
@@ -352,7 +364,14 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         core.sh.state("Connected");
         loop {
             tokio::select! {
-                Some((_, m)) = rx.recv() => if session.send(&m).await.is_err() { break },
+                Some((_, m)) = rx.recv() => {
+                    match m {
+                        Msg::Enter { .. } => core.sh.note("Cursor moved to the other computer"),
+                        Msg::Leave => core.sh.note("Cursor came back to this computer"),
+                        _ => {}
+                    }
+                    if session.send(&m).await.is_err() { break }
+                }
                 Some(text) = clip.out.recv() => {
                     if session.send(&Msg::Clip { text }).await.is_err() { break }
                 }
@@ -427,7 +446,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                 }
                 m = session.recv() => match m {
                     Some(Msg::Clip { text }) => { let _ = clip.sink.send(text); }
-                    Some(m) => for a in engine.on_msg(&m) {
+                    Some(m) => for a in { if matches!(m, Msg::Enter { .. }) { core.sh.note("Cursor arrived from the other computer"); } engine.on_msg(&m) } {
                         if let Err(e) = os::inject(&a) { core.sh.note(format!("{e:#}")); }
                     },
                     None => break,

@@ -9,6 +9,8 @@ versioning: [SemVer](https://semver.org).
 - macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
 
 ### Fixed
+- Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
+- Log shows when the cursor moves to or returns from the other computer.
 - macOS: app crashed on the first key press (rdev read the typed character off the main thread). Vendored rdev with a patch (vendor/rdev/MONO-SYNC-PATCH.md).
 
 ### Added
