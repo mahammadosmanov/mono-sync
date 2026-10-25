@@ -72,6 +72,7 @@
       <input type="text" id="gAddr" placeholder="192.168.1.20:24800" autocomplete="off">
       <label for="gCode">Pairing code</label>
       <input type="text" id="gCode" placeholder="paste the code from the host" autocomplete="off">
+      <label style="font-weight:400"><input type="checkbox" id="gDraw"> Cursor is invisible on this computer: draw it myself <span class="sub">(on by itself when no mouse is plugged in)</span></label>
     </div>
 
     <label for="dl">Save received files in</label>
@@ -105,7 +106,7 @@ function showRole() {
   $('guestBox').classList.toggle('hide', role() !== 'guest');
 }
 document.querySelectorAll('input[name=role]').forEach(e => e.onchange = () => { dirty = true; showRole(); });
-['edge','gAddr','gCode','dl'].forEach(id => $(id).oninput = () => dirty = true);
+['edge','gAddr','gCode','dl','gDraw'].forEach(id => $(id).oninput = () => dirty = true);
 
 async function refresh() {
   try {
@@ -120,7 +121,7 @@ async function refresh() {
     if (!cfg || !dirty) {
       cfg = s.config;
       const r = document.querySelector(`input[name=role][value=${cfg.role}]`); if (r) r.checked = true;
-      $('edge').value = cfg.edge; $('gAddr').value = cfg.host_addr; $('gCode').value = cfg.pairing_code;
+      $('edge').value = cfg.edge; $('gAddr').value = cfg.host_addr; $('gCode').value = cfg.pairing_code; $('gDraw').checked = !!cfg.draw_cursor;
       $('dl').value = cfg.download_dir || s.download_dir; showRole();
     }
     $('perm').style.display = s.needs && s.needs.length ? '' : 'none';
@@ -141,7 +142,7 @@ $('save').onclick = async () => {
   const m = $('saveMsg'); m.className = 'msg'; m.textContent = '';
   if (role() === 'none') { m.className = 'msg err'; m.textContent = 'Choose Host or Guest first.'; return; }
   const config = { role: role(), edge: $('edge').value, bind: (cfg && cfg.bind) || '0.0.0.0:24800',
-    host_addr: $('gAddr').value.trim(), pairing_code: $('gCode').value.trim().replace(/\s+/g, ''), download_dir: $('dl').value.trim() };
+    host_addr: $('gAddr').value.trim(), pairing_code: $('gCode').value.trim().replace(/\s+/g, ''), download_dir: $('dl').value.trim(), draw_cursor: $('gDraw').checked };
   try { await invoke('save', { config }); dirty = false; m.className = 'msg ok'; m.textContent = 'Saved.'; refresh(); }
   catch (e) { m.className = 'msg err'; m.textContent = String(e); }
 };

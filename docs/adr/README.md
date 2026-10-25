@@ -19,5 +19,6 @@ supersedes it and update the old one's status.
 | [0011](0011-file-transfer-on-own-streams.md) | File transfer on dedicated unidirectional streams | Accepted |
 | [0012](0012-local-web-control-panel.md) | Local web control panel instead of a native GUI toolkit | Superseded by 0013 |
 | [0013](0013-tauri-desktop-app.md) | Tauri desktop app over a shared core crate | Accepted |
+| [0014](0014-self-drawn-cursor-on-mouseless-windows.md) | Draw our own cursor on Windows PCs that have no mouse | Accepted |
 
 Template: [0000-template.md](0000-template.md)

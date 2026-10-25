@@ -49,6 +49,9 @@ pub struct Config {
     pub pairing_code: String,
     /// Where received files go. Empty = Downloads/mono.
     pub download_dir: String,
+    /// Guest: draw the cursor ourselves even if Windows reports a mouse.
+    /// (Without any mouse Windows shows no pointer; that is detected automatically.)
+    pub draw_cursor: bool,
 }
 
 impl Default for Config {
@@ -60,6 +63,7 @@ impl Default for Config {
             host_addr: String::new(),
             pairing_code: String::new(),
             download_dir: String::new(),
+            draw_cursor: false,
         }
     }
 }
