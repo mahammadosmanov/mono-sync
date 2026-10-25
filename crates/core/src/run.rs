@@ -301,10 +301,11 @@ fn wait_for_permissions(sh: &Shared, block: bool) -> bool {
     use std::collections::HashSet;
     let mut opened: HashSet<&'static str> = HashSet::new();
     let mut announced = false;
+    let mut tick = 0u32;
     loop {
         let missing = os::missing_permissions();
         sh.with(|s| s.needs = missing.iter().map(|m| m.to_string()).collect());
-        if missing.is_empty() {
+        let Some(first) = missing.first().copied() else {
             if announced {
                 sh.note("Permissions granted");
                 if block {
@@ -316,20 +317,22 @@ fn wait_for_permissions(sh: &Shared, block: bool) -> bool {
                 }
             }
             return true;
-        }
+        };
         if !announced {
             announced = true;
-            os::request_permissions();
             sh.note(format!(
                 "macOS needs your OK: turn on mono-sync under {} (Settings opened for you)",
                 missing.join(" and ")
             ));
         }
-        // One page at a time: opening two panes at once leaves the user on the last one.
-        if let Some(m) = missing.first() {
-            if opened.insert(m) {
-                os::open_permission_settings(m);
-            }
+        // One permission at a time: request it (this lists the app in Settings),
+        // then open its page. Re-request now and then so the entry stays listed.
+        if opened.insert(first) {
+            os::request_permission(first);
+            std::thread::sleep(Duration::from_millis(800));
+            os::open_permission_settings(first);
+        } else if tick.is_multiple_of(3) {
+            os::request_permission(first);
         }
         if block {
             sh.state(format!(
@@ -337,6 +340,7 @@ fn wait_for_permissions(sh: &Shared, block: bool) -> bool {
                 missing.join(" + ")
             ));
         }
+        tick += 1;
         std::thread::sleep(Duration::from_secs(2));
     }
 }
