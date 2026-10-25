@@ -5,11 +5,14 @@
 //! strangers receiving keystrokes). Both travel together in a pairing code.
 use anyhow::{bail, Context, Result};
 use mono_proto::{Msg, VERSION};
-use quinn::{Connection, Endpoint};
+use quinn::Endpoint;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
+
+pub mod file;
+pub use quinn::Connection;
 
 const MAX_FRAME: usize = 64 * 1024;
 
@@ -76,6 +79,11 @@ impl Session {
             }
         });
         Self { conn, tx, rx }
+    }
+
+    /// Handle for file transfer and other extra streams.
+    pub fn connection(&self) -> Connection {
+        self.conn.clone()
     }
 
     pub async fn send(&mut self, m: &Msg) -> Result<()> {
@@ -303,6 +311,54 @@ mod tests {
 
         hs.send(&Msg::Move { dx: 5, dy: -5 }).await.unwrap();
         assert_eq!(gs.recv().await, Some(Msg::Move { dx: 5, dy: -5 }));
+    }
+
+    #[tokio::test]
+    async fn file_roundtrip_with_hash_check() {
+        let id = Identity::generate().unwrap();
+        let host = Host::bind(lo(), &id, "secret".into()).unwrap();
+        let addr = host.local_addr().unwrap();
+        let fp = id.fingerprint();
+        let g = tokio::spawn(async move { connect(addr, &fp, "secret").await.unwrap() });
+        let hs = host.accept().await.unwrap();
+        let gs = g.await.unwrap();
+
+        let dir = std::env::temp_dir().join(format!("mono-ft-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (etx, mut erx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(file::receive_loop(gs.connection(), dir.join("in"), etx));
+
+        // 3 MiB + 1 byte of non-trivial data, crosses several chunks
+        let data: Vec<u8> = (0..3 * 1024 * 1024 + 1)
+            .map(|i: usize| (i * 31 % 251) as u8)
+            .collect();
+        let src = dir.join("big.bin");
+        std::fs::write(&src, &data).unwrap();
+        assert_eq!(
+            file::send(&hs.connection(), &src).await.unwrap(),
+            data.len() as u64
+        );
+        match tokio::time::timeout(Duration::from_secs(10), erx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+        {
+            file::FileEvent::Received { path, size } => {
+                assert_eq!(size, data.len() as u64);
+                assert_eq!(std::fs::read(path).unwrap(), data);
+            }
+            e => panic!("{e:?}"),
+        }
+        // second send of same name must not overwrite
+        file::send(&hs.connection(), &src).await.unwrap();
+        match erx.recv().await.unwrap() {
+            file::FileEvent::Received { path, .. } => {
+                assert!(path.file_name().unwrap().to_str().unwrap().contains("(1)"))
+            }
+            e => panic!("{e:?}"),
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[tokio::test]
