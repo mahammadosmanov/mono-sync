@@ -5,6 +5,9 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+- macOS: app crashed on the first key press (rdev read the typed character off the main thread). Vendored rdev with a patch (vendor/rdev/MONO-SYNC-PATCH.md).
+
 ### Added
 - Repository foundation: dual MIT/Apache-2.0 license, PRD, architecture, roadmap, ADRs 0001-0009.
 - `mono-proto`: wire messages with postcard encoding.
