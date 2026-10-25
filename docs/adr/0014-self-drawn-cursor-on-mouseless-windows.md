@@ -1,6 +1,6 @@
 # 0014. Draw our own cursor on Windows PCs that have no mouse
 
-- Status: Accepted
+- Status: Superseded by 0015
 - Date: 2026-10-25
 
 ## Context

@@ -78,5 +78,7 @@ async fn main() -> Result<()> {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
     tokio::signal::ctrl_c().await?;
+    // Put back MouseKeys (ADR-0015) before exiting.
+    core.stop();
     Ok(())
 }
