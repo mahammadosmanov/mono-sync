@@ -6,3 +6,7 @@ members = ["crates/proto", "crates/net", "crates/input", "crates/cli", "crates/c
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+
+# Fixes a macOS crash on key press (see vendor/rdev/MONO-SYNC-PATCH.md).
+[patch.crates-io]
+rdev = { path = "vendor/rdev" }
