@@ -10,3 +10,6 @@ Remove this vendored copy when upstream fixes it.
 `MouseMove` ignored the virtual desktop origin (`SM_XVIRTUALSCREEN`/`SM_YVIRTUALSCREEN`), so with
 several monitors the injected cursor landed on the wrong monitor. The origin is now subtracted and
 coordinates are normalised over `size - 1`.
+
+Update: `MouseMove` now uses `SetCursorPos` (screen pixels) instead of SendInput absolute
+coordinates, which were unreliable with several monitors / mixed DPI.
