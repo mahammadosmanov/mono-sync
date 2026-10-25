@@ -1,0 +1,21 @@
+[package]
+name = "mono-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "mono-sync desktop app"
+
+[[bin]]
+name = "mono-sync"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+mono-core = { path = "../core", version = "0.1.0" }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde_json = "1"

@@ -6,8 +6,8 @@ open source; LAN-only; no accounts, no cloud.
 
 > **Status: alpha.** Keyboard, mouse, text clipboard and file transfer work
 > between two computers on one LAN. Tested end to end on loopback and Mac to
-> Windows by hand. Not yet: 3+ computers, multi-monitor layouts, tray icon,
-> installers, code signing. Expect rough edges.
+> Windows by hand. Not yet: 3+ computers, multi-monitor layouts, auto-start,
+> code signing. Expect rough edges.
 
 ## Goals
 
@@ -32,24 +32,27 @@ Input Monitoring permission once input features land.
 
 ## Use it
 
-1. Download `mono-x86_64-pc-windows-msvc.exe` (Windows) or the macOS binary from
-   the latest [release](https://github.com/mahammadosmanov/mono-sync/releases), or build:
-   `cargo build --release -p mono-cli`.
-2. Run it on **both** computers. A browser tab (control panel) opens.
-3. Computer with the keyboard and mouse: choose **Host**, pick the side where
-   the other computer sits, Save. It shows an address and a pairing code.
-4. Other computer: choose **Guest**, enter the address and code, Save.
+1. Install from the latest [release](https://github.com/mahammadosmanov/mono-sync/releases):
+   Windows `mono-sync_*_x64-setup.exe` (installs for your user, no admin) or the
+   portable `mono-sync-portable-windows-x64.exe`; macOS `.dmg`. Needs the WebView2
+   runtime on Windows (already present on Windows 11 and current Windows 10).
+2. Open **mono-sync** on **both** computers.
+3. Computer with the keyboard and mouse: choose **This computer has the keyboard and mouse**,
+   pick the side where the other computer sits, **Save and start**. It shows an
+   address and a pairing code.
+4. Other computer: choose **Control this computer from another**, enter the
+   address and code, **Save and start**.
 5. Push the cursor through the chosen edge. `Ctrl+Alt(Option)+Esc` returns control.
-6. Copy text on one side and paste on the other. Drop files on the panel to send them.
+6. Copied text is shared automatically. Drop files on the window to send them.
+   Closing the window keeps sharing running in the tray icon; Quit is in the tray menu.
 
-Windows may show SmartScreen (unsigned): More info, Run anyway. macOS: grant
-**Accessibility** and **Input Monitoring** to the app that launched `mono`
-(Terminal), then restart it. Windows firewall: allow `mono` on private networks
-if asked (UDP 24800 on the host). Settings live in `%APPDATA%\mono-sync` or
+Unsigned builds: Windows SmartScreen says More info, Run anyway; macOS says
+right-click, Open (and allow in Privacy & Security). macOS needs **Accessibility**
+and **Input Monitoring** for mono-sync. Windows firewall: allow mono-sync on
+private networks if asked. Settings: `%APPDATA%\mono-sync` or
 `~/Library/Application Support/mono-sync`.
 
-Command line is still available: `mono host --edge left`, `mono guest <ip:port> <code>`,
-`--no-browser` to skip opening the panel.
+Headless: `mono host --edge left`, `mono guest <ip:port> <code>` (crate `mono-cli`).
 
 ## Layout
 
@@ -59,8 +62,9 @@ Command line is still available: `mono host --edge left`, `mono guest <ip:port> 
 | `crates/net` | QUIC transport, pairing handshake |
 | `crates/input` | Layout router, host/guest engines, stuck-key guard, rdev OS glue |
 | `crates/clip` | Text clipboard sync |
-| `crates/cli` | The `mono` binary: runner, settings, control panel |
-| `scripts/` | Loopback end-to-end test |
+| `crates/core` | Settings, identity, host/guest loops (no UI) |
+| `crates/app` | Tauri desktop app (window, tray) |
+| `crates/cli` | Headless `mono` command |
 | `docs/` | PRD, architecture, ADRs, threat model, test plan |
 
 ## Contributing

@@ -1,5 +1,14 @@
 [advisories]
 yanked = "deny"
+# Unmaintained crates pulled in only on Linux by Tauri (GTK3 bindings) and the
+# single-instance plugin (zbus). Not part of the Windows/macOS builds we ship.
+# Re-check when Tauri updates; remove entries as upstream drops them.
+ignore = [
+  "RUSTSEC-2024-0370", # proc-macro-error (gtk3-rs, Linux)
+  "RUSTSEC-2026-0370", # zvariant (zbus, Linux)
+  "RUSTSEC-2026-0371", # zbus_names (zbus, Linux)
+  "RUSTSEC-2026-0372", # zvariant_derive (zbus, Linux)
+]
 
 [licenses]
 allow = [

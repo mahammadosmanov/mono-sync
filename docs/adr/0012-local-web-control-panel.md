@@ -1,6 +1,6 @@
 # 0012. Local web control panel instead of a native GUI toolkit
 
-- Status: Accepted (revisit criteria below)
+- Status: Superseded by 0013
 - Date: 2026-10-25
 
 ## Context

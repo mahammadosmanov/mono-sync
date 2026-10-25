@@ -8,9 +8,7 @@ Linux, macOS and Windows; `cargo deny check`.
 Covered: protocol round trips, malformed input rejection, QUIC sessions on
 loopback (reliable and datagram paths), wrong token and wrong fingerprint refusal.
 
-`scripts/e2e-loopback.py` (run locally, needs a release build): two real
-processes pair, transfer a 5 MiB file both ways, reject path traversal, reject
-unauthenticated control-panel calls, and reconnect after the guest restarts.
+`crates/core/tests/loopback.rs`: two in-process cores (no OS input, no real clipboard) pair, transfer a 2 MB file both ways, reconnect after the guest restarts, and reject a bad pairing code.
 
 ## Manual cross-OS checklist (per milestone)
 

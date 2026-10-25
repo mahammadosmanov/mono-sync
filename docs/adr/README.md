@@ -17,6 +17,7 @@ supersedes it and update the old one's status.
 | [0009](0009-dual-license.md) | Dual license MIT OR Apache-2.0 | Accepted |
 | [0010](0010-center-warp-motion-capture.md) | Read remote motion as offset from a parked centre cursor | Accepted (revisit criteria) |
 | [0011](0011-file-transfer-on-own-streams.md) | File transfer on dedicated unidirectional streams | Accepted |
-| [0012](0012-local-web-control-panel.md) | Local web control panel instead of a native GUI toolkit | Accepted (revisit criteria) |
+| [0012](0012-local-web-control-panel.md) | Local web control panel instead of a native GUI toolkit | Superseded by 0013 |
+| [0013](0013-tauri-desktop-app.md) | Tauri desktop app over a shared core crate | Accepted |
 
 Template: [0000-template.md](0000-template.md)

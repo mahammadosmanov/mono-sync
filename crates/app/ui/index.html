@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mono-sync</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#14171c; --muted:#5d6673; --line:#dfe3e8; --acc:#2563eb; --ok:#15803d; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#101318; --card:#181c23; --fg:#e8ebf0; --muted:#98a2b3; --line:#2a303a; --acc:#6ea0ff; --ok:#4ade80; --bad:#f87171; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; } .sub { color:var(--muted); margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 10px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  input[type=text], select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
+  button { padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-weight:600; font-size:13px; background:var(--bg); border:1px solid var(--line); }
+  .pill.ok { color:var(--ok); } .pill.bad { color:var(--bad); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size:12.5px; word-break: break-all; }
+  .code { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .role { display:flex; gap:10px; } .role label { flex:1; border:1px solid var(--line); border-radius:8px; padding:10px; cursor:pointer; margin:0; font-weight:600; }
+  .role input { margin-right:6px; } .role small { display:block; font-weight:400; color:var(--muted); }
+  #drop { border:2px dashed var(--line); border-radius:10px; padding:26px; text-align:center; color:var(--muted); }
+  #drop.over { border-color:var(--acc); color:var(--acc); }
+  #log { max-height:200px; overflow:auto; white-space:pre-wrap; }
+  .msg { min-height:20px; margin-top:8px; } .msg.err { color:var(--bad); } .msg.ok { color:var(--ok); }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>mono-sync <span id="ver" class="sub"></span></h1>
+  <div class="sub">One keyboard and mouse across your computers. Same network only.</div>
+
+  <div class="card">
+    <h2>Status</h2>
+    <span id="state" class="pill">…</span>
+    <span id="addr" class="sub" style="margin-left:8px"></span>
+  </div>
+
+  <div class="card">
+    <h2>Setup</h2>
+    <div class="role">
+      <label><input type="radio" name="role" value="host">This computer has the keyboard and mouse <small>Host</small></label>
+      <label><input type="radio" name="role" value="guest">Control this computer from another <small>Guest</small></label>
+    </div>
+
+    <div id="hostBox" class="hide">
+      <label for="edge">The other computer is on the … of this screen</label>
+      <select id="edge"><option value="left">Left</option><option value="right">Right</option><option value="top">Top</option><option value="bottom">Bottom</option></select>
+      <label>Give these two to the guest computer</label>
+      <div class="code"><div class="sub" style="margin:0">Address</div><div class="mono" id="hostAddr">…</div>
+      <div class="sub" style="margin:8px 0 0">Pairing code (treat like a password)</div><div class="mono" id="hostCode">…</div></div>
+      <div class="row"><button id="copyAddr">Copy address</button><button id="copyCode">Copy code</button></div>
+      <p class="sub">Back to this computer at any time: Ctrl + Alt (Option) + Esc.</p>
+    </div>
+
+    <div id="guestBox" class="hide">
+      <label for="gAddr">Host address</label>
+      <input type="text" id="gAddr" placeholder="192.168.1.20:24800" autocomplete="off">
+      <label for="gCode">Pairing code</label>
+      <input type="text" id="gCode" placeholder="paste the code from the host" autocomplete="off">
+    </div>
+
+    <label for="dl">Save received files in</label>
+    <input type="text" id="dl" autocomplete="off">
+    <div class="row"><button class="primary" id="save">Save and start</button><button id="open">Open received files</button></div>
+    <div id="saveMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Send files</h2>
+    <div id="drop">Drop files here or <a href="#" id="pick">choose files</a></div>
+    <div id="sendMsg" class="msg"></div>
+    <p class="sub">Copied text is shared automatically between connected computers.</p>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log" class="mono"></div>
+    <div class="row"><button id="quit">Quit mono-sync</button><span class="sub">Closing the window keeps sharing running in the tray.</span></div>
+  </div>
+</main>
+<script>
+const T = window.__TAURI__;
+const invoke = (cmd, args) => T.core.invoke(cmd, args);
+const $ = id => document.getElementById(id);
+let cfg = null, dirty = false;
+
+const role = () => (document.querySelector('input[name=role]:checked') || {}).value || 'none';
+function showRole() {
+  $('hostBox').classList.toggle('hide', role() !== 'host');
+  $('guestBox').classList.toggle('hide', role() !== 'guest');
+}
+document.querySelectorAll('input[name=role]').forEach(e => e.onchange = () => { dirty = true; showRole(); });
+['edge','gAddr','gCode','dl'].forEach(id => $(id).oninput = () => dirty = true);
+
+async function refresh() {
+  try {
+    const s = await invoke('view');
+    $('ver').textContent = 'v' + s.version;
+    const st = $('state'); st.textContent = s.state || '…';
+    st.className = 'pill ' + (s.connected ? 'ok' : /error|failed/i.test(s.state) ? 'bad' : '');
+    $('addr').textContent = s.address ? 'This computer: ' + s.address : '';
+    $('hostAddr').textContent = s.address || 'unknown (check your network settings)';
+    $('hostCode').textContent = s.code || (s.config.role === 'host' ? 'starting…' : 'Save as host to see the code');
+    $('log').textContent = s.log.join('\n'); $('log').scrollTop = 1e9;
+    if (!cfg || !dirty) {
+      cfg = s.config;
+      const r = document.querySelector(`input[name=role][value=${cfg.role}]`); if (r) r.checked = true;
+      $('edge').value = cfg.edge; $('gAddr').value = cfg.host_addr; $('gCode').value = cfg.pairing_code;
+      $('dl').value = cfg.download_dir || s.download_dir; showRole();
+    }
+    $('drop').style.opacity = s.connected ? 1 : .5;
+  } catch (e) { $('state').textContent = 'Error: ' + e; $('state').className = 'pill bad'; }
+}
+
+$('save').onclick = async () => {
+  const m = $('saveMsg'); m.className = 'msg'; m.textContent = '';
+  if (role() === 'none') { m.className = 'msg err'; m.textContent = 'Choose Host or Guest first.'; return; }
+  const config = { role: role(), edge: $('edge').value, bind: (cfg && cfg.bind) || '0.0.0.0:24800',
+    host_addr: $('gAddr').value.trim(), pairing_code: $('gCode').value.trim().replace(/\s+/g, ''), download_dir: $('dl').value.trim() };
+  try { await invoke('save', { config }); dirty = false; m.className = 'msg ok'; m.textContent = 'Saved.'; refresh(); }
+  catch (e) { m.className = 'msg err'; m.textContent = String(e); }
+};
+$('open').onclick = () => invoke('open_folder');
+$('quit').onclick = () => invoke('quit');
+for (const [btn, id] of [['copyAddr','hostAddr'],['copyCode','hostCode']])
+  $(btn).onclick = () => navigator.clipboard.writeText($(id).textContent);
+
+async function sendFiles(paths) {
+  const m = $('sendMsg');
+  if (!paths || !paths.length) return;
+  m.className = 'msg'; m.textContent = `Sending ${paths.length} file(s) …`;
+  try { m.className = 'msg ok'; m.textContent = await invoke('send_files', { paths }); }
+  catch (e) { m.className = 'msg err'; m.textContent = String(e); }
+  refresh();
+}
+$('pick').onclick = async e => {
+  e.preventDefault();
+  const r = await T.dialog.open({ multiple: true });
+  sendFiles(r ? [].concat(r) : []);
+};
+const d = $('drop');
+T.webview.getCurrentWebview().onDragDropEvent(ev => {
+  const t = ev.payload.type;
+  d.classList.toggle('over', t === 'enter' || t === 'over');
+  if (t === 'drop') sendFiles(ev.payload.paths);
+});
+
+refresh(); setInterval(refresh, 1000);
+</script>
+</body>
+</html>

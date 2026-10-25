@@ -26,8 +26,10 @@ input when the cursor is on its screens). In M1 roles are fixed per connection.
 | `mono-proto` | Wire messages and encoding. No I/O. | serde, postcard, rdev (types only) |
 | `mono-net` | QUIC endpoints, pairing handshake, session. | mono-proto, quinn, rustls |
 | `mono-input` (M1) | `Capture` and `Inject` traits, per-OS backends, edge logic. | mono-proto |
-| `mono-cli` (M1) | `mono host`, `mono guest`. | all |
-| `mono-app` (M4) | Tray UI. | all |
+| `mono-clip` | Text clipboard sync. | arboard |
+| `mono-core` | Settings, identity, host/guest loops, status view. No UI. | all above |
+| `mono-cli` | Headless `mono host` / `mono guest`. | mono-core |
+| `mono-app` | Tauri window and tray over mono-core (ADR-0013). | mono-core, tauri |
 
 Rule: the protocol and the layout logic contain no OS calls, so they are unit
 testable on any machine. OS code lives only behind the `mono-input` traits.
