@@ -248,7 +248,7 @@ pub fn display_info() -> String {
         use winapi::um::winuser::*;
         // SAFETY: plain value queries.
         unsafe {
-            return format!(
+            format!(
                 "monitors={} primary={}x{} virtual={}x{} at ({},{})",
                 GetSystemMetrics(SM_CMONITORS),
                 GetSystemMetrics(SM_CXSCREEN),
@@ -257,7 +257,7 @@ pub fn display_info() -> String {
                 GetSystemMetrics(SM_CYVIRTUALSCREEN),
                 GetSystemMetrics(SM_XVIRTUALSCREEN),
                 GetSystemMetrics(SM_YVIRTUALSCREEN)
-            );
+            )
         }
     }
     #[cfg(not(windows))]
