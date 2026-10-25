@@ -9,6 +9,7 @@ versioning: [SemVer](https://semver.org).
 - macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
 
 ### Fixed
+- Windows guest: wakes the cursor with a real mouse input when Windows reports it hidden (SetCursorPos alone does not un-hide it); log shows cursor visibility.
 - Windows: injected cursor landed on the wrong place or monitor (SendInput absolute coordinates); now placed with SetCursorPos in screen pixels (vendored rdev patch).
 - Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
 - Log shows when the cursor moves to or returns from the other computer.

@@ -185,6 +185,62 @@ pub fn cursor_pos() -> Option<(i32, i32)> {
     None
 }
 
+/// Windows only: `SetCursorPos` moves the cursor but does not un-hide it when
+/// Windows considers it hidden/suppressed (no mouse input seen, touch or
+/// "hide while typing"). A real, tiny mouse input does. No-op elsewhere.
+pub fn wake_cursor() {
+    #[cfg(windows)]
+    {
+        use std::mem::{size_of, zeroed};
+        use winapi::um::winuser::{SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_MOVE};
+        for dx in [1i32, -1] {
+            // SAFETY: zeroed INPUT is a valid blank; fields set below; size is exact.
+            unsafe {
+                let mut i: INPUT = zeroed();
+                i.type_ = INPUT_MOUSE;
+                let mi = i.u.mi_mut();
+                mi.dx = dx;
+                mi.dy = 0;
+                mi.dwFlags = MOUSEEVENTF_MOVE;
+                SendInput(1, &mut i, size_of::<INPUT>() as i32);
+            }
+        }
+    }
+}
+
+/// Windows only: if Windows reports the cursor as hidden, nudge it back.
+pub fn ensure_cursor_visible() {
+    #[cfg(windows)]
+    if cursor_visibility().starts_with("HIDDEN") {
+        wake_cursor();
+    }
+}
+
+/// Windows only: is the cursor currently drawn? e.g. "showing" / "HIDDEN" / "suppressed".
+pub fn cursor_visibility() -> String {
+    #[cfg(windows)]
+    {
+        use winapi::um::winuser::{GetCursorInfo, CURSORINFO, CURSOR_SHOWING};
+        let mut ci = CURSORINFO {
+            cbSize: std::mem::size_of::<CURSORINFO>() as u32,
+            flags: 0,
+            hCursor: std::ptr::null_mut(),
+            ptScreenPos: winapi::shared::windef::POINT { x: 0, y: 0 },
+        };
+        // SAFETY: `ci` is a valid out-structure with cbSize set.
+        if unsafe { GetCursorInfo(&mut ci) } != 0 {
+            let shown = ci.flags & CURSOR_SHOWING != 0;
+            return format!(
+                "{} (flags={}, handle={})",
+                if shown { "showing" } else { "HIDDEN" },
+                ci.flags,
+                if ci.hCursor.is_null() { "none" } else { "set" }
+            );
+        }
+    }
+    String::new()
+}
+
 /// One line describing the monitors, for the log (Windows only).
 pub fn display_info() -> String {
     #[cfg(windows)]
