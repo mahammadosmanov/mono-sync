@@ -83,6 +83,7 @@ fn show_main(app: &AppHandle) {
 
 fn main() {
     let core = Core::new().expect("start core");
+    let stop_core = core.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main(app)
@@ -144,6 +145,12 @@ fn main() {
                 let _ = w.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("run mono-sync");
+        .build(tauri::generate_context!())
+        .expect("build mono-sync")
+        .run(move |_app, e| {
+            // Put back MouseKeys (ADR-0015) before the process goes away.
+            if let tauri::RunEvent::Exit = e {
+                stop_core.stop();
+            }
+        });
 }

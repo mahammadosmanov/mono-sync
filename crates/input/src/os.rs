@@ -171,53 +171,9 @@ pub fn open_permission_settings(name: &str) {
     let _ = name;
 }
 
-/// Where the OS says the cursor is right now (Windows only; used for diagnostics).
-pub fn cursor_pos() -> Option<(i32, i32)> {
-    #[cfg(windows)]
-    {
-        use winapi::{shared::windef::POINT, um::winuser::GetCursorPos};
-        let mut p = POINT { x: 0, y: 0 };
-        // SAFETY: `p` is a valid out-pointer for the duration of the call.
-        if unsafe { GetCursorPos(&mut p) } != 0 {
-            return Some((p.x, p.y));
-        }
-    }
-    None
-}
-
-/// Windows only: `SetCursorPos` moves the cursor but does not un-hide it when
-/// Windows considers it hidden/suppressed (no mouse input seen, touch or
-/// "hide while typing"). A real, tiny mouse input does. No-op elsewhere.
-pub fn wake_cursor() {
-    #[cfg(windows)]
-    {
-        use std::mem::{size_of, zeroed};
-        use winapi::um::winuser::{SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_MOVE};
-        for dx in [1i32, -1] {
-            // SAFETY: zeroed INPUT is a valid blank; fields set below; size is exact.
-            unsafe {
-                let mut i: INPUT = zeroed();
-                i.type_ = INPUT_MOUSE;
-                let mi = i.u.mi_mut();
-                mi.dx = dx;
-                mi.dy = 0;
-                mi.dwFlags = MOUSEEVENTF_MOVE;
-                SendInput(1, &mut i, size_of::<INPUT>() as i32);
-            }
-        }
-    }
-}
-
-/// Windows only: if Windows reports the cursor as hidden, nudge it back.
-pub fn ensure_cursor_visible() {
-    #[cfg(windows)]
-    if cursor_visibility().starts_with("HIDDEN") {
-        wake_cursor();
-    }
-}
-
-/// Windows only: is the cursor currently drawn? e.g. "showing" / "HIDDEN" / "suppressed".
-pub fn cursor_visibility() -> String {
+/// Windows only: is the pointer drawn right now? `None` when unknown (not Windows, or
+/// the query failed).
+pub fn cursor_visibility() -> Option<bool> {
     #[cfg(windows)]
     {
         use winapi::um::winuser::{GetCursorInfo, CURSORINFO, CURSOR_SHOWING};
@@ -229,16 +185,10 @@ pub fn cursor_visibility() -> String {
         };
         // SAFETY: `ci` is a valid out-structure with cbSize set.
         if unsafe { GetCursorInfo(&mut ci) } != 0 {
-            let shown = ci.flags & CURSOR_SHOWING != 0;
-            return format!(
-                "{} (flags={}, handle={})",
-                if shown { "showing" } else { "HIDDEN" },
-                ci.flags,
-                if ci.hCursor.is_null() { "none" } else { "set" }
-            );
+            return Some(ci.flags & CURSOR_SHOWING != 0);
         }
     }
-    String::new()
+    None
 }
 
 /// One line describing the monitors, for the log (Windows only).
@@ -262,6 +212,231 @@ pub fn display_info() -> String {
     }
     #[cfg(not(windows))]
     String::new()
+}
+
+/// What `CursorKeeper` changed on this computer, for the log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CursorChange {
+    /// MouseKeys was switched on so Windows draws the pointer.
+    Enabled,
+    /// The MouseKeys settings the user had were put back.
+    Restored,
+    /// Windows refused a change (reported once per episode).
+    Failed,
+}
+
+/// Makes Windows draw the pointer while the cursor is on this computer and no mouse
+/// is attached. Windows draws no pointer without a mouse, so this does what Input
+/// Leap does (MSWindowsScreen::forceShowCursor): it forces MouseKeys on, keeps the
+/// user's own settings, and puts them back when the cursor leaves. Dropping it also
+/// restores. Does nothing while a mouse is present. Off Windows it does nothing.
+#[cfg(windows)]
+#[derive(Default)]
+pub struct CursorKeeper {
+    /// The cursor is on this computer (set by the host's Enter/Leave).
+    on_screen: bool,
+    /// The user's MouseKeys settings, held while we have MouseKeys forced on.
+    saved: Option<mouse_keys::MouseKeys>,
+    /// A refusal was already reported; avoids a log line on every tick.
+    warned: bool,
+}
+
+#[cfg(windows)]
+impl CursorKeeper {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// True while this keeper has MouseKeys forced on.
+    pub fn is_active(&self) -> bool {
+        self.saved.is_some()
+    }
+
+    /// The cursor entered (`true`) or left (`false`) this computer. Idempotent.
+    pub fn set_active(&mut self, on_screen: bool) -> Option<CursorChange> {
+        self.on_screen = on_screen;
+        if !on_screen {
+            self.warned = false;
+        }
+        self.sync()
+    }
+
+    /// Called about every 2 s while the cursor is here: another app may switch
+    /// MouseKeys off again, and a mouse may be plugged in or unplugged.
+    pub fn tick(&mut self) -> Option<CursorChange> {
+        self.sync()
+    }
+
+    fn sync(&mut self) -> Option<CursorChange> {
+        let wanted = self.on_screen && !mouse_keys::mouse_present();
+        match (self.is_active(), wanted) {
+            (false, true) => self.enable(),
+            (true, false) => self.restore(),
+            (true, true) => {
+                mouse_keys::reassert();
+                None
+            }
+            (false, false) => None,
+        }
+    }
+
+    fn enable(&mut self) -> Option<CursorChange> {
+        if let Some(cur) = mouse_keys::get() {
+            if mouse_keys::force_on(cur) {
+                self.saved = Some(cur);
+                self.warned = false;
+                return Some(CursorChange::Enabled);
+            }
+        }
+        self.refused()
+    }
+
+    fn restore(&mut self) -> Option<CursorChange> {
+        let mut old = self.saved?;
+        if mouse_keys::set(&mut old) {
+            self.saved = None;
+            self.warned = false;
+            Some(CursorChange::Restored)
+        } else {
+            // Keep the saved settings so the next tick tries again.
+            self.refused()
+        }
+    }
+
+    fn refused(&mut self) -> Option<CursorChange> {
+        if self.warned {
+            None
+        } else {
+            self.warned = true;
+            Some(CursorChange::Failed)
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for CursorKeeper {
+    fn drop(&mut self) {
+        if let Some(mut old) = self.saved.take() {
+            mouse_keys::set(&mut old);
+        }
+    }
+}
+
+/// Windows MouseKeys. winapi 0.3 has SPI_GET/SETMOUSEKEYS but neither the MOUSEKEYS
+/// struct nor its MKF_ flags, so they are defined here (layout and values from the
+/// Microsoft documentation of MOUSEKEYS).
+#[cfg(windows)]
+mod mouse_keys {
+    use std::mem::{size_of, zeroed};
+    use winapi::{
+        ctypes::c_void,
+        shared::minwindef::{DWORD, FALSE, UINT},
+        um::winuser::{
+            GetKeyState, GetSystemMetrics, SystemParametersInfoW, SM_MOUSEPRESENT, SPIF_SENDCHANGE,
+            SPI_GETMOUSEKEYS, SPI_SETMOUSEKEYS, VK_NUMLOCK,
+        },
+    };
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    #[allow(non_snake_case)]
+    pub struct MouseKeys {
+        pub cbSize: UINT,
+        pub dwFlags: DWORD,
+        pub iMaxSpeed: DWORD,
+        pub iTimeToMaxSpeed: DWORD,
+        pub iCtrlSpeed: DWORD,
+        pub dwReserved1: DWORD,
+        pub dwReserved2: DWORD,
+    }
+
+    const MKF_MOUSEKEYSON: DWORD = 0x0000_0001;
+    const MKF_AVAILABLE: DWORD = 0x0000_0002;
+    const MKF_REPLACENUMBERS: DWORD = 0x0000_0080;
+
+    /// Does Windows see a mouse? Without one it draws no pointer.
+    pub fn mouse_present() -> bool {
+        // SAFETY: plain value query.
+        unsafe { GetSystemMetrics(SM_MOUSEPRESENT) != 0 }
+    }
+
+    /// The current MouseKeys settings, or None if Windows refuses the query.
+    pub fn get() -> Option<MouseKeys> {
+        // SAFETY: an all-zero MouseKeys is a valid blank.
+        let mut mk: MouseKeys = unsafe { zeroed() };
+        let size = size_of::<MouseKeys>() as UINT;
+        mk.cbSize = size;
+        // SAFETY: `mk` is a valid out-structure; uiParam is its size, as the API requires.
+        let ok = unsafe {
+            SystemParametersInfoW(
+                SPI_GETMOUSEKEYS,
+                size,
+                &mut mk as *mut MouseKeys as *mut c_void,
+                0,
+            )
+        };
+        (ok != FALSE).then_some(mk)
+    }
+
+    /// Writes `mk` system-wide and tells other windows (SPIF_SENDCHANGE, as Input Leap
+    /// does). Not SPIF_UPDATEINIFILE: the change is temporary.
+    pub fn set(mk: &mut MouseKeys) -> bool {
+        let size = size_of::<MouseKeys>() as UINT;
+        mk.cbSize = size;
+        // SAFETY: `mk` is a valid in-structure; uiParam is its size, as the API requires.
+        unsafe {
+            SystemParametersInfoW(
+                SPI_SETMOUSEKEYS,
+                size,
+                mk as *mut MouseKeys as *mut c_void,
+                SPIF_SENDCHANGE,
+            ) != FALSE
+        }
+    }
+
+    /// `cur` with MouseKeys forced on. NumLock on makes the number keys replace the
+    /// numpad keys, as in Input Leap. MKF_HOTKEYACTIVE is deliberately left off.
+    pub fn force_on(mut cur: MouseKeys) -> bool {
+        // SAFETY: plain state query; the low bit is the NumLock toggle state.
+        let numlock = (unsafe { GetKeyState(VK_NUMLOCK) } & 1) != 0;
+        let replace = if numlock { MKF_REPLACENUMBERS } else { 0 };
+        cur.dwFlags = MKF_AVAILABLE | MKF_MOUSEKEYSON | replace;
+        set(&mut cur)
+    }
+
+    /// Turns MouseKeys back on if something switched it off. Input Leap does this on
+    /// each settings-change broadcast; we check on a timer instead.
+    pub fn reassert() {
+        if let Some(cur) = get() {
+            if cur.dwFlags & MKF_MOUSEKEYSON == 0 {
+                force_on(cur);
+            }
+        }
+    }
+}
+
+/// Off Windows nothing is needed: only Windows draws no pointer without a mouse.
+#[cfg(not(windows))]
+#[derive(Default)]
+pub struct CursorKeeper;
+
+#[cfg(not(windows))]
+impl CursorKeeper {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn is_active(&self) -> bool {
+        false
+    }
+
+    pub fn set_active(&mut self, _on_screen: bool) -> Option<CursorChange> {
+        None
+    }
+
+    pub fn tick(&mut self) -> Option<CursorChange> {
+        None
+    }
 }
 
 pub type SharedEngine = Arc<Mutex<HostEngine>>;
@@ -313,6 +488,16 @@ pub fn run_host(_: SharedEngine, _: UnboundedSender<(PeerId, Msg)>) -> Result<()
 mod tests {
     use super::*;
     use mono_proto::Key;
+
+    #[cfg(not(windows))]
+    #[test]
+    fn cursor_keeper_does_nothing_off_windows() {
+        let mut k = CursorKeeper::new();
+        assert_eq!(k.set_active(true), None);
+        assert_eq!(k.tick(), None);
+        assert!(!k.is_active());
+        assert_eq!(k.set_active(false), None);
+    }
 
     #[test]
     fn convert_maps_all_event_kinds() {

@@ -15,7 +15,7 @@ use std::{
     collections::VecDeque,
     net::SocketAddr,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -166,6 +166,11 @@ pub struct Core {
     clip: AsyncMutex<Clip>,
     grab_running: AtomicBool,
     task: Mutex<Option<JoinHandle<()>>>,
+    /// The one MouseKeys owner: the guest loop, while the cursor is on this computer.
+    cursor: Mutex<os::CursorKeeper>,
+    /// Bumped by every `stop`. A loop started under an older number can no longer
+    /// touch MouseKeys (see `cursor_update`).
+    generation: AtomicU64,
 }
 
 impl Core {
@@ -197,6 +202,8 @@ impl Core {
             }),
             grab_running: AtomicBool::new(!grab),
             task: Mutex::new(None),
+            cursor: Mutex::new(os::CursorKeeper::new()),
+            generation: AtomicU64::new(0),
         }))
     }
 
@@ -224,11 +231,41 @@ impl Core {
         Ok(())
     }
 
-    /// Stop whatever is running and start according to `cfg`.
-    pub fn apply(self: &Arc<Self>, cfg: Config) {
+    /// Stop the running host or guest loop and put back any MouseKeys change it made.
+    /// Called on apply and on quit; restores synchronously, so it has happened when
+    /// this returns.
+    pub fn stop(&self) {
+        // Bump first: a loop that is still in the middle of a step can no longer
+        // change MouseKeys once we hold the lock below.
+        self.generation.fetch_add(1, Ordering::SeqCst);
         if let Some(t) = self.task.lock().unwrap_or_else(|p| p.into_inner()).take() {
             t.abort();
         }
+        let change = self
+            .cursor
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .set_active(false);
+        note_cursor(&self.sh, change);
+    }
+
+    /// MouseKeys change requested by the guest loop started at `gen`. Ignored once
+    /// that loop was stopped, so a late message cannot leave MouseKeys on.
+    fn cursor_update(
+        &self,
+        gen: u64,
+        f: impl FnOnce(&mut os::CursorKeeper) -> Option<os::CursorChange>,
+    ) -> Option<os::CursorChange> {
+        let mut k = self.cursor.lock().unwrap_or_else(|p| p.into_inner());
+        if self.generation.load(Ordering::SeqCst) != gen {
+            return None;
+        }
+        f(&mut k)
+    }
+
+    /// Stop whatever is running and start according to `cfg`.
+    pub fn apply(self: &Arc<Self>, cfg: Config) {
+        self.stop();
         os::release_host(&self.engine);
         self.sh.set_conn(None);
         self.sh.with(|s| s.code = None);
@@ -244,12 +281,15 @@ impl Core {
                     core.sh.state("Error (see log)");
                 }
             }),
-            Role::Guest => tokio::spawn(async move {
-                if let Err(e) = guest_loop(&core, &cfg).await {
-                    core.sh.note(format!("Guest stopped: {e:#}"));
-                    core.sh.state("Error (see log)");
-                }
-            }),
+            Role::Guest => {
+                let gen = self.generation.load(Ordering::SeqCst);
+                tokio::spawn(async move {
+                    if let Err(e) = guest_loop(&core, &cfg, gen).await {
+                        core.sh.note(format!("Guest stopped: {e:#}"));
+                        core.sh.state("Error (see log)");
+                    }
+                })
+            }
         };
         *self.task.lock().unwrap_or_else(|p| p.into_inner()) = Some(h);
     }
@@ -292,6 +332,24 @@ impl Core {
             }
         });
     }
+}
+
+/// Log a MouseKeys change made for the guest cursor (see `os::CursorKeeper`).
+fn note_cursor(sh: &Shared, change: Option<os::CursorChange>) {
+    let Some(change) = change else { return };
+    let text = match change {
+        os::CursorChange::Enabled => format!(
+            "MouseKeys enabled for cursor visibility (no mouse on this computer); cursor showing: {}",
+            match os::cursor_visibility() {
+                Some(true) => "yes",
+                Some(false) => "no",
+                None => "unknown",
+            }
+        ),
+        os::CursorChange::Restored => "MouseKeys restored".to_string(),
+        os::CursorChange::Failed => "Windows refused a MouseKeys change; retrying".to_string(),
+    };
+    sh.note(text);
 }
 
 /// macOS: ask for each missing permission, open its Settings page once, and wait
@@ -431,7 +489,7 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     }
 }
 
-async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
+async fn guest_loop(core: &Arc<Core>, cfg: &Config, gen: u64) -> Result<()> {
     let addr: SocketAddr = cfg
         .host_addr
         .trim()
@@ -455,7 +513,6 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
     }
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();
-    let overlay = mono_input::overlay::Overlay::start();
     loop {
         core.sh.state(format!("Connecting to {addr}"));
         let mut session = match connect(addr, fp, token).await {
@@ -486,56 +543,40 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         }
         core.sh.state("Connected");
         let mut engine = GuestEngine::new(screen);
-        let overlay_on = cfg.draw_cursor || !mono_input::overlay::mouse_present();
-        if overlay_on {
-            core.sh
-                .note("No mouse on this computer: mono-sync draws the cursor itself");
-        }
-        let mut probes = 0u8;
-        let mut woke = false;
+        // True while the cursor is on this computer: MouseKeys is kept on for it.
+        let mut on_here = false;
+        let mut keep = tokio::time::interval(Duration::from_secs(2));
         loop {
             tokio::select! {
                 Some(text) = clip.out.recv() => {
                     if session.send(&Msg::Clip { text }).await.is_err() { break }
                 }
+                _ = keep.tick(), if on_here => {
+                    note_cursor(&core.sh, core.cursor_update(gen, |k| k.tick()));
+                }
                 m = session.recv() => match m {
                     Some(Msg::Clip { text }) => { let _ = clip.sink.send(text); }
                     Some(m) => {
-                        if matches!(m, Msg::Enter { .. }) {
+                        let entered = matches!(m, Msg::Enter { .. });
+                        let left = matches!(m, Msg::Leave);
+                        if entered {
                             core.sh.note("Cursor arrived from the other computer");
-                            probes = 3;
-                            woke = true;
-                        }
-                        if matches!(m, Msg::Leave) {
-                            overlay.hide();
                         }
                         for a in engine.on_msg(&m) {
-                            if let (true, mono_input::guest::Act::MoveTo(x, y)) = (overlay_on, a) {
-                                overlay.show_at(x as i32, y as i32);
+                            if let Err(e) = os::inject(&a) {
+                                core.sh.note(format!("Injecting input failed: {e:#}"));
                             }
-                            let target = if let mono_input::guest::Act::MoveTo(x, y) = a { Some((x, y)) } else { None };
-                            match os::inject(&a) {
-                                Err(e) => core.sh.note(format!("Injecting input failed: {e:#}")),
-                                Ok(()) => if target.is_some() && probes == 0 { os::ensure_cursor_visible(); } else if let (Some((x, y)), true) = (target, probes > 0) {
-                                    if woke {
-                                        woke = false;
-                                        let before = os::cursor_visibility();
-                                        os::wake_cursor();
-                                        core.sh.note(format!("Cursor visibility before/after wake: {before} / {}", os::cursor_visibility()));
-                                    }
-                                    probes -= 1;
-                                    if let Some((cx, cy)) = os::cursor_pos() {
-                                        core.sh.note(format!("Moved cursor to ({x:.0},{y:.0}); OS reports ({cx},{cy})"));
-                                    }
-                                }
-                            }
+                        }
+                        if entered || left {
+                            on_here = entered;
+                            note_cursor(&core.sh, core.cursor_update(gen, |k| k.set_active(entered)));
                         }
                     }
                     None => break,
                 },
             }
         }
-        overlay.hide();
+        note_cursor(&core.sh, core.cursor_update(gen, |k| k.set_active(false)));
         for a in engine.on_disconnect() {
             let _ = os::inject(&a);
         }
