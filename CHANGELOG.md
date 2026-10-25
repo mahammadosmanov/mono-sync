@@ -5,6 +5,9 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+- macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
+
 ### Fixed
 - macOS: app crashed on the first key press (rdev read the typed character off the main thread). Vendored rdev with a patch (vendor/rdev/MONO-SYNC-PATCH.md).
 

@@ -255,6 +255,25 @@ impl Core {
         }
         let core = self.clone();
         std::thread::spawn(move || {
+            // Wait for the OS permission instead of failing: the user grants it in
+            // System Settings and sharing starts by itself.
+            if !os::permissions_granted() {
+                os::request_permissions();
+                core.sh.note(
+                    "macOS permission needed: System Settings > Privacy & Security > Accessibility and Input Monitoring > turn on mono-sync",
+                );
+                while !os::permissions_granted() {
+                    core.sh
+                        .state("Waiting for macOS permission (Accessibility + Input Monitoring)");
+                    std::thread::sleep(Duration::from_secs(2));
+                }
+                core.sh.note("Permission granted");
+                core.sh.state(if core.sh.snapshot().3 {
+                    "Connected"
+                } else {
+                    "Waiting for the other computer to connect"
+                });
+            }
             let r = os::run_host(core.engine.clone(), core.input_tx.clone());
             core.grab_running.store(false, Ordering::SeqCst);
             if let Err(e) = r {
@@ -367,6 +386,13 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         bail!("pairing code looks incomplete; copy it again from the host");
     }
     let screen = os::screen_size().unwrap_or(core.screen);
+    if !os::permissions_granted() {
+        // Injecting input needs Accessibility on macOS; ask now, keep connecting.
+        os::request_permissions();
+        core.sh.note(
+            "macOS permission needed: Accessibility > turn on mono-sync, then restart the app",
+        );
+    }
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();
     loop {

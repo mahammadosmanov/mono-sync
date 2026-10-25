@@ -75,6 +75,50 @@ fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>) {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod perm {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGPreflightListenEventAccess() -> bool;
+        fn CGRequestListenEventAccess() -> bool;
+        fn CGRequestPostEventAccess() -> bool;
+    }
+    pub fn granted() -> bool {
+        // SAFETY: plain C queries with no arguments.
+        unsafe { AXIsProcessTrusted() && CGPreflightListenEventAccess() }
+    }
+    pub fn request() {
+        // SAFETY: plain C calls; they only show the system permission prompts.
+        unsafe {
+            CGRequestListenEventAccess();
+            CGRequestPostEventAccess();
+        }
+    }
+}
+
+/// macOS needs Accessibility + Input Monitoring before input can be grabbed or
+/// injected. Always true elsewhere.
+pub fn permissions_granted() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        perm::granted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Show the system permission prompts (macOS); no-op elsewhere.
+pub fn request_permissions() {
+    #[cfg(target_os = "macos")]
+    perm::request();
+}
+
 pub type SharedEngine = Arc<Mutex<HostEngine>>;
 
 fn lock(e: &SharedEngine) -> std::sync::MutexGuard<'_, HostEngine> {
