@@ -95,11 +95,17 @@ mod perm {
         // SAFETY: plain C query with no arguments.
         unsafe { CGPreflightListenEventAccess() }
     }
-    pub fn request() {
-        // SAFETY: plain C calls; they only show the system permission prompts.
+    pub fn request_accessibility() {
+        // SAFETY: plain C call; it only shows the system permission prompt.
+        unsafe {
+            CGRequestPostEventAccess();
+        }
+    }
+    pub fn request_input_monitoring() {
+        // SAFETY: plain C call; it only shows the system permission prompt and
+        // adds the app to the Input Monitoring list.
         unsafe {
             CGRequestListenEventAccess();
-            CGRequestPostEventAccess();
         }
     }
 }
@@ -130,10 +136,20 @@ pub fn permissions_granted() -> bool {
     missing_permissions().is_empty()
 }
 
-/// Show the system permission prompts (macOS); no-op elsewhere.
-pub fn request_permissions() {
+/// Ask macOS for one permission (adds the app to its Settings list and shows
+/// the prompt). Ask for one at a time: a second request made right after the
+/// first is ignored, which left the app missing from the Input Monitoring list.
+pub fn request_permission(name: &str) {
     #[cfg(target_os = "macos")]
-    perm::request();
+    {
+        if name == INPUT_MONITORING {
+            perm::request_input_monitoring();
+        } else {
+            perm::request_accessibility();
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = name;
 }
 
 /// Open the System Settings page where `name` is switched on (macOS).
