@@ -83,6 +83,12 @@ struct Clip {
 }
 
 impl Clip {
+    fn inert() -> Clip {
+        let (_tx, out) = mpsc::unbounded_channel();
+        let (sink, _rx) = std::sync::mpsc::channel();
+        Clip { out, sink }
+    }
+
     fn start() -> Clip {
         let (rx, sink) = mono_clip::spawn();
         let (tx, out) = mpsc::unbounded_channel();
@@ -97,6 +103,55 @@ impl Clip {
     }
 }
 
+/// Everything a user interface needs to draw itself.
+#[derive(serde::Serialize)]
+pub struct View {
+    pub version: &'static str,
+    pub state: String,
+    pub log: Vec<String>,
+    pub code: Option<String>,
+    pub connected: bool,
+    pub config: Config,
+    pub download_dir: String,
+    /// This computer's LAN address with the host port, if one could be found.
+    pub address: Option<String>,
+}
+
+/// Local LAN address, found by asking the OS which interface it would use.
+/// No packet is sent.
+fn local_ip() -> Option<std::net::IpAddr> {
+    let s = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    s.connect("192.0.2.1:9").ok()?;
+    Some(s.local_addr().ok()?.ip())
+}
+
+/// Check settings the way the UI needs before applying them.
+pub fn validate(cfg: &Config) -> Result<()> {
+    match cfg.role {
+        Role::Guest => {
+            cfg.host_addr
+                .trim()
+                .parse::<SocketAddr>()
+                .map_err(|_| anyhow::anyhow!("Host address must look like 192.168.1.20:24800"))?;
+            let ok = cfg
+                .pairing_code
+                .trim()
+                .split_once(':')
+                .is_some_and(|(f, t)| f.len() == 64 && !t.is_empty());
+            if !ok {
+                bail!("Pairing code looks incomplete; copy it again from the host");
+            }
+        }
+        Role::Host => {
+            cfg.bind
+                .parse::<SocketAddr>()
+                .map_err(|_| anyhow::anyhow!("Listen address is invalid"))?;
+        }
+        Role::None => {}
+    }
+    Ok(())
+}
+
 pub struct Core {
     pub sh: Shared,
     engine: SharedEngine,
@@ -109,6 +164,15 @@ pub struct Core {
 
 impl Core {
     pub fn new() -> Result<Arc<Core>> {
+        Self::build(true, true)
+    }
+
+    /// No OS input grab and no clipboard watcher: for tests on a machine you are using.
+    pub fn headless() -> Result<Arc<Core>> {
+        Self::build(false, false)
+    }
+
+    fn build(grab: bool, clipboard: bool) -> Result<Arc<Core>> {
         let (input_tx, input_rx) = mpsc::unbounded_channel();
         let screen = os::screen_size().unwrap_or(Size {
             w: 1920.0,
@@ -119,10 +183,37 @@ impl Core {
             engine: Arc::new(Mutex::new(HostEngine::new(screen, vec![]))),
             input_tx,
             input_rx: AsyncMutex::new(input_rx),
-            clip: AsyncMutex::new(Clip::start()),
-            grab_running: AtomicBool::new(false),
+            clip: AsyncMutex::new(if clipboard {
+                Clip::start()
+            } else {
+                Clip::inert()
+            }),
+            grab_running: AtomicBool::new(!grab),
             task: Mutex::new(None),
         }))
+    }
+
+    pub fn view(&self) -> View {
+        let (state, log, code, connected) = self.sh.snapshot();
+        let config = Config::load().unwrap_or_default();
+        View {
+            version: env!("CARGO_PKG_VERSION"),
+            state,
+            log,
+            code,
+            connected,
+            download_dir: config.download_dir().display().to_string(),
+            config,
+            address: local_ip().map(|i| format!("{i}:24800")),
+        }
+    }
+
+    /// Validate, save and start according to `cfg`.
+    pub fn save_and_apply(self: &Arc<Self>, cfg: Config) -> Result<()> {
+        validate(&cfg)?;
+        cfg.save()?;
+        self.apply(cfg);
+        Ok(())
     }
 
     /// Stop whatever is running and start according to `cfg`.
