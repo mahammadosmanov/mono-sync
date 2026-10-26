@@ -4,7 +4,7 @@
 use crate::config::{self, Config, Role};
 use anyhow::{bail, Context, Result};
 use mono_input::{
-    guest::GuestEngine,
+    guest::{Act, GuestEngine},
     host::HostEngine,
     layout::{Link, PeerId, Size},
     os::{self, SharedEngine},
@@ -339,17 +339,29 @@ fn note_cursor(sh: &Shared, change: Option<os::CursorChange>) {
     let Some(change) = change else { return };
     let text = match change {
         os::CursorChange::Enabled => format!(
-            "MouseKeys enabled for cursor visibility (no mouse on this computer); cursor showing: {}",
+            "MouseKeys on and hide-while-typing off for cursor visibility (no mouse on this computer); cursor showing: {}",
             match os::cursor_visibility() {
                 Some(true) => "yes",
                 Some(false) => "no",
                 None => "unknown",
             }
         ),
-        os::CursorChange::Restored => "MouseKeys restored".to_string(),
+        os::CursorChange::Restored => "MouseKeys and hide-while-typing restored".to_string(),
         os::CursorChange::Failed => "Windows refused a MouseKeys change; retrying".to_string(),
+        os::CursorChange::Reasserted => {
+            "MouseKeys or hide-while-typing was switched back by Windows or another program; put back"
+                .to_string()
+        }
     };
     sh.note(text);
+}
+
+/// Replays one guest action. Failures are counted, not logged one by one: a run of
+/// them becomes a single "input paused" note (see `os::InjectHealth`).
+fn inject_act(sh: &Shared, health: &mut os::InjectHealth, a: &Act) {
+    if let Some(note) = health.record(os::inject(a).is_ok()) {
+        sh.note(note);
+    }
 }
 
 /// macOS: ask for each missing permission, open its Settings page once, and wait
@@ -513,6 +525,8 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config, gen: u64) -> Result<()> {
     }
     let mut clip = core.clip.lock().await;
     let mut last_err = String::new();
+    // Kept across reconnects so a pause that spans a reconnect is still reported once.
+    let mut health = os::InjectHealth::default();
     loop {
         core.sh.state(format!("Connecting to {addr}"));
         let mut session = match connect(addr, fp, token).await {
@@ -545,7 +559,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config, gen: u64) -> Result<()> {
         let mut engine = GuestEngine::new(screen);
         // True while the cursor is on this computer: MouseKeys is kept on for it.
         let mut on_here = false;
-        let mut keep = tokio::time::interval(Duration::from_secs(2));
+        let mut keep = tokio::time::interval(os::CURSOR_CHECK);
         loop {
             tokio::select! {
                 Some(text) = clip.out.recv() => {
@@ -563,9 +577,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config, gen: u64) -> Result<()> {
                             core.sh.note("Cursor arrived from the other computer");
                         }
                         for a in engine.on_msg(&m) {
-                            if let Err(e) = os::inject(&a) {
-                                core.sh.note(format!("Injecting input failed: {e:#}"));
-                            }
+                            inject_act(&core.sh, &mut health, &a);
                         }
                         if entered || left {
                             on_here = entered;
@@ -578,7 +590,7 @@ async fn guest_loop(core: &Arc<Core>, cfg: &Config, gen: u64) -> Result<()> {
         }
         note_cursor(&core.sh, core.cursor_update(gen, |k| k.set_active(false)));
         for a in engine.on_disconnect() {
-            let _ = os::inject(&a);
+            inject_act(&core.sh, &mut health, &a);
         }
         core.sh.set_conn(None);
         core.sh.note("Disconnected; retrying");
