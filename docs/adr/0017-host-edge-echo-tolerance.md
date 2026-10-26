@@ -17,12 +17,8 @@ width-2). Read as offsets from the centre they are about 960 px of motion,
 which moved the peer's cursor across its whole screen.
 
 ## Decision
-- While remote, a pointer report within 4 px of the centre on both axes is
-  held: not forwarded, and the local cursor is not re-parked. The OS keeps the
-  small offset, so real motion adds up and is forwarded once it passes 4 px.
-  Re-parking on held jitter would start a chain of warp echoes, so it is skipped.
-- A report within 2 px of the host screen edge while remote is a stale
-  pre-warp report: dropped, no re-park.
+- While remote, every pointer report except an exact-centre echo of our own warp is re-parked: the local cursor is warped back to the centre. A report within 4 px of the centre on both axes (jitter) is re-parked but not forwarded. Re-parking is no longer skipped for held reports (see Consequences).
+- A report within 3 px of the host screen edge while remote is a stale pre-warp report: not forwarded, and re-parked like the others.
 - The exit rule is unchanged (`layout.rs`): control returns only on forwarded
   motion past the peer's back edge. The first pixel of jitter no longer
   reaches that rule.
@@ -39,13 +35,9 @@ which moved the peer's cursor across its whole screen.
 
 ## Consequences
 - Returning to the host needs 4 px of real motion past the edge, not 1 px.
-- Sub-4 px motion is delayed until it adds up. It is not lost.
-- The local cursor can sit up to 3 px off centre while remote (ADR-0010 already
-  accepts local jitter near the centre).
-- A single report 958 px or more from the centre is treated as stale. A hard
-  flick could in theory do that; it has not been seen.
-- A constant parking error from the OS stays inside the 4 px hold and is not
-  corrected. The per-crossing trace lines show whether it happens.
-- Tested with unit tests on macOS only. Not run on Windows or with real
-  hardware. The next Windows run's log lines are the check.
+- Re-parking leaves no OS offset to add up. Sub-4 px motion while remote is therefore not forwarded and does not sum: a slow move of the host cursor there is lost, and only one report 4 px or more past the back edge returns control. Whether this is acceptable needs the first hardware run.
+- The local cursor is re-parked on every report, so it is only off centre for the instant between a report and its warp. A constant warp error of 1-3 px is re-parked on every report and never corrected; the warp log shows it (`warp to (960,540) -> OS at (x,y)`).
+- A single report 957 px or more from the centre is treated as stale. A hard flick could in theory do that; it has not been seen.
+- Stale and held reports now re-park instead of being dropped, so the cursor cannot stay on the edge after a crossing. The first 8 warps after each crossing are logged with where the OS put the cursor; later failures are logged at most every 2 s (`warp failed: ...`). Windows reads each warp back with `GetCursorPos`; more than 2 px off is a failure.
+- Tested with unit tests on macOS only, plus a Windows target compile. Not run on Windows or with real hardware. The next Windows run's log lines are the check.
 - Refines ADR-0010; its decision is unchanged.
