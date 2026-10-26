@@ -5,8 +5,13 @@ use cocoa::base::nil;
 use cocoa::foundation::NSAutoreleasePool;
 use core_graphics::event::{CGEventTapLocation, CGEventType};
 use std::os::raw::c_void;
+use std::ptr;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 static mut GLOBAL_CALLBACK: Option<Box<dyn FnMut(Event)>> = None;
+
+/// The listen tap, so `raw_callback` can re-enable it when macOS disables it.
+static TAP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 
 #[link(name = "Cocoa", kind = "framework")]
 extern "C" {}
@@ -17,6 +22,15 @@ unsafe extern "C" fn raw_callback(
     cg_event: CGEventRef,
     _user_info: *mut c_void,
 ) -> CGEventRef {
+    // macOS disables the tap when a callback is slow or when secure input or a
+    // system prompt takes over. It delivers no events until it is enabled again.
+    if matches!(
+        _type,
+        CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
+    ) {
+        CGEventTapEnable(TAP.load(Ordering::SeqCst) as CFMachPortRef, true);
+        return cg_event;
+    }
     // println!("Event ref {:?}", cg_event_ptr);
     // let cg_event: CGEvent = transmute_copy::<*mut c_void, CGEvent>(&cg_event_ptr);
     let opt = KEYBOARD_STATE.lock();
@@ -50,6 +64,7 @@ where
         if tap.is_null() {
             return Err(ListenError::EventTapError);
         }
+        TAP.store(tap as *mut c_void, Ordering::SeqCst);
         let _loop = CFMachPortCreateRunLoopSource(nil, tap, 0);
         if _loop.is_null() {
             return Err(ListenError::LoopSourceError);

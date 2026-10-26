@@ -10,6 +10,8 @@ versioning: [SemVer](https://semver.org).
 - Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 
 ### Fixed
+- macOS: moving the mouse while a button is held (drag) was not forwarded, so the Mac cursor moved instead. Dragged events are now forwarded (vendored rdev patch).
+- macOS: capture stopped for good after macOS disabled the event tap (slow callback, secure input). The tap is re-enabled. The middle mouse button is captured and injected too (vendored rdev patch).
 - Windows: injected cursor landed on the wrong place or monitor (SendInput absolute coordinates); now placed with SetCursorPos in screen pixels (vendored rdev patch).
 - Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
 - Log shows when the cursor moves to or returns from the other computer.
