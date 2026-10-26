@@ -133,8 +133,10 @@ impl HostEngine {
             let d = (x - self.last.0, y - self.last.1);
             self.last = (x, y);
             let outs = self.router.motion((x, y), d);
-            let step = self.apply(outs);
+            let mut step = self.apply(outs);
             if self.peer.is_some() {
+                // The crossing move never reaches the OS (Input Leap relay mode).
+                step.swallow = true;
                 self.traced = TRACE_EVENTS;
             }
             return step;
@@ -173,6 +175,9 @@ impl HostEngine {
             }
             (if left { "leave" } else { "move" }, s)
         };
+        // Every pointer report of a remote move is swallowed, leave included (Input
+        // Leap relay mode): the OS must not move the cursor off the centre.
+        s.swallow = true;
         if self.traced > 0 {
             let n = TRACE_EVENTS - self.traced + 1;
             self.traced -= 1;
@@ -253,6 +258,7 @@ mod tests {
         });
         assert!(matches!(s.send[0].1, Msg::Enter { .. }));
         assert_eq!(s.warp, Some((960.0, 540.0)));
+        assert!(s.swallow, "crossing move reached the OS");
         assert!(e.is_remote());
     }
 
@@ -312,7 +318,19 @@ mod tests {
         let s = e.on_event(Ev::Move { x: 965.0, y: 543.0 });
         assert_eq!(s.send, vec![(1, Msg::Move { dx: 5, dy: 3 })]);
         assert_eq!(s.warp, Some((960.0, 540.0)));
-        assert!(!s.swallow);
+        assert!(s.swallow);
+    }
+
+    /// While remote the OS must never see a pointer move: it would pull the
+    /// cursor back to the edge (Input Leap relay mode).
+    #[test]
+    fn remote_move_is_swallowed_and_sent_as_offset() {
+        let mut e = engine();
+        enter(&mut e);
+        let s = e.on_event(Ev::Move { x: 965.0, y: 543.0 });
+        assert!(s.swallow, "remote move reached the OS");
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+        assert_eq!(s.send, vec![(1, Msg::Move { dx: 5, dy: 3 })]);
     }
 
     #[test]
@@ -321,6 +339,18 @@ mod tests {
         enter(&mut e);
         let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
         assert!(s.send.is_empty() && s.swallow && s.warp.is_none());
+    }
+
+    /// The echo the OS reports right after the crossing warp: swallowed, not
+    /// sent, and the cursor stays with the peer.
+    #[test]
+    fn echo_right_after_crossing_is_swallowed_and_sends_nothing() {
+        let mut e = engine();
+        enter(&mut e);
+        let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
+        assert!(s.swallow);
+        assert!(s.send.is_empty());
+        assert!(e.is_remote());
     }
 
     #[test]
@@ -332,6 +362,7 @@ mod tests {
         assert_eq!(s.send[0].1, Msg::Leave);
         assert!(!e.is_remote());
         assert_eq!(s.warp.map(|w| w.0), Some(1917.0));
+        assert!(s.swallow, "leaving move reached the OS");
         // local again: keys pass through
         assert_eq!(
             e.on_event(Ev::Key {
@@ -455,7 +486,7 @@ mod tests {
         assert_eq!(traced.len(), 8);
         assert_eq!(
             traced[0],
-            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow no, warp 960,540"
+            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow yes, warp 960,540"
         );
     }
 
