@@ -4,7 +4,7 @@ use crate::rdev::{Button, Event, EventType};
 use cocoa::base::id;
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGEventType, EventField};
 use lazy_static::lazy_static;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::os::raw::c_void;
 use std::sync::Mutex;
 use std::time::SystemTime;
@@ -49,6 +49,9 @@ pub const kCGEventMaskForAllEvents: u64 = (1 << CGEventType::LeftMouseDown as u6
     + (1 << CGEventType::MouseMoved as u64)
     + (1 << CGEventType::LeftMouseDragged as u64)
     + (1 << CGEventType::RightMouseDragged as u64)
+    + (1 << CGEventType::OtherMouseDown as u64)
+    + (1 << CGEventType::OtherMouseUp as u64)
+    + (1 << CGEventType::OtherMouseDragged as u64)
     + (1 << CGEventType::KeyDown as u64)
     + (1 << CGEventType::KeyUp as u64)
     + (1 << CGEventType::FlagsChanged as u64)
@@ -86,6 +89,16 @@ pub type QCallback = unsafe extern "C" fn(
     user_info: *mut c_void,
 ) -> CGEventRef;
 
+/// Button for a macOS button number: 0 left, 1 right, 2 middle, others `Unknown`.
+pub fn button_from_number(number: i64) -> Option<Button> {
+    match number {
+        0 => Some(Button::Left),
+        1 => Some(Button::Right),
+        2 => Some(Button::Middle),
+        _ => u8::try_from(number).ok().map(Button::Unknown),
+    }
+}
+
 pub unsafe fn convert(
     _type: CGEventType,
     cg_event: &CGEvent,
@@ -96,7 +109,19 @@ pub unsafe fn convert(
         CGEventType::LeftMouseUp => Some(EventType::ButtonRelease(Button::Left)),
         CGEventType::RightMouseDown => Some(EventType::ButtonPress(Button::Right)),
         CGEventType::RightMouseUp => Some(EventType::ButtonRelease(Button::Right)),
-        CGEventType::MouseMoved => {
+        CGEventType::OtherMouseDown => button_from_number(
+            cg_event.get_integer_value_field(EventField::MOUSE_EVENT_BUTTON_NUMBER),
+        )
+        .map(EventType::ButtonPress),
+        CGEventType::OtherMouseUp => button_from_number(
+            cg_event.get_integer_value_field(EventField::MOUSE_EVENT_BUTTON_NUMBER),
+        )
+        .map(EventType::ButtonRelease),
+        // While a button is held macOS sends the Dragged types instead of MouseMoved.
+        CGEventType::MouseMoved
+        | CGEventType::LeftMouseDragged
+        | CGEventType::RightMouseDragged
+        | CGEventType::OtherMouseDragged => {
             let point = cg_event.location();
             Some(EventType::MouseMove {
                 x: point.x,
@@ -146,4 +171,20 @@ pub unsafe fn convert(
         });
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn button_numbers_map_to_buttons() {
+        assert_eq!(button_from_number(0), Some(Button::Left));
+        assert_eq!(button_from_number(1), Some(Button::Right));
+        assert_eq!(button_from_number(2), Some(Button::Middle));
+        assert_eq!(button_from_number(3), Some(Button::Unknown(3)));
+        assert_eq!(button_from_number(255), Some(Button::Unknown(255)));
+        assert_eq!(button_from_number(256), None);
+        assert_eq!(button_from_number(-1), None);
+    }
 }
