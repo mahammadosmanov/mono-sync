@@ -44,6 +44,13 @@
     <div class="sub">In the list, switch on <b>mono-sync</b>. This window continues by itself.</div>
   </div>
 
+  <div class="card" id="fw" style="display:none;border-color:var(--bad)">
+    <h2 style="color:var(--bad)">Firewall</h2>
+    <div>Windows is blocking incoming connections for mono-sync. Click once and accept the Windows admin prompt.</div>
+    <div class="row"><button class="primary" id="fwBtn">Allow mono-sync in Windows Firewall</button></div>
+    <div id="fwMsg" class="msg"></div>
+  </div>
+
   <div class="card">
     <h2>Status</h2>
     <span id="state" class="pill">…</span>
@@ -123,6 +130,7 @@ async function refresh() {
       $('edge').value = cfg.edge; $('gAddr').value = cfg.host_addr; $('gCode').value = cfg.pairing_code;
       $('dl').value = cfg.download_dir || s.download_dir; showRole();
     }
+    $('fw').style.display = s.config.role === 'host' && s.firewall_ok === false ? '' : 'none';
     $('perm').style.display = s.needs && s.needs.length ? '' : 'none';
     $('permText').textContent = 'macOS needs your OK for: ' + (s.needs || []).join(' and ') + '.';
     const pb = $('permBtns'), want = (s.needs || []).join('|');
@@ -144,6 +152,14 @@ $('save').onclick = async () => {
     host_addr: $('gAddr').value.trim(), pairing_code: $('gCode').value.trim().replace(/\s+/g, ''), download_dir: $('dl').value.trim() };
   try { await invoke('save', { config }); dirty = false; m.className = 'msg ok'; m.textContent = 'Saved.'; refresh(); }
   catch (e) { m.className = 'msg err'; m.textContent = String(e); }
+};
+$('fwBtn').onclick = async () => {
+  const m = $('fwMsg'), b = $('fwBtn');
+  m.className = 'msg'; m.textContent = 'Waiting for the Windows admin prompt …';
+  b.disabled = true;
+  try { await invoke('allow_firewall'); m.textContent = ''; }
+  catch (e) { m.className = 'msg err'; m.textContent = String(e); }
+  finally { b.disabled = false; refresh(); }
 };
 $('open').onclick = () => invoke('open_folder');
 $('quit').onclick = () => invoke('quit');

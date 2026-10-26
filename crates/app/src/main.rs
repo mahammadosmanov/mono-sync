@@ -68,6 +68,19 @@ fn open_permission_settings(name: String) {
     mono_core::open_permission_settings(&name);
 }
 
+/// Windows host: add the firewall rule after one UAC approval (ADR-0016).
+#[tauri::command]
+async fn allow_firewall(core: State<'_, Shared>) -> Result<(), String> {
+    let r = tauri::async_runtime::spawn_blocking(mono_core::firewall::request_rule)
+        .await
+        .map_err(|e| format!("{e}"))?;
+    core.forget_firewall();
+    r?;
+    core.sh
+        .note("Windows Firewall: mono-sync is allowed on private networks");
+    Ok(())
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
@@ -96,6 +109,7 @@ fn main() {
             send_files,
             open_folder,
             open_permission_settings,
+            allow_firewall,
             quit
         ])
         .setup(move |app| {
