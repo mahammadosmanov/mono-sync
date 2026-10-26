@@ -21,5 +21,6 @@ supersedes it and update the old one's status.
 | [0013](0013-tauri-desktop-app.md) | Tauri desktop app over a shared core crate | Accepted |
 | [0014](0014-self-drawn-cursor-on-mouseless-windows.md) | Draw our own cursor on Windows PCs that have no mouse | Superseded by 0015 |
 | [0015](0015-mousekeys-for-mouseless-windows.md) | Use MouseKeys to make Windows draw the pointer on a PC without a mouse | Accepted |
+| [0016](0016-windows-firewall-rule-from-app.md) | Windows Firewall rule added by the app with one UAC approval | Accepted |
 
 Template: [0000-template.md](0000-template.md)

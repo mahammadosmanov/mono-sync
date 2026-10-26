@@ -34,6 +34,7 @@ point resolution (Retina and Windows DPI scaling are the likely failures).
 - [ ] Drop a 1 GB file on the panel; it arrives with the same SHA-256.
 - [ ] Unplug network 5 s, replug: guest reconnects without clicking.
 - [ ] Change direction in the panel; cursor crosses the new edge.
+- [ ] Windows host with no mono-sync rule (delete it in Windows Defender Firewall): banner appears; one UAC approval adds the rule; banner goes; guest connects. Cancelling the UAC prompt shows "Windows admin prompt was cancelled". Network set to Private (ADR-0016).
 
 ### Later milestones
 Pairing/discovery (M2), clipboard and file hash verification (M3), UI flows (M4),
