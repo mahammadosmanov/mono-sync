@@ -41,3 +41,4 @@ which moved the peer's cursor across its whole screen.
 - Stale and held reports now re-park instead of being dropped, so the cursor cannot stay on the edge after a crossing. The first 8 warps after each crossing are logged with where the OS put the cursor; later failures are logged at most every 2 s (`warp failed: ...`). Windows reads each warp back with `GetCursorPos`; more than 2 px off is a failure.
 - Tested with unit tests on macOS only, plus a Windows target compile. Not run on Windows or with real hardware. The next Windows run's log lines are the check.
 - Refines ADR-0010; its decision is unchanged.
+- Windows host: every pointer report while remote is swallowed, the crossing move included, as Input Leap's relay mode does. The OS never moves the physical cursor off the centre, so it cannot snap back to the edge.
