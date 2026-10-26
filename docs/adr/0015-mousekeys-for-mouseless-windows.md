@@ -24,12 +24,19 @@ This is the technique of Input Leap (`MSWindowsScreen::forceShowCursor` and
 `updateForceShowCursor`). The Win32 calls and flags come from the MOUSEKEYS
 documentation.
 
-- The user's MouseKeys settings are read and saved first, and written back when
-  the cursor leaves the guest, when the link drops, when the app stops, or when
-  the app exits.
-- While the cursor is on the guest, a check runs every 2 s. It re-enables MouseKeys
-  if another app switched it off, and it restores the settings if a mouse was
-  plugged in.
+- The user's MouseKeys and hide-while-typing settings are read and saved first, and
+  written back when the cursor leaves the guest, when the link drops, when the app
+  stops, or when the app exits.
+- While the cursor is on the guest, a check runs every 500 ms (`os::CURSOR_CHECK`).
+  It re-enables MouseKeys and turns hide-while-typing off again if another app or
+  Windows switched them back. It reads first and writes only if a value differs. It
+  restores the settings if a mouse was plugged in.
+- Hide-while-typing (MouseVanish, `SPI_SETMOUSEVANISH`) is turned off while the
+  cursor is on the guest. Keys forwarded from the other computer would otherwise
+  hide the pointer until a real mouse move, and `SetCursorPos` does not show it again.
+- If `GetCursorInfo` still reports the pointer hidden after the check, a 1 px
+  relative move and back (`SendInput`, `MOUSEEVENTF_MOVE`) wakes it, at most once a
+  second.
 - Visibility is checked with `GetCursorInfo` (`CURSOR_SHOWING`) and written to the
   log.
 - Nothing changes while a mouse is attached.
@@ -48,12 +55,20 @@ already been stopped from changing MouseKeys again.
 - While the cursor is on the guest PC, MouseKeys is on. The numeric keypad moves
   the pointer instead of typing digits. This is restored when the cursor leaves.
 - The setting is system-wide, and the change is broadcast to other windows, so
-  Settings and other apps may see it flip.
-- If the app crashes or is killed, no restore runs and MouseKeys can stay on until
-  the user switches it off in Ease of Access. On startup nothing is restored, since
-  the app cannot tell its own leftover change from a user setting. The user has to
-  switch MouseKeys off by hand in that case.
-- Only the Windows MouseKeys API is used. The secure desktop (UAC prompts, lock
-  screen) is not covered.
+  Settings and other apps may see it flip. Hide-while-typing is switched the same
+  way.
+- Hide-while-typing (MouseVanish) is saved with MouseKeys and written back on the
+  same occasions. If the user turns it on while the cursor is on the guest, it is
+  turned off again within 500 ms, and the value from before is restored on leave.
+- If the app crashes or is killed, no restore runs and MouseKeys (and, if it was
+  changed, hide-while-typing) can stay as set until the user switches it back in
+  Ease of Access. On startup nothing is restored, since the app cannot tell its own
+  leftover change from a user setting. The user has to switch them back by hand in
+  that case.
+- Input on the secure desktop (UAC prompts, lock screen, Ctrl+Alt+Del) cannot be
+  injected from this process. Three failed injections in a row make the guest log
+  `Windows is showing a protected screen (UAC/lock): input paused` once; the next
+  success logs `Input resumed` once. The code cannot tell the secure desktop from
+  another injection failure, so the note names the likely cause only.
 - Not tested on Windows hardware. The Windows code is compile-checked with
   `clippy --target x86_64-pc-windows-msvc` only.

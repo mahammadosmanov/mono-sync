@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use mono_proto::Msg;
 use rdev::EventType;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn screen_size() -> Result<Size> {
@@ -223,22 +224,41 @@ pub enum CursorChange {
     Restored,
     /// Windows refused a change (reported once per episode).
     Failed,
+    /// MouseKeys or hide-while-typing had been switched back by Windows or another
+    /// program and was put back (noted at most every 10 s).
+    Reasserted,
 }
 
 /// Makes Windows draw the pointer while the cursor is on this computer and no mouse
 /// is attached. Windows draws no pointer without a mouse, so this does what Input
 /// Leap does (MSWindowsScreen::forceShowCursor): it forces MouseKeys on, keeps the
 /// user's own settings, and puts them back when the cursor leaves. Dropping it also
-/// restores. Does nothing while a mouse is present. Off Windows it does nothing.
+/// restores. While the cursor is here it also turns off Windows' "hide pointer while
+/// typing" (MouseVanish): keys forwarded from the other computer would hide the
+/// pointer until a real mouse move. Does nothing while a mouse is present. Off
+/// Windows it does nothing.
 #[cfg(windows)]
 #[derive(Default)]
 pub struct CursorKeeper {
     /// The cursor is on this computer (set by the host's Enter/Leave).
     on_screen: bool,
-    /// The user's MouseKeys settings, held while we have MouseKeys forced on.
-    saved: Option<mouse_keys::MouseKeys>,
+    /// The user's settings, held while we have them forced.
+    saved: Option<Saved>,
     /// A refusal was already reported; avoids a log line on every tick.
     warned: bool,
+    /// When the pointer was last woken with a nudge (rate limit).
+    last_wake: Option<std::time::Instant>,
+    /// When the last "put back" note was logged (rate limit).
+    last_note: Option<std::time::Instant>,
+}
+
+/// What `CursorKeeper` changed, and the user's values from before.
+#[cfg(windows)]
+#[derive(Clone, Copy)]
+struct Saved {
+    keys: mouse_keys::MouseKeys,
+    /// The user's hide-pointer-while-typing setting; None if Windows would not say.
+    vanish: Option<bool>,
 }
 
 #[cfg(windows)]
@@ -261,45 +281,90 @@ impl CursorKeeper {
         self.sync()
     }
 
-    /// Called about every 2 s while the cursor is here: another app may switch
-    /// MouseKeys off again, and a mouse may be plugged in or unplugged.
+    /// Called every `CURSOR_CHECK` while the cursor is here: another app may switch
+    /// MouseKeys or hide-while-typing back on, and a mouse may be plugged in or
+    /// unplugged.
     pub fn tick(&mut self) -> Option<CursorChange> {
         self.sync()
     }
 
     fn sync(&mut self) -> Option<CursorChange> {
         let wanted = self.on_screen && !mouse_keys::mouse_present();
+        let now = std::time::Instant::now();
         match (self.is_active(), wanted) {
             (false, true) => self.enable(),
             (true, false) => self.restore(),
             (true, true) => {
-                mouse_keys::reassert();
-                None
+                let change = self.reassert(now);
+                self.wake(now);
+                change
             }
             (false, false) => None,
         }
     }
 
     fn enable(&mut self) -> Option<CursorChange> {
-        if let Some(cur) = mouse_keys::get() {
-            if mouse_keys::force_on(cur) {
-                self.saved = Some(cur);
-                self.warned = false;
-                return Some(CursorChange::Enabled);
-            }
+        let Some(cur) = mouse_keys::get() else {
+            return self.refused();
+        };
+        if !mouse_keys::force_on(cur) {
+            return self.refused();
         }
-        self.refused()
+        let vanish = mouse_vanish::get();
+        // A refusal here is retried by `reassert` on the next tick.
+        if vanish == Some(true) {
+            mouse_vanish::set(false);
+        }
+        self.saved = Some(Saved { keys: cur, vanish });
+        self.warned = false;
+        Some(CursorChange::Enabled)
     }
 
     fn restore(&mut self) -> Option<CursorChange> {
-        let mut old = self.saved?;
-        if mouse_keys::set(&mut old) {
+        let saved = self.saved?;
+        if put_back(saved) {
             self.saved = None;
             self.warned = false;
             Some(CursorChange::Restored)
         } else {
             // Keep the saved settings so the next tick tries again.
             self.refused()
+        }
+    }
+
+    /// Puts MouseKeys on and hide-while-typing off again if Windows or another program
+    /// switched them back. Reads first (cheap); a write is made only if a value differs.
+    fn reassert(&mut self, now: std::time::Instant) -> Option<CursorChange> {
+        let mut changed = false;
+        let mut failed = false;
+        if let Some(cur) = mouse_keys::get() {
+            if !mouse_keys::is_on(&cur) {
+                changed = true;
+                failed |= !mouse_keys::force_on(cur);
+            }
+        }
+        if mouse_vanish::get() == Some(true) {
+            changed = true;
+            failed |= !mouse_vanish::set(false);
+        }
+        if failed {
+            return self.refused();
+        }
+        self.warned = false;
+        if changed && due(self.last_note, now, NOTE_EVERY) {
+            self.last_note = Some(now);
+            return Some(CursorChange::Reasserted);
+        }
+        None
+    }
+
+    /// If Windows still reports the pointer hidden (hide-while-typing or a stale state),
+    /// nudge it: a 1 px move and back, at most once a second. `SetCursorPos` alone does
+    /// not clear a hidden pointer.
+    fn wake(&mut self, now: std::time::Instant) {
+        if cursor_visibility() == Some(false) && due(self.last_wake, now, WAKE_EVERY) {
+            self.last_wake = Some(now);
+            nudge();
         }
     }
 
@@ -316,10 +381,19 @@ impl CursorKeeper {
 #[cfg(windows)]
 impl Drop for CursorKeeper {
     fn drop(&mut self) {
-        if let Some(mut old) = self.saved.take() {
-            mouse_keys::set(&mut old);
+        if let Some(saved) = self.saved.take() {
+            put_back(saved);
         }
     }
+}
+
+/// Writes the user's settings back. True only if every write was accepted.
+#[cfg(windows)]
+fn put_back(saved: Saved) -> bool {
+    let mut keys = saved.keys;
+    let keys_ok = mouse_keys::set(&mut keys);
+    let vanish_ok = saved.vanish.is_none_or(mouse_vanish::set);
+    keys_ok && vanish_ok
 }
 
 /// Windows MouseKeys. winapi 0.3 has SPI_GET/SETMOUSEKEYS but neither the MOUSEKEYS
@@ -404,14 +478,144 @@ mod mouse_keys {
         set(&mut cur)
     }
 
-    /// Turns MouseKeys back on if something switched it off. Input Leap does this on
-    /// each settings-change broadcast; we check on a timer instead.
-    pub fn reassert() {
-        if let Some(cur) = get() {
-            if cur.dwFlags & MKF_MOUSEKEYSON == 0 {
-                force_on(cur);
-            }
+    /// True if MouseKeys is switched on in `mk`.
+    pub fn is_on(mk: &MouseKeys) -> bool {
+        mk.dwFlags & MKF_MOUSEKEYSON != 0
+    }
+}
+
+/// Windows "hide pointer while typing" (MouseVanish). Per Microsoft's docs,
+/// SPI_GETMOUSEVANISH writes a BOOL through pvParam, and SPI_SETMOUSEVANISH takes
+/// TRUE/FALSE as the pvParam value itself (not a pointer).
+#[cfg(windows)]
+mod mouse_vanish {
+    use winapi::{
+        ctypes::c_void,
+        shared::minwindef::{BOOL, FALSE, TRUE},
+        um::winuser::{
+            SystemParametersInfoW, SPIF_SENDCHANGE, SPI_GETMOUSEVANISH, SPI_SETMOUSEVANISH,
+        },
+    };
+
+    /// Is hide-pointer-while-typing on? None if Windows refuses the query.
+    pub fn get() -> Option<bool> {
+        let mut on: BOOL = FALSE;
+        // SAFETY: `on` is a valid BOOL out-parameter for SPI_GETMOUSEVANISH; uiParam is 0.
+        let ok = unsafe {
+            SystemParametersInfoW(
+                SPI_GETMOUSEVANISH,
+                0,
+                &mut on as *mut BOOL as *mut c_void,
+                0,
+            )
+        };
+        (ok != FALSE).then_some(on != FALSE)
+    }
+
+    /// Switches hide-pointer-while-typing on or off until the next change (not saved
+    /// to the profile), and tells other windows.
+    pub fn set(on: bool) -> bool {
+        let value: BOOL = if on { TRUE } else { FALSE };
+        // SAFETY: for SPI_SETMOUSEVANISH pvParam carries the TRUE/FALSE value itself;
+        // uiParam is unused and 0.
+        unsafe {
+            SystemParametersInfoW(
+                SPI_SETMOUSEVANISH,
+                0,
+                value as usize as *mut c_void,
+                SPIF_SENDCHANGE,
+            ) != FALSE
         }
+    }
+}
+
+/// Wakes a hidden pointer with a 1 px relative move and back (SendInput). Used when
+/// Windows reports the pointer hidden; a SetCursorPos does not clear that state.
+#[cfg(windows)]
+fn nudge() -> bool {
+    use std::mem::{size_of, zeroed};
+    use winapi::{
+        ctypes::c_int,
+        shared::minwindef::UINT,
+        um::winuser::{SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT},
+    };
+    fn step(dx: i32) -> INPUT {
+        // SAFETY: an all-zero INPUT is a valid blank value.
+        let mut input: INPUT = unsafe { zeroed() };
+        input.type_ = INPUT_MOUSE;
+        // SAFETY: the union member written is the mouse one, matching type_.
+        unsafe {
+            *input.u.mi_mut() = MOUSEINPUT {
+                dx,
+                dy: 0,
+                mouseData: 0,
+                dwFlags: MOUSEEVENTF_MOVE,
+                time: 0,
+                dwExtraInfo: 0,
+            };
+        }
+        input
+    }
+    let mut inputs = [step(1), step(-1)];
+    // SAFETY: `inputs` holds two valid INPUT values; cbSize is size_of::<INPUT>().
+    unsafe {
+        SendInput(
+            inputs.len() as UINT,
+            inputs.as_mut_ptr(),
+            size_of::<INPUT>() as c_int,
+        ) == 2
+    }
+}
+
+/// How often the guest checks MouseKeys and hide-while-typing while the cursor is on
+/// this computer.
+pub const CURSOR_CHECK: Duration = Duration::from_millis(500);
+/// Smallest gap between two pointer wake-up nudges.
+#[cfg(windows)]
+const WAKE_EVERY: Duration = Duration::from_secs(1);
+/// Smallest gap between two "put back" notes, so a program that keeps switching the
+/// setting does not flood the log.
+#[cfg(windows)]
+const NOTE_EVERY: Duration = Duration::from_secs(10);
+
+/// True when `last` is unset or at least `every` before `now`.
+#[cfg(any(windows, test))]
+fn due(last: Option<std::time::Instant>, now: std::time::Instant, every: Duration) -> bool {
+    match last {
+        None => true,
+        Some(t) => now.saturating_duration_since(t) >= every,
+    }
+}
+
+pub const INPUT_PAUSED: &str = "Windows is showing a protected screen (UAC/lock): input paused";
+pub const INPUT_RESUMED: &str = "Input resumed";
+
+/// Failed injections in a row before the guest counts its input as paused.
+const PAUSE_AFTER: u32 = 3;
+
+/// Watches whether injected input gets through. Injection from this process fails
+/// while Windows shows the secure desktop (UAC consent, lock screen, Ctrl+Alt+Del).
+/// Pure state: no OS calls, so it is tested on every OS.
+#[derive(Default)]
+pub struct InjectHealth {
+    streak: u32,
+    paused: bool,
+}
+
+impl InjectHealth {
+    /// Records one injection result. Returns the note to log when the state changes:
+    /// once when input pauses, once when it resumes, nothing in between.
+    pub fn record(&mut self, ok: bool) -> Option<&'static str> {
+        if ok {
+            self.streak = 0;
+            return std::mem::take(&mut self.paused).then_some(INPUT_RESUMED);
+        }
+        self.streak = self.streak.saturating_add(1);
+        if !self.paused && self.streak >= PAUSE_AFTER {
+            self.paused = true;
+            return Some(INPUT_PAUSED);
+        }
+        None
     }
 }
 
@@ -497,6 +701,58 @@ mod tests {
         assert_eq!(k.tick(), None);
         assert!(!k.is_active());
         assert_eq!(k.set_active(false), None);
+    }
+
+    #[test]
+    fn due_respects_the_interval() {
+        let t0 = std::time::Instant::now();
+        let every = Duration::from_secs(1);
+        assert!(due(None, t0, every));
+        assert!(!due(Some(t0), t0 + Duration::from_millis(999), every));
+        assert!(due(Some(t0), t0 + every, every));
+    }
+
+    #[test]
+    fn inject_health_pauses_once_and_resumes_once() {
+        let mut h = InjectHealth::default();
+        assert_eq!(h.record(false), None);
+        assert_eq!(h.record(false), None);
+        assert_eq!(h.record(false), Some(INPUT_PAUSED));
+        for _ in 0..50 {
+            assert_eq!(h.record(false), None);
+        }
+        assert_eq!(h.record(true), Some(INPUT_RESUMED));
+        assert_eq!(h.record(true), None);
+    }
+
+    #[test]
+    fn inject_health_ignores_failures_that_are_not_a_run() {
+        let mut h = InjectHealth::default();
+        for _ in 0..10 {
+            assert_eq!(h.record(false), None);
+            assert_eq!(h.record(false), None);
+            assert_eq!(h.record(true), None);
+        }
+    }
+
+    #[test]
+    fn inject_health_pauses_again_after_a_resume() {
+        let mut h = InjectHealth::default();
+        for _ in 0..3 {
+            h.record(false);
+        }
+        assert_eq!(h.record(true), Some(INPUT_RESUMED));
+        assert_eq!(h.record(false), None);
+        assert_eq!(h.record(false), None);
+        assert_eq!(h.record(false), Some(INPUT_PAUSED));
+    }
+
+    #[test]
+    fn inject_health_success_before_pause_stays_silent() {
+        let mut h = InjectHealth::default();
+        assert_eq!(h.record(true), None);
+        assert_eq!(h.record(false), None);
+        assert_eq!(h.record(true), None);
     }
 
     #[test]

@@ -10,6 +10,8 @@ versioning: [SemVer](https://semver.org).
 - Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 
 ### Fixed
+- Windows guest: the pointer could disappear while typing. Hide-pointer-while-typing is turned off while the cursor is on the guest (restored when it leaves). MouseKeys and that setting are checked every 500 ms instead of 2 s and put back if changed; a pointer Windows reports hidden is woken with a 1 px move (at most once a second).
+- Windows guest: when UAC, the lock screen or another secure screen blocks input, the log shows one "input paused" note and one "Input resumed" note, instead of an error line per event.
 - Windows: injected cursor landed on the wrong place or monitor (SendInput absolute coordinates); now placed with SetCursorPos in screen pixels (vendored rdev patch).
 - Saving host settings again no longer fails with "address already in use"; the listener releases its port first and rebinding retries.
 - Log shows when the cursor moves to or returns from the other computer.
