@@ -664,14 +664,22 @@ pub fn release_host(e: &SharedEngine) {
 /// Blocks the calling thread, grabbing all input for the life of the process.
 /// With no links in the engine every event passes through untouched.
 /// Needs Accessibility + Input Monitoring permission on macOS.
+/// `log` receives the engine's diagnostic lines (see `Step::trace`).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub fn run_host(engine: SharedEngine, tx: UnboundedSender<(PeerId, Msg)>) -> Result<()> {
+pub fn run_host(
+    engine: SharedEngine,
+    tx: UnboundedSender<(PeerId, Msg)>,
+    log: impl Fn(String) + Send + 'static,
+) -> Result<()> {
     rdev::grab(move |event| {
         let Some(ev) = convert(&event.event_type) else {
             return Some(event);
         };
         let step = lock(&engine).on_event(ev);
         apply(&step, &tx);
+        if let Some(line) = &step.trace {
+            log(line.clone());
+        }
         if step.swallow {
             None
         } else {
@@ -682,7 +690,11 @@ pub fn run_host(engine: SharedEngine, tx: UnboundedSender<(PeerId, Msg)>) -> Res
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub fn run_host(_: SharedEngine, _: UnboundedSender<(PeerId, Msg)>) -> Result<()> {
+pub fn run_host(
+    _: SharedEngine,
+    _: UnboundedSender<(PeerId, Msg)>,
+    _: impl Fn(String) + Send + 'static,
+) -> Result<()> {
     Err(anyhow!(
         "host mode is not supported on this OS yet (Windows and macOS only)"
     ))

@@ -4,9 +4,22 @@
 //! While a peer owns the cursor we keep the local cursor parked at the screen
 //! centre and read motion as the offset from that centre (works with plain
 //! absolute positions on every OS). The warp's own echo event is swallowed.
+//!
+//! Warp jitter is held, not forwarded: a report within `HOLD_PX` of the centre
+//! is left to the OS and re-parked later, so it cannot push the virtual cursor
+//! past the peer's back edge. Reports at the screen edge are stale positions
+//! from before our warp. See ADR-0017.
 use crate::layout::{Link, Out, PeerId, Router, Size};
 use mono_proto::{Button, Key, Msg};
 use std::collections::HashSet;
+
+/// Offsets from the parked centre below this on both axes are warp jitter.
+/// Jitter seen on Windows is up to 3 px, so 4 px holds it.
+const HOLD_PX: f64 = 4.0;
+/// Parked reports this close to the screen edge are queued pre-warp positions.
+const STALE_PX: f64 = 2.0;
+/// Pointer events after each crossing that get a diagnostic line.
+const TRACE_EVENTS: u8 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Ev {
@@ -23,6 +36,8 @@ pub struct Step {
     pub swallow: bool,
     /// Move the local cursor here after handling the event.
     pub warp: Option<(f64, f64)>,
+    /// One diagnostic line, set for the first pointer events after a crossing.
+    pub trace: Option<String>,
 }
 
 pub struct HostEngine {
@@ -31,6 +46,8 @@ pub struct HostEngine {
     last: (f64, f64),
     peer: Option<PeerId>,
     down: HashSet<Key>,
+    /// Pointer events still to trace after the last crossing.
+    traced: u8,
 }
 
 impl HostEngine {
@@ -41,6 +58,7 @@ impl HostEngine {
             last: (host.w / 2.0, host.h / 2.0),
             peer: None,
             down: HashSet::new(),
+            traced: 0,
         }
     }
 
@@ -70,8 +88,8 @@ impl HostEngine {
         self.down.clear();
         Step {
             send: vec![(peer, Msg::Leave)],
-            swallow: false,
             warp: Some(self.center()),
+            ..Step::default()
         }
     }
 
@@ -80,7 +98,7 @@ impl HostEngine {
             Some(p) => Step {
                 send: vec![(p, m)],
                 swallow: true,
-                warp: None,
+                ..Step::default()
             },
             None => Step::default(),
         }
@@ -113,19 +131,51 @@ impl HostEngine {
             let d = (x - self.last.0, y - self.last.1);
             self.last = (x, y);
             let outs = self.router.motion((x, y), d);
-            return self.apply(outs);
+            let step = self.apply(outs);
+            if self.peer.is_some() {
+                self.traced = TRACE_EVENTS;
+            }
+            return step;
         };
         let c = self.center();
-        if (x - c.0).abs() < 1.0 && (y - c.1).abs() < 1.0 {
-            return Step {
-                swallow: true,
-                ..Step::default()
-            }; // echo of our own warp
-        }
-        let outs = self.router.motion((x, y), (x - c.0, y - c.1));
-        let mut s = self.apply(outs);
-        if self.peer.is_some() {
-            s.warp = Some(c);
+        let (ox, oy) = (x - c.0, y - c.1);
+        let echo = Step {
+            swallow: true,
+            ..Step::default()
+        };
+        let (kind, mut s) = if ox.abs() >= self.host.w / 2.0 - STALE_PX
+            || oy.abs() >= self.host.h / 2.0 - STALE_PX
+        {
+            // Queued from before the warp: we are already parked at the centre.
+            ("stale", echo)
+        } else if ox.abs() < 1.0 && oy.abs() < 1.0 {
+            ("echo", echo) // our own warp, exactly centred
+        } else if ox.abs() < HOLD_PX && oy.abs() < HOLD_PX {
+            // Jitter: no forward and no re-park. The OS keeps the small offset,
+            // so real motion still adds up and passes the threshold.
+            ("held", Step::default())
+        } else {
+            let outs = self.router.motion((x, y), (ox, oy));
+            let left = outs.iter().any(|o| matches!(o, Out::Leave { .. }));
+            let mut s = self.apply(outs);
+            if self.peer.is_some() {
+                s.warp = Some(c);
+            }
+            (if left { "leave" } else { "move" }, s)
+        };
+        if self.traced > 0 {
+            let n = TRACE_EVENTS - self.traced + 1;
+            self.traced -= 1;
+            let warp = match s.warp {
+                Some((wx, wy)) => format!("{wx:.0},{wy:.0}"),
+                None => "no".to_string(),
+            };
+            let swallow = if s.swallow { "yes" } else { "no" };
+            s.trace = Some(format!(
+                "host {n}/{TRACE_EVENTS} {kind}: raw {x:.0},{y:.0} off {ox:+.0},{oy:+.0} \
+                 -> send {}, swallow {swallow}, warp {warp}",
+                s.send.len()
+            ));
         }
         s
     }
@@ -317,6 +367,68 @@ mod tests {
         assert_eq!(s.send, vec![(1, Msg::Leave)]);
         assert!(s.swallow);
         assert!(!e.is_remote());
+    }
+
+    /// Windows reports the parked centre with a few px of jitter, and queued
+    /// reports from before the warp still show the pre-warp edge (x = w-1 and
+    /// x = w-2). None of them may return control or move the peer.
+    #[test]
+    fn host_edge_bounce_after_enter() {
+        let mut e = engine();
+        enter(&mut e);
+        let reports = [
+            (960.0, 540.0),  // our own warp echo
+            (959.0, 540.0),  // jitter -1 toward the peer's back edge
+            (958.0, 541.0),  // jitter -2, +1
+            (957.0, 539.0),  // jitter -3, -1
+            (961.0, 542.0),  // jitter +1, +2
+            (1919.0, 540.0), // stale: pre-warp edge, x = width-1
+            (1918.0, 540.0), // stale: pre-warp edge, x = width-2
+            (959.0, 541.0),
+        ];
+        for (x, y) in reports {
+            let s = e.on_event(Ev::Move { x, y });
+            assert!(s.send.is_empty(), "({x}, {y}) sent {:?}", s.send);
+            assert!(s.warp.is_none(), "({x}, {y}) warped to {:?}", s.warp);
+            assert!(e.is_remote(), "({x}, {y}) bounced back to this computer");
+        }
+    }
+
+    #[test]
+    fn slow_walk_back_still_returns_control() {
+        let mut e = engine();
+        enter(&mut e);
+        // Small back steps stay inside the 4 px dead zone; the offset from the
+        // parked centre adds up and control returns at 4 px past the edge.
+        for x in [959.0, 958.0, 957.0] {
+            let s = e.on_event(Ev::Move { x, y: 540.0 });
+            assert!(
+                s.send.is_empty() && e.is_remote(),
+                "returned early at x={x}"
+            );
+        }
+        let s = e.on_event(Ev::Move { x: 956.0, y: 540.0 });
+        assert_eq!(s.send[0].1, Msg::Leave);
+        assert!(!e.is_remote());
+    }
+
+    #[test]
+    fn first_pointer_events_after_a_crossing_are_traced() {
+        let mut e = engine();
+        assert!(e.on_event(Ev::Move { x: 100.0, y: 100.0 }).trace.is_none());
+        enter(&mut e);
+        let mut traced = Vec::new();
+        for _ in 0..10 {
+            // Held jitter: the OS keeps the offset, so every event stays parked.
+            if let Some(line) = e.on_event(Ev::Move { x: 959.0, y: 540.0 }).trace {
+                traced.push(line);
+            }
+        }
+        assert_eq!(traced.len(), 8);
+        assert_eq!(
+            traced[0],
+            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow no, warp no"
+        );
     }
 
     #[test]

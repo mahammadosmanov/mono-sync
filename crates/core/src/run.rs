@@ -335,7 +335,10 @@ impl Core {
                 core.grab_running.store(false, Ordering::SeqCst);
                 return;
             }
-            let r = os::run_host(core.engine.clone(), core.input_tx.clone());
+            let sh = core.sh.clone();
+            let r = os::run_host(core.engine.clone(), core.input_tx.clone(), move |line| {
+                sh.note(line)
+            });
             core.grab_running.store(false, Ordering::SeqCst);
             if let Err(e) = r {
                 core.sh.note(format!("{e:#}"));
