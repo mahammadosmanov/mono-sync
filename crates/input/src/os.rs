@@ -13,7 +13,7 @@ use anyhow::{anyhow, Result};
 use mono_proto::Msg;
 use rdev::EventType;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 
 pub fn screen_size() -> Result<Size> {
@@ -28,8 +28,88 @@ fn simulate(e: &EventType) -> Result<()> {
     rdev::simulate(e).map_err(|_| anyhow!("input injection failed for {e:?}"))
 }
 
-pub fn warp(x: f64, y: f64) {
-    let _ = simulate(&EventType::MouseMove { x, y });
+/// Moves the pointer to (x, y) and returns where the OS left it. On Windows the
+/// move is `SetCursorPos` (what rdev's MouseMove calls there) and is read back
+/// with `GetCursorPos`: a refused move, or a landing more than 2 px from the
+/// request, is an error that says where the pointer is. Elsewhere the move is
+/// made and counts as landed.
+pub fn warp(x: f64, y: f64) -> Result<(f64, f64), String> {
+    #[cfg(windows)]
+    {
+        use winapi::shared::windef::POINT;
+        use winapi::um::winuser::{GetCursorPos, SetCursorPos};
+        // SAFETY: plain call with two integer arguments.
+        if unsafe { SetCursorPos(x as i32, y as i32) } == 0 {
+            return Err("SetCursorPos refused the move".to_string());
+        }
+        let mut p = POINT { x: 0, y: 0 };
+        // SAFETY: `p` is a valid out-structure for GetCursorPos.
+        if unsafe { GetCursorPos(&mut p) } == 0 {
+            return Err("GetCursorPos failed".to_string());
+        }
+        let (ax, ay) = (f64::from(p.x), f64::from(p.y));
+        if (ax - x).abs() > 2.0 || (ay - y).abs() > 2.0 {
+            return Err(format!("OS at ({ax:.0},{ay:.0}), not ({x:.0},{y:.0})"));
+        }
+        Ok((ax, ay))
+    }
+    #[cfg(not(windows))]
+    {
+        simulate(&EventType::MouseMove { x, y }).map_err(|e| format!("{e:#}"))?;
+        Ok((x, y))
+    }
+}
+
+/// One log line for a warp to `(x, y)` and its result.
+fn warp_line((x, y): (f64, f64), res: &Result<(f64, f64), String>) -> String {
+    match res {
+        Ok((ax, ay)) => format!("warp to ({x:.0},{y:.0}) -> OS at ({ax:.0},{ay:.0})"),
+        Err(e) => format!("warp failed: {e}"),
+    }
+}
+
+/// Warps logged in full after each crossing, so the first run shows whether the OS
+/// takes them.
+const WARP_TRACE: u8 = 8;
+/// Smallest gap between two warp-failure notes once the trace has run out.
+const WARP_FAIL_EVERY: Duration = Duration::from_secs(2);
+
+/// Chooses which warp results reach the log: every one of the first `WARP_TRACE`
+/// warps after a crossing, then failures only, at most one per `WARP_FAIL_EVERY`.
+#[derive(Default)]
+pub struct WarpLog {
+    /// Warps made since the last crossing (saturates).
+    since_crossing: u8,
+    last_fail: Option<Instant>,
+}
+
+impl WarpLog {
+    /// The cursor just crossed to the other computer: trace the next warps again.
+    pub fn crossed(&mut self) {
+        self.since_crossing = 0;
+    }
+
+    /// The log line for one warp to `(x, y)` with result `res`, if it is logged.
+    pub fn note(
+        &mut self,
+        target: (f64, f64),
+        res: &Result<(f64, f64), String>,
+        now: Instant,
+    ) -> Option<String> {
+        let traced = self.since_crossing < WARP_TRACE;
+        self.since_crossing = self.since_crossing.saturating_add(1);
+        if traced {
+            if res.is_err() {
+                self.last_fail = Some(now);
+            }
+            return Some(warp_line(target, res));
+        }
+        if res.is_ok() || !due(self.last_fail, now, WARP_FAIL_EVERY) {
+            return None;
+        }
+        self.last_fail = Some(now);
+        Some(warp_line(target, res))
+    }
 }
 
 /// Replay one action on this machine.
@@ -67,13 +147,19 @@ fn convert(t: &EventType) -> Option<Ev> {
     })
 }
 
-fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>) {
+fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) -> Option<String> {
     for (p, m) in &step.send {
         let _ = tx.send((*p, m.clone()));
     }
-    if let Some((x, y)) = step.warp {
-        warp(x, y);
+    if step
+        .send
+        .iter()
+        .any(|(_, m)| matches!(m, Msg::Enter { .. }))
+    {
+        warps.crossed();
     }
+    let (x, y) = step.warp?;
+    warps.note((x, y), &warp(x, y), Instant::now())
 }
 
 #[cfg(target_os = "macos")]
@@ -579,7 +665,6 @@ const WAKE_EVERY: Duration = Duration::from_secs(1);
 const NOTE_EVERY: Duration = Duration::from_secs(10);
 
 /// True when `last` is unset or at least `every` before `now`.
-#[cfg(any(windows, test))]
 fn due(last: Option<std::time::Instant>, now: std::time::Instant, every: Duration) -> bool {
     match last {
         None => true,
@@ -655,30 +740,39 @@ pub fn set_engine(e: &SharedEngine, new: HostEngine) {
 }
 
 /// Take control back locally (guest gone). Sends nothing: the link is dead.
-pub fn release_host(e: &SharedEngine) {
+/// The warp back is logged like any other (see `WarpLog`).
+pub fn release_host(e: &SharedEngine, log: impl Fn(String)) {
     if let Some((x, y)) = lock(e).force_local().warp {
-        warp(x, y);
+        log(warp_line((x, y), &warp(x, y)));
     }
 }
 
 /// Blocks the calling thread, grabbing all input for the life of the process.
 /// With no links in the engine every event passes through untouched.
 /// Needs Accessibility + Input Monitoring permission on macOS.
-/// `log` receives the engine's diagnostic lines (see `Step::trace`).
+/// `log` receives the engine's diagnostic lines (see `Step::trace`) and the
+/// warp results (see `WarpLog`).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn run_host(
     engine: SharedEngine,
     tx: UnboundedSender<(PeerId, Msg)>,
     log: impl Fn(String) + Send + 'static,
 ) -> Result<()> {
+    let warps = Mutex::new(WarpLog::default());
     rdev::grab(move |event| {
         let Some(ev) = convert(&event.event_type) else {
             return Some(event);
         };
         let step = lock(&engine).on_event(ev);
-        apply(&step, &tx);
+        let note = {
+            let mut w = warps.lock().unwrap_or_else(|p| p.into_inner());
+            apply(&step, &tx, &mut w)
+        };
         if let Some(line) = &step.trace {
             log(line.clone());
+        }
+        if let Some(line) = note {
+            log(line);
         }
         if step.swallow {
             None
@@ -713,6 +807,53 @@ mod tests {
         assert_eq!(k.tick(), None);
         assert!(!k.is_active());
         assert_eq!(k.set_active(false), None);
+    }
+
+    #[test]
+    fn warp_log_traces_every_warp_after_a_crossing() {
+        let mut w = WarpLog::default();
+        let now = Instant::now();
+        let target = (960.0, 540.0);
+        let landed = Ok((960.0, 540.0));
+        for _ in 0..WARP_TRACE {
+            assert_eq!(
+                w.note(target, &landed, now).as_deref(),
+                Some("warp to (960,540) -> OS at (960,540)")
+            );
+        }
+        assert_eq!(w.note(target, &landed, now), None);
+        w.crossed();
+        assert!(w.note(target, &landed, now).is_some());
+    }
+
+    #[test]
+    fn warp_log_throttles_failures_once_the_trace_is_over() {
+        let mut w = WarpLog::default();
+        let t0 = Instant::now();
+        let target = (960.0, 540.0);
+        let missed = Err("OS at (959,540), not (960,540)".to_string());
+        for _ in 0..WARP_TRACE {
+            assert!(w.note(target, &missed, t0).is_some());
+        }
+        assert_eq!(w.note(target, &missed, t0), None);
+        assert_eq!(w.note(target, &missed, t0 + Duration::from_secs(1)), None);
+        assert_eq!(
+            w.note(target, &missed, t0 + WARP_FAIL_EVERY),
+            Some("warp failed: OS at (959,540), not (960,540)".to_string())
+        );
+    }
+
+    #[test]
+    fn warp_log_is_silent_about_landed_warps_after_the_trace() {
+        let mut w = WarpLog::default();
+        let now = Instant::now();
+        let landed = Ok((960.0, 540.0));
+        for _ in 0..WARP_TRACE {
+            w.note((960.0, 540.0), &landed, now);
+        }
+        for _ in 0..50 {
+            assert_eq!(w.note((960.0, 540.0), &landed, now), None);
+        }
     }
 
     #[test]
