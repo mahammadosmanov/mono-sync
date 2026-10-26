@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{
     sync::{mpsc, Mutex as AsyncMutex},
@@ -119,6 +119,8 @@ pub struct View {
     pub download_dir: String,
     /// This computer's LAN address with the host port, if one could be found.
     pub address: Option<String>,
+    /// False when a Windows host has no firewall rule yet (see `firewall`).
+    pub firewall_ok: bool,
 }
 
 /// Local LAN address, found by asking the OS which interface it would use.
@@ -171,7 +173,12 @@ pub struct Core {
     /// Bumped by every `stop`. A loop started under an older number can no longer
     /// touch MouseKeys (see `cursor_update`).
     generation: AtomicU64,
+    /// Last firewall answer and when it was taken (see `firewall_ok`).
+    firewall: Mutex<Option<(Instant, bool)>>,
 }
+
+/// How long a firewall answer is reused. `view` runs every second; `netsh` is slow.
+const FIREWALL_CACHE: Duration = Duration::from_secs(10);
 
 impl Core {
     pub fn new() -> Result<Arc<Core>> {
@@ -204,6 +211,7 @@ impl Core {
             task: Mutex::new(None),
             cursor: Mutex::new(os::CursorKeeper::new()),
             generation: AtomicU64::new(0),
+            firewall: Mutex::new(None),
         }))
     }
 
@@ -218,9 +226,32 @@ impl Core {
             connected,
             needs: self.sh.with(|s| s.needs.clone()),
             download_dir: config.download_dir().display().to_string(),
-            config,
+            firewall_ok: self.firewall_ok(config.role),
             address: local_ip().map(|i| format!("{i}:24800")),
+            config,
         }
+    }
+
+    /// True unless this computer is a Windows host with no firewall rule for
+    /// mono-sync. The answer is reused for `FIREWALL_CACHE`.
+    fn firewall_ok(&self, role: Role) -> bool {
+        if role != Role::Host {
+            return true;
+        }
+        let mut cache = self.firewall.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some((at, ok)) = *cache {
+            if at.elapsed() < FIREWALL_CACHE {
+                return ok;
+            }
+        }
+        let ok = crate::firewall::rule_present();
+        *cache = Some((Instant::now(), ok));
+        ok
+    }
+
+    /// Drop the cached firewall answer, so the next `view` asks Windows again.
+    pub fn forget_firewall(&self) {
+        *self.firewall.lock().unwrap_or_else(|p| p.into_inner()) = None;
     }
 
     /// Validate, save and start according to `cfg`.
@@ -661,5 +692,16 @@ mod tests {
                 down: false
             }]
         );
+    }
+
+    #[test]
+    fn firewall_answer_is_cached_until_forgotten_and_guests_never_ask() {
+        let core = Core::headless().unwrap();
+        assert!(core.firewall_ok(Role::Host));
+        assert!(core.firewall.lock().unwrap().is_some());
+        core.forget_firewall();
+        assert!(core.firewall.lock().unwrap().is_none());
+        assert!(core.firewall_ok(Role::Guest));
+        assert!(core.firewall.lock().unwrap().is_none());
     }
 }

@@ -33,3 +33,4 @@ versioning: [SemVer](https://semver.org).
 - Persistent identity and settings: the pairing code survives restarts. Guest reconnects automatically; a reconnecting guest replaces a stale connection immediately.
 - `mono-net::file`: verified file transfer on its own QUIC stream, safe names, no overwrite (ADR-0011).
 - ADR-0010: centre-warp motion capture.
+- Windows host: the app checks that Windows Firewall lets mono-sync receive connections, and offers one button that adds the rule after one UAC approval. Without the rule the guest timed out with no message (ADR-0016).
