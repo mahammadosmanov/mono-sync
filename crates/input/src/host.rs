@@ -5,10 +5,11 @@
 //! centre and read motion as the offset from that centre (works with plain
 //! absolute positions on every OS). The warp's own echo event is swallowed.
 //!
-//! Warp jitter is held, not forwarded: a report within `HOLD_PX` of the centre
-//! is left to the OS and re-parked later, so it cannot push the virtual cursor
-//! past the peer's back edge. Reports at the screen edge are stale positions
-//! from before our warp. See ADR-0017.
+//! While remote, every report except an exact-centre echo of our own warp is
+//! re-parked (warped back to the centre). Warp jitter within `HOLD_PX` of the
+//! centre is re-parked but not forwarded, so it cannot push the virtual cursor
+//! past the peer's back edge. Reports within `STALE_PX` of the screen edge are
+//! pre-warp positions: re-parked, never forwarded. See ADR-0017.
 use crate::layout::{Link, Out, PeerId, Router, Size};
 use mono_proto::{Button, Key, Msg};
 use std::collections::HashSet;
@@ -16,8 +17,9 @@ use std::collections::HashSet;
 /// Offsets from the parked centre below this on both axes are warp jitter.
 /// Jitter seen on Windows is up to 3 px, so 4 px holds it.
 const HOLD_PX: f64 = 4.0;
-/// Parked reports this close to the screen edge are queued pre-warp positions.
-const STALE_PX: f64 = 2.0;
+/// Parked reports this close to the screen edge are queued pre-warp positions
+/// (Windows queues up to three pixels from the old edge).
+const STALE_PX: f64 = 3.0;
 /// Pointer events after each crossing that get a diagnostic line.
 const TRACE_EVENTS: u8 = 8;
 
@@ -139,21 +141,29 @@ impl HostEngine {
         };
         let c = self.center();
         let (ox, oy) = (x - c.0, y - c.1);
-        let echo = Step {
-            swallow: true,
+        // Every report that is not our own echo is re-parked, stale and held ones too:
+        // the OS cursor must not stay where the user pushed it (ADR-0017).
+        let park = Step {
+            warp: Some(c),
             ..Step::default()
         };
-        let (kind, mut s) = if ox.abs() >= self.host.w / 2.0 - STALE_PX
+        let (kind, mut s) = if ox.abs() < 1.0 && oy.abs() < 1.0 {
+            // Our own warp echo, exactly centred: swallow, nothing to re-park.
+            (
+                "echo",
+                Step {
+                    swallow: true,
+                    ..Step::default()
+                },
+            )
+        } else if ox.abs() >= self.host.w / 2.0 - STALE_PX
             || oy.abs() >= self.host.h / 2.0 - STALE_PX
         {
-            // Queued from before the warp: we are already parked at the centre.
-            ("stale", echo)
-        } else if ox.abs() < 1.0 && oy.abs() < 1.0 {
-            ("echo", echo) // our own warp, exactly centred
+            // Queued from before the warp: re-park, never forward.
+            ("stale", park)
         } else if ox.abs() < HOLD_PX && oy.abs() < HOLD_PX {
-            // Jitter: no forward and no re-park. The OS keeps the small offset,
-            // so real motion still adds up and passes the threshold.
-            ("held", Step::default())
+            // Jitter: re-park, never forward, so it cannot reach the exit rule.
+            ("held", park)
         } else {
             let outs = self.router.motion((x, y), (ox, oy));
             let left = outs.iter().any(|o| matches!(o, Out::Leave { .. }));
@@ -370,42 +380,60 @@ mod tests {
     }
 
     /// Windows reports the parked centre with a few px of jitter, and queued
-    /// reports from before the warp still show the pre-warp edge (x = w-1 and
-    /// x = w-2). None of them may return control or move the peer.
+    /// reports from before the warp show the pre-warp edge (x = w-1, w-2, w-3).
+    /// Every report except an exact-centre echo is re-parked; none of them may
+    /// return control or be forwarded.
     #[test]
     fn host_edge_bounce_after_enter() {
         let mut e = engine();
         enter(&mut e);
         let reports = [
-            (960.0, 540.0),  // our own warp echo
             (959.0, 540.0),  // jitter -1 toward the peer's back edge
             (958.0, 541.0),  // jitter -2, +1
             (957.0, 539.0),  // jitter -3, -1
             (961.0, 542.0),  // jitter +1, +2
             (1919.0, 540.0), // stale: pre-warp edge, x = width-1
             (1918.0, 540.0), // stale: pre-warp edge, x = width-2
+            (1917.0, 540.0), // stale: pre-warp edge, x = width-3
             (959.0, 541.0),
         ];
         for (x, y) in reports {
             let s = e.on_event(Ev::Move { x, y });
             assert!(s.send.is_empty(), "({x}, {y}) sent {:?}", s.send);
-            assert!(s.warp.is_none(), "({x}, {y}) warped to {:?}", s.warp);
+            assert_eq!(s.warp, Some((960.0, 540.0)), "({x}, {y}) not re-parked");
             assert!(e.is_remote(), "({x}, {y}) bounced back to this computer");
+        }
+        // Our own warp echo: swallowed, nothing to re-park.
+        let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
+        assert!(s.swallow && s.warp.is_none() && s.send.is_empty());
+        assert!(e.is_remote());
+    }
+
+    /// A stale report at any of the last three pixels re-parks on its own, with
+    /// no Leave, straight after entry.
+    #[test]
+    fn stale_edge_reports_repark_without_leaving() {
+        for x in [1919.0, 1918.0, 1917.0] {
+            let mut e = engine();
+            enter(&mut e);
+            let s = e.on_event(Ev::Move { x, y: 540.0 });
+            assert_eq!(s.warp, Some((960.0, 540.0)), "x={x} not re-parked");
+            assert!(s.send.is_empty(), "x={x} sent {:?}", s.send);
+            assert!(e.is_remote(), "x={x} returned control");
         }
     }
 
+    /// Re-parking leaves no OS offset to add up, so a step under 4 px is
+    /// re-parked and not forwarded: it never adds up to an exit (ADR-0017,
+    /// Consequences). Only a single report 4 px past the back edge exits.
     #[test]
-    fn slow_walk_back_still_returns_control() {
+    fn sub_threshold_steps_are_not_summed() {
         let mut e = engine();
         enter(&mut e);
-        // Small back steps stay inside the 4 px dead zone; the offset from the
-        // parked centre adds up and control returns at 4 px past the edge.
-        for x in [959.0, 958.0, 957.0] {
-            let s = e.on_event(Ev::Move { x, y: 540.0 });
-            assert!(
-                s.send.is_empty() && e.is_remote(),
-                "returned early at x={x}"
-            );
+        for _ in 0..10 {
+            let s = e.on_event(Ev::Move { x: 957.0, y: 540.0 });
+            assert!(s.send.is_empty() && s.warp == Some((960.0, 540.0)));
+            assert!(e.is_remote());
         }
         let s = e.on_event(Ev::Move { x: 956.0, y: 540.0 });
         assert_eq!(s.send[0].1, Msg::Leave);
@@ -427,7 +455,7 @@ mod tests {
         assert_eq!(traced.len(), 8);
         assert_eq!(
             traced[0],
-            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow no, warp no"
+            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow no, warp 960,540"
         );
     }
 

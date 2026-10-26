@@ -10,7 +10,8 @@ versioning: [SemVer](https://semver.org).
 - Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 
 ### Fixed
-- Host: the cursor bounced back to this computer right after crossing to the other one (up to four times per move). Warp jitter near the parked centre and queued edge reports are now ignored; a real move past the edge still returns control (ADR-0017).
+- Host: the cursor bounced back to this computer right after crossing to the other one (up to four times per move). Warp jitter near the parked centre and queued edge reports no longer return control; a real move past the edge still does (ADR-0017).
+- Windows host: the cursor stayed on the edge after crossing to the other computer, because re-parking was skipped for stale and held reports. Every report while remote now re-parks the cursor, and the log shows whether each warp landed (ADR-0017).
 - macOS: moving the mouse while a button is held (drag) was not forwarded, so the Mac cursor moved instead. Dragged events are now forwarded (vendored rdev patch).
 - macOS: capture stopped for good after macOS disabled the event tap (slow callback, secure input). The tap is re-enabled. The middle mouse button is captured and injected too (vendored rdev patch).
 - Windows guest: the pointer could disappear while typing. Hide-pointer-while-typing is turned off while the cursor is on the guest (restored when it leaves). MouseKeys and that setting are checked every 500 ms instead of 2 s and put back if changed; a pointer Windows reports hidden is woken with a 1 px move (at most once a second).

@@ -297,7 +297,7 @@ impl Core {
     /// Stop whatever is running and start according to `cfg`.
     pub fn apply(self: &Arc<Self>, cfg: Config) {
         self.stop();
-        os::release_host(&self.engine);
+        os::release_host(&self.engine, |line| self.sh.note(line));
         self.sh.set_conn(None);
         self.sh.with(|s| s.code = None);
         let core = self.clone();
@@ -529,7 +529,7 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                 n = srv.accept() => { next = Some(n?); break }
             }
         }
-        os::release_host(&core.engine);
+        os::release_host(&core.engine, |line| core.sh.note(line));
         core.sh.set_conn(None);
         core.sh.note("Guest disconnected");
     }
