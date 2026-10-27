@@ -29,11 +29,12 @@ fn simulate(e: &EventType) -> Result<()> {
 }
 
 /// Moves the pointer to (x, y) and returns where the OS left it. On Windows the
-/// move is `SetCursorPos` (what rdev's MouseMove calls there) and is read back
-/// with `GetCursorPos`: a refused move, or a landing more than 2 px from the
-/// request, is an error that says where the pointer is. Elsewhere the move is
-/// made and counts as landed.
-pub fn warp(x: f64, y: f64) -> Result<(f64, f64), String> {
+/// move is `SetCursorPos` (what rdev's MouseMove calls there); a refused move is
+/// always an error. The landing is read back with `GetCursorPos` only when `check`
+/// is set (the trace window after a crossing), and a landing more than 2 px from
+/// the request is then an error that says where the pointer is. Elsewhere the move
+/// is made and counts as landed.
+pub fn warp(x: f64, y: f64, check: bool) -> Result<(f64, f64), String> {
     #[cfg(windows)]
     {
         use winapi::shared::windef::POINT;
@@ -41,6 +42,9 @@ pub fn warp(x: f64, y: f64) -> Result<(f64, f64), String> {
         // SAFETY: plain call with two integer arguments.
         if unsafe { SetCursorPos(x as i32, y as i32) } == 0 {
             return Err("SetCursorPos refused the move".to_string());
+        }
+        if !check {
+            return Ok((x, y));
         }
         let mut p = POINT { x: 0, y: 0 };
         // SAFETY: `p` is a valid out-structure for GetCursorPos.
@@ -55,6 +59,8 @@ pub fn warp(x: f64, y: f64) -> Result<(f64, f64), String> {
     }
     #[cfg(not(windows))]
     {
+        // Only Windows reads the landing back (see the doc above).
+        let _ = check;
         simulate(&EventType::MouseMove { x, y }).map_err(|e| format!("{e:#}"))?;
         Ok((x, y))
     }
@@ -89,6 +95,11 @@ impl WarpLog {
         self.since_crossing = 0;
     }
 
+    /// True while the next warp is in the trace window, so its landing is read back.
+    pub fn tracing(&self) -> bool {
+        self.since_crossing < WARP_TRACE
+    }
+
     /// The log line for one warp to `(x, y)` with result `res`, if it is logged.
     pub fn note(
         &mut self,
@@ -96,7 +107,7 @@ impl WarpLog {
         res: &Result<(f64, f64), String>,
         now: Instant,
     ) -> Option<String> {
-        let traced = self.since_crossing < WARP_TRACE;
+        let traced = self.tracing();
         self.since_crossing = self.since_crossing.saturating_add(1);
         if traced {
             if res.is_err() {
@@ -159,7 +170,8 @@ fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) 
         warps.crossed();
     }
     let (x, y) = step.warp?;
-    warps.note((x, y), &warp(x, y), Instant::now())
+    let res = warp(x, y, warps.tracing());
+    warps.note((x, y), &res, Instant::now())
 }
 
 #[cfg(target_os = "macos")]
@@ -743,7 +755,7 @@ pub fn set_engine(e: &SharedEngine, new: HostEngine) {
 /// The warp back is logged like any other (see `WarpLog`).
 pub fn release_host(e: &SharedEngine, log: impl Fn(String)) {
     if let Some((x, y)) = lock(e).force_local().warp {
-        log(warp_line((x, y), &warp(x, y)));
+        log(warp_line((x, y), &warp(x, y, true)));
     }
 }
 
@@ -824,6 +836,21 @@ mod tests {
         assert_eq!(w.note(target, &landed, now), None);
         w.crossed();
         assert!(w.note(target, &landed, now).is_some());
+    }
+
+    /// Only the trace window reads the landing back; later warps skip the readback.
+    #[test]
+    fn warp_readback_is_wanted_only_in_the_trace_window() {
+        let mut w = WarpLog::default();
+        let now = Instant::now();
+        let landed = Ok((960.0, 540.0));
+        for _ in 0..WARP_TRACE {
+            assert!(w.tracing());
+            w.note((960.0, 540.0), &landed, now);
+        }
+        assert!(!w.tracing(), "per-event warps still read back");
+        w.crossed();
+        assert!(w.tracing());
     }
 
     #[test]
