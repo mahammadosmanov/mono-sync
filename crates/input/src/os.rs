@@ -16,7 +16,47 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 
+/// Size of the main screen in the coordinate space the OS uses for pointer events.
+///
+/// On macOS, rdev's `display_size` returns PIXELS (3024x1964 on a Retina MacBook),
+/// but mouse events and CGEvent positions use POINTS (1512x982). Using pixels made
+/// every edge and every absolute position on a Mac wrong by the scale factor, so
+/// the Mac path reads the main display bounds in points instead.
 pub fn screen_size() -> Result<Size> {
+    #[cfg(target_os = "macos")]
+    {
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct CGPoint {
+            x: f64,
+            y: f64,
+        }
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct CGSize {
+            width: f64,
+            height: f64,
+        }
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct CGRect {
+            origin: CGPoint,
+            size: CGSize,
+        }
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGMainDisplayID() -> u32;
+            fn CGDisplayBounds(display: u32) -> CGRect;
+        }
+        // SAFETY: plain CoreGraphics queries with a valid display id.
+        let r = unsafe { CGDisplayBounds(CGMainDisplayID()) };
+        if r.size.width > 0.0 && r.size.height > 0.0 {
+            return Ok(Size {
+                w: r.size.width,
+                h: r.size.height,
+            });
+        }
+    }
     let (w, h) = rdev::display_size().map_err(|e| anyhow!("display size: {e:?}"))?;
     Ok(Size {
         w: w as f64,
