@@ -18,6 +18,7 @@
   input[type=text], select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
   button { padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
   button.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
+  button.quiet { border:0; background:none; padding:4px 0; color:var(--muted); font-size:13px; text-decoration:underline; }
   button:disabled { opacity:.5; cursor:not-allowed; }
   .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-weight:600; font-size:13px; background:var(--bg); border:1px solid var(--line); }
   .pill.ok { color:var(--ok); } .pill.bad { color:var(--bad); }
@@ -44,13 +45,6 @@
     <div class="sub">In the list, switch on <b>mono-sync</b>. This window continues by itself.</div>
   </div>
 
-  <div class="card" id="fw" style="display:none;border-color:var(--bad)">
-    <h2 style="color:var(--bad)">Firewall</h2>
-    <div>Windows is blocking incoming connections for mono-sync. Click once and accept the Windows admin prompt.</div>
-    <div class="row"><button class="primary" id="fwBtn">Allow mono-sync in Windows Firewall</button></div>
-    <div id="fwMsg" class="msg"></div>
-  </div>
-
   <div class="card">
     <h2>Status</h2>
     <span id="state" class="pill">…</span>
@@ -72,6 +66,10 @@
       <div class="sub" style="margin:8px 0 0">Pairing code (treat like a password)</div><div class="mono" id="hostCode">…</div></div>
       <div class="row"><button id="copyAddr">Copy address</button><button id="copyCode">Copy code</button></div>
       <p class="sub">Back to this computer at any time: Ctrl + Alt (Option) + Esc.</p>
+      <div id="fwBox" class="hide">
+        <button class="quiet" id="fwBtn">Other computer can't connect? Allow mono-sync in Windows Firewall</button>
+        <div id="fwMsg" class="msg"></div>
+      </div>
     </div>
 
     <div id="guestBox" class="hide">
@@ -130,7 +128,7 @@ async function refresh() {
       $('edge').value = cfg.edge; $('gAddr').value = cfg.host_addr; $('gCode').value = cfg.pairing_code;
       $('dl').value = cfg.download_dir || s.download_dir; showRole();
     }
-    $('fw').style.display = s.config.role === 'host' && s.firewall_ok === false ? '' : 'none';
+    $('fwBox').classList.toggle('hide', !(s.config.role === 'host' && s.firewall_ok === false));
     $('perm').style.display = s.needs && s.needs.length ? '' : 'none';
     $('permText').textContent = 'macOS needs your OK for: ' + (s.needs || []).join(' and ') + '.';
     const pb = $('permBtns'), want = (s.needs || []).join('|');
