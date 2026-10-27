@@ -3,27 +3,31 @@
 //!
 //! While a peer owns the cursor we keep the local cursor parked at the screen
 //! centre and read motion as the offset from that centre (works with plain
-//! absolute positions on every OS). The warp's own echo event is swallowed.
+//! absolute positions on every OS). The rules follow Input Leap's primary side,
+//! as read from its source for behaviour; the code is independent (ADR-0018):
 //!
-//! While remote, every report except an exact-centre echo of our own warp is
-//! re-parked (warped back to the centre). Warp jitter within `HOLD_PX` of the
-//! centre is re-parked but not forwarded, so it cannot push the virtual cursor
-//! past the peer's back edge. Reports within `STALE_PX` of the screen edge are
-//! pre-warp positions: re-parked, never forwarded. See ADR-0017.
+//! - Every non-zero offset is forwarded and the peer accumulates it. There is
+//!   no hold threshold.
+//! - An offset that would take the centred cursor within `BOGUS_PX` of an edge
+//!   is bogus (a queued pre-warp report or a warp artefact): dropped.
+//! - A report exactly at the centre is the echo of one of our warps, or a zero
+//!   move. Nothing is sent and nothing is warped.
+//! - Every other remote report re-parks the cursor at the centre.
+//! - Moving past the peer's back edge returns control. The host cursor is placed
+//!   on its own edge, and ADR-0017's hysteresis keeps it from crossing again.
 use crate::layout::{Edge, Link, Out, PeerId, Router, Size};
 use mono_proto::{Button, Key, Msg};
 use std::collections::HashSet;
 
 /// After the cursor comes back through a host edge, reports this close to that
-/// edge do not cross again until the cursor is this far away from it. Queued
-/// pre-warp reports sit at the edge and would otherwise re-enter (ADR-0017).
+/// edge do not cross again until the cursor is this far away from it (ADR-0017).
 const REENTER_PX: f64 = 30.0;
-/// Offsets from the parked centre below this on both axes are warp jitter.
-/// Jitter seen on Windows is up to 3 px, so 4 px holds it.
-const HOLD_PX: f64 = 4.0;
-/// Parked reports this close to the screen edge are queued pre-warp positions
-/// (Windows queues up to three pixels from the old edge).
-const STALE_PX: f64 = 3.0;
+/// Input Leap's bogus zone: an offset from the parked centre that would take the
+/// centred cursor to within this many px of a screen edge is dropped.
+const BOGUS_PX: f64 = 10.0;
+/// Most warp echoes awaited at once. An OS that never echoes must not grow the
+/// count without bound.
+const ECHO_CAP: u8 = 8;
 /// Pointer events after each crossing that get a diagnostic line.
 const TRACE_EVENTS: u8 = 8;
 
@@ -58,6 +62,8 @@ pub struct HostEngine {
     /// Host edge the cursor last came back through. Local reports near it do not
     /// cross until the cursor is `REENTER_PX` away from it.
     returned_via: Option<Edge>,
+    /// Warps to the centre whose echo has not arrived yet (saturates at `ECHO_CAP`).
+    echoes: u8,
 }
 
 impl HostEngine {
@@ -71,7 +77,25 @@ impl HostEngine {
             down: HashSet::new(),
             traced: 0,
             returned_via: None,
+            echoes: 0,
         }
+    }
+
+    /// One warp to the centre was made, so its echo is expected.
+    fn expect_echo(&mut self) {
+        self.echoes = (self.echoes + 1).min(ECHO_CAP);
+    }
+
+    /// True when `offset` from the parked centre would take the centred cursor to
+    /// within `BOGUS_PX` of a screen edge (Input Leap's bogus-zone test).
+    fn is_bogus(&self, (ox, oy): (f64, f64)) -> bool {
+        let c = self.center();
+        let right = self.host.w - c.0;
+        let bottom = self.host.h - c.1;
+        ox > right - BOGUS_PX
+            || -ox > c.0 - BOGUS_PX
+            || oy > bottom - BOGUS_PX
+            || -oy > c.1 - BOGUS_PX
     }
 
     /// Distance in px from the host screen edge `edge`, measured at `(x, y)`.
@@ -108,6 +132,8 @@ impl HostEngine {
         };
         self.router.force_local();
         self.down.clear();
+        self.echoes = 0;
+        self.last = self.center();
         Step {
             send: vec![(peer, Msg::Leave)],
             warp: Some(self.center()),
@@ -170,41 +196,41 @@ impl HostEngine {
         };
         let c = self.center();
         let (ox, oy) = (x - c.0, y - c.1);
-        // Every report that is not our own echo is re-parked, stale and held ones too:
-        // the OS cursor must not stay where the user pushed it (ADR-0017).
-        let park = Step {
-            warp: Some(c),
-            ..Step::default()
-        };
-        let (kind, mut s) = if ox.abs() < 1.0 && oy.abs() < 1.0 {
-            // Our own warp echo, exactly centred: swallow, nothing to re-park.
+        let (kind, mut s) = if ox == 0.0 && oy == 0.0 {
+            // On the centre: the echo of one of our warps if one is awaited, else a
+            // zero move. The cursor is already parked, so nothing is sent or warped.
+            let kind = if self.echoes > 0 {
+                self.echoes -= 1;
+                "echo"
+            } else {
+                "centre"
+            };
+            (kind, Step::default())
+        } else if self.is_bogus((ox, oy)) {
+            // Queued from before a warp, or a warp artefact: dropped and re-parked.
             (
-                "echo",
+                "bogus",
                 Step {
-                    swallow: true,
+                    warp: Some(c),
                     ..Step::default()
                 },
             )
-        } else if ox.abs() >= self.host.w / 2.0 - STALE_PX
-            || oy.abs() >= self.host.h / 2.0 - STALE_PX
-        {
-            // Queued from before the warp: re-park, never forward.
-            ("stale", park)
-        } else if ox.abs() < HOLD_PX && oy.abs() < HOLD_PX {
-            // Jitter: re-park, never forward, so it cannot reach the exit rule.
-            ("held", park)
         } else {
             let outs = self.router.motion((x, y), (ox, oy));
             let left = outs.iter().any(|o| matches!(o, Out::Leave { .. }));
             let mut s = self.apply(outs);
-            // A return keeps the edge warp apply() set; only a move re-parks at the centre.
+            // A return keeps the edge warp apply() set; any other move re-parks.
             if !left {
                 s.warp = Some(c);
             }
             (if left { "leave" } else { "move" }, s)
         };
-        // Every pointer report of a remote move is swallowed, leave included (Input
-        // Leap relay mode): the OS must not move the cursor off the centre.
+        // Each warp to the centre expects one echo back.
+        if s.warp == Some(c) {
+            self.expect_echo();
+        }
+        // Every remote pointer event is swallowed, leave included, so the OS never
+        // moves the cursor off the centre (Input Leap relay mode).
         s.swallow = true;
         if self.traced > 0 {
             let n = TRACE_EVENTS - self.traced + 1;
@@ -230,7 +256,9 @@ impl HostEngine {
                 Out::Enter { peer, x, y } => {
                     self.peer = Some(peer);
                     s.send.push((peer, Msg::Enter { x, y }));
+                    // Park before the peer hears Enter (ADR-0018 (e)).
                     s.warp = Some(self.center());
+                    self.expect_echo();
                 }
                 Out::Move { peer, dx, dy } => s.send.push((peer, Msg::Move { dx, dy })),
                 Out::Leave {
@@ -240,6 +268,7 @@ impl HostEngine {
                 } => {
                     self.peer = None;
                     self.down.clear();
+                    self.echoes = 0;
                     self.last = (host_x, host_y);
                     self.returned_via = self.links.iter().find(|l| l.peer == peer).map(|l| l.edge);
                     s.send.push((peer, Msg::Leave));
@@ -254,7 +283,6 @@ impl HostEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::Edge;
 
     const HOST: Size = Size {
         w: 1920.0,
@@ -382,6 +410,49 @@ mod tests {
         assert!(e.is_remote());
     }
 
+    /// Only an exact match with the warp target is an echo, and each warp to the
+    /// centre expects exactly one.
+    #[test]
+    fn exact_echo_consumes_one_warp_and_centred_zero_moves_do_nothing() {
+        let mut e = engine();
+        enter(&mut e); // the crossing warp awaits its echo
+        assert_eq!(e.echoes, 1);
+        let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
+        assert!(s.send.is_empty() && s.swallow && s.warp.is_none());
+        assert_eq!(e.echoes, 0);
+
+        e.on_event(Ev::Move { x: 965.0, y: 543.0 }); // real move: warps, awaits one
+        assert_eq!(e.echoes, 1);
+        assert!(e.on_event(Ev::Move { x: 960.0, y: 540.0 }).send.is_empty());
+        assert_eq!(e.echoes, 0);
+
+        // Nothing awaited: a centred report is a zero move, so no warp either.
+        let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
+        assert!(s.send.is_empty() && s.warp.is_none() && s.swallow);
+    }
+
+    /// The echo must match exactly. A landing 1 px off is real motion: forwarded
+    /// and re-parked (ADR-0018 has no tolerance band).
+    #[test]
+    fn off_by_one_landing_is_forwarded_not_treated_as_echo() {
+        let mut e = engine();
+        enter(&mut e);
+        let s = e.on_event(Ev::Move { x: 961.0, y: 540.0 });
+        assert_eq!(s.send, vec![(1, Msg::Move { dx: 1, dy: 0 })]);
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+    }
+
+    /// An OS that never echoes must not grow the count without bound.
+    #[test]
+    fn unanswered_warps_are_capped() {
+        let mut e = engine();
+        enter(&mut e);
+        for _ in 0..(3 * ECHO_CAP) {
+            e.on_event(Ev::Move { x: 961.0, y: 540.0 });
+        }
+        assert_eq!(e.echoes, ECHO_CAP);
+    }
+
     #[test]
     fn walking_back_returns_control() {
         let mut e = engine();
@@ -470,6 +541,57 @@ mod tests {
         assert!(e.is_remote());
     }
 
+    /// Exit through a bottom link: the cursor lands on the host's bottom edge, not
+    /// the centre, and holds for 30 px there (ADR-0017 on another edge).
+    #[test]
+    fn exit_on_a_bottom_link_warps_to_the_bottom_edge_and_holds_30px() {
+        let mut e = HostEngine::new(
+            HOST,
+            vec![Link {
+                edge: Edge::Bottom,
+                peer: 1,
+                size: GUEST,
+            }],
+        );
+        e.on_event(Ev::Move {
+            x: 960.0,
+            y: 1000.0,
+        });
+        let s = e.on_event(Ev::Move {
+            x: 960.0,
+            y: 1079.0,
+        });
+        assert!(matches!(s.send[0].1, Msg::Enter { .. }));
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+        assert!(e.is_remote());
+        // The peer's entry is its top edge (y = 0), so a move of -1 passes it.
+        let s = e.on_event(Ev::Move { x: 960.0, y: 539.0 });
+        assert_eq!(s.send[0].1, Msg::Leave);
+        let (wx, wy) = s.warp.expect("return warps the cursor");
+        assert_eq!(wy, 1077.0, "not the host's bottom edge");
+        assert!(
+            (wx - 959.0).abs() < 1.0,
+            "x {wx} moved off the crossing point"
+        );
+        assert!(!e.is_remote());
+        for y in [1077.0, 1060.0, 1050.0] {
+            let s = e.on_event(Ev::Move { x: 960.0, y });
+            assert_eq!(s, Step::default(), "y={y} within 30 px crossed");
+            assert!(!e.is_remote());
+        }
+        // 30 px away the block lifts, and coming back down crosses again.
+        e.on_event(Ev::Move {
+            x: 960.0,
+            y: 1049.0,
+        });
+        let s = e.on_event(Ev::Move {
+            x: 960.0,
+            y: 1079.0,
+        });
+        assert!(matches!(s.send[0].1, Msg::Enter { .. }), "no crossing");
+        assert!(e.is_remote());
+    }
+
     #[test]
     fn hotkey_returns_control() {
         let mut e = engine();
@@ -491,33 +613,40 @@ mod tests {
         assert!(!e.is_remote());
     }
 
-    /// Windows reports the parked centre with a few px of jitter, and queued
-    /// reports from before the warp show the pre-warp edge (x = w-1, w-2, w-3).
-    /// Every report except an exact-centre echo is re-parked; none of them may
-    /// return control or be forwarded.
+    /// Crossing: the crossing move is swallowed, the host cursor is parked at the
+    /// centre (the entry point), and Enter names the peer's entry edge.
     #[test]
-    fn host_edge_bounce_after_enter() {
+    fn crossing_move_is_swallowed_and_warps_to_the_entry_point() {
+        let mut e = engine();
+        e.on_event(Ev::Move {
+            x: 1000.0,
+            y: 540.0,
+        });
+        let s = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert_eq!(s.send, vec![(1, Msg::Enter { x: 0.0, y: 0.5 })]);
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+        assert!(s.swallow);
+    }
+
+    /// Reports queued from before the warp at the old edge are bogus: they never
+    /// return control, and the peer gets only real motion afterwards.
+    #[test]
+    fn queued_edge_reports_after_enter_do_not_bounce_back() {
         let mut e = engine();
         enter(&mut e);
-        let reports = [
-            (959.0, 540.0),  // jitter -1 toward the peer's back edge
-            (958.0, 541.0),  // jitter -2, +1
-            (957.0, 539.0),  // jitter -3, -1
-            (961.0, 542.0),  // jitter +1, +2
-            (1919.0, 540.0), // stale: pre-warp edge, x = width-1
-            (1918.0, 540.0), // stale: pre-warp edge, x = width-2
-            (1917.0, 540.0), // stale: pre-warp edge, x = width-3
-            (959.0, 541.0),
-        ];
-        for (x, y) in reports {
-            let s = e.on_event(Ev::Move { x, y });
-            assert!(s.send.is_empty(), "({x}, {y}) sent {:?}", s.send);
-            assert_eq!(s.warp, Some((960.0, 540.0)), "({x}, {y}) not re-parked");
-            assert!(e.is_remote(), "({x}, {y}) bounced back to this computer");
+        for x in [1919.0, 1918.0, 1917.0] {
+            let s = e.on_event(Ev::Move { x, y: 540.0 });
+            assert!(s.send.is_empty(), "x={x} sent {:?}", s.send);
+            assert_eq!(s.warp, Some((960.0, 540.0)), "x={x} not re-parked");
+            assert!(e.is_remote(), "x={x} bounced back to this computer");
         }
-        // Our own warp echo: swallowed, nothing to re-park.
-        let s = e.on_event(Ev::Move { x: 960.0, y: 540.0 });
-        assert!(s.swallow && s.warp.is_none() && s.send.is_empty());
+        // Our crossing warp's echo arrives after them.
+        assert!(e.on_event(Ev::Move { x: 960.0, y: 540.0 }).send.is_empty());
+        let s = e.on_event(Ev::Move { x: 961.0, y: 541.0 });
+        assert_eq!(s.send, vec![(1, Msg::Move { dx: 1, dy: 1 })]);
         assert!(e.is_remote());
     }
 
@@ -535,21 +664,62 @@ mod tests {
         }
     }
 
-    /// Re-parking leaves no OS offset to add up, so a step under 4 px is
-    /// re-parked and not forwarded: it never adds up to an exit (ADR-0017,
-    /// Consequences). Only a single report 4 px past the back edge exits.
+    /// Every non-zero offset is forwarded, however small, and the peer adds them
+    /// up. The virtual cursor starts at the peer's left edge, so it exits only once
+    /// the 1 px steps have summed back past that edge (Input Leap's accumulation).
     #[test]
-    fn sub_threshold_steps_are_not_summed() {
+    fn one_pixel_moves_are_forwarded_and_accumulate() {
         let mut e = engine();
         enter(&mut e);
         for _ in 0..10 {
-            let s = e.on_event(Ev::Move { x: 957.0, y: 540.0 });
-            assert!(s.send.is_empty() && s.warp == Some((960.0, 540.0)));
-            assert!(e.is_remote());
+            let s = e.on_event(Ev::Move { x: 961.0, y: 540.0 });
+            assert_eq!(s.send, vec![(1, Msg::Move { dx: 1, dy: 0 })]);
+            assert_eq!(s.warp, Some((960.0, 540.0)));
         }
-        let s = e.on_event(Ev::Move { x: 956.0, y: 540.0 });
+        for _ in 0..10 {
+            let s = e.on_event(Ev::Move { x: 959.0, y: 540.0 });
+            assert_eq!(s.send, vec![(1, Msg::Move { dx: -1, dy: 0 })]);
+            assert!(
+                e.is_remote(),
+                "exited before the steps summed back to the edge"
+            );
+        }
+        // The virtual cursor is at the peer's left edge (0): one more step passes it.
+        let s = e.on_event(Ev::Move { x: 959.0, y: 540.0 });
         assert_eq!(s.send[0].1, Msg::Leave);
         assert!(!e.is_remote());
+    }
+
+    /// Input Leap's bogus zone: an offset that would take the centred cursor to
+    /// within 10 px of an edge is dropped and re-parked. It is checked before the
+    /// exit rule, so a bogus move toward the peer's back edge does not return control.
+    #[test]
+    fn move_into_the_bogus_zone_is_ignored() {
+        let mut e = engine();
+        enter(&mut e);
+        // 951 px right of the centre: 9 px from the host's right edge.
+        let s = e.on_event(Ev::Move {
+            x: 1911.0,
+            y: 540.0,
+        });
+        assert!(s.send.is_empty(), "bogus move sent {:?}", s.send);
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+        // 951 px left of the centre would pass the peer's back edge; the zone drops it first.
+        let s = e.on_event(Ev::Move { x: 9.0, y: 540.0 });
+        assert!(s.send.is_empty() && s.warp == Some((960.0, 540.0)));
+        assert!(e.is_remote(), "bogus move returned control");
+        // 531 px below the centre: 9 px from the host's bottom edge.
+        let s = e.on_event(Ev::Move {
+            x: 960.0,
+            y: 1071.0,
+        });
+        assert!(s.send.is_empty() && e.is_remote());
+        // Just outside the zone is real motion: 950 px right is forwarded.
+        let s = e.on_event(Ev::Move {
+            x: 1910.0,
+            y: 540.0,
+        });
+        assert_eq!(s.send, vec![(1, Msg::Move { dx: 950, dy: 0 })]);
     }
 
     #[test]
@@ -559,15 +729,14 @@ mod tests {
         enter(&mut e);
         let mut traced = Vec::new();
         for _ in 0..10 {
-            // Held jitter: the OS keeps the offset, so every event stays parked.
-            if let Some(line) = e.on_event(Ev::Move { x: 959.0, y: 540.0 }).trace {
+            if let Some(line) = e.on_event(Ev::Move { x: 961.0, y: 540.0 }).trace {
                 traced.push(line);
             }
         }
         assert_eq!(traced.len(), 8);
         assert_eq!(
             traced[0],
-            "host 1/8 held: raw 959,540 off -1,+0 -> send 0, swallow yes, warp 960,540"
+            "host 1/8 move: raw 961,540 off +1,+0 -> send 1, swallow yes, warp 960,540"
         );
     }
 

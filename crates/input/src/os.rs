@@ -158,10 +158,9 @@ fn convert(t: &EventType) -> Option<Ev> {
     })
 }
 
+/// Carries out one step. The warp happens before any message is sent, so the
+/// peer never hears Enter while the host cursor is still on the edge (ADR-0018 (e)).
 fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) -> Option<String> {
-    for (p, m) in &step.send {
-        let _ = tx.send((*p, m.clone()));
-    }
     if step
         .send
         .iter()
@@ -169,9 +168,14 @@ fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) 
     {
         warps.crossed();
     }
-    let (x, y) = step.warp?;
-    let res = warp(x, y, warps.tracing());
-    warps.note((x, y), &res, Instant::now())
+    let note = step.warp.and_then(|(x, y)| {
+        let res = warp(x, y, warps.tracing());
+        warps.note((x, y), &res, Instant::now())
+    });
+    for (p, m) in &step.send {
+        let _ = tx.send((*p, m.clone()));
+    }
+    note
 }
 
 #[cfg(target_os = "macos")]
