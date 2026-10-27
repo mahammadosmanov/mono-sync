@@ -10,10 +10,14 @@
 //! centre is re-parked but not forwarded, so it cannot push the virtual cursor
 //! past the peer's back edge. Reports within `STALE_PX` of the screen edge are
 //! pre-warp positions: re-parked, never forwarded. See ADR-0017.
-use crate::layout::{Link, Out, PeerId, Router, Size};
+use crate::layout::{Edge, Link, Out, PeerId, Router, Size};
 use mono_proto::{Button, Key, Msg};
 use std::collections::HashSet;
 
+/// After the cursor comes back through a host edge, reports this close to that
+/// edge do not cross again until the cursor is this far away from it. Queued
+/// pre-warp reports sit at the edge and would otherwise re-enter (ADR-0017).
+const REENTER_PX: f64 = 30.0;
 /// Offsets from the parked centre below this on both axes are warp jitter.
 /// Jitter seen on Windows is up to 3 px, so 4 px holds it.
 const HOLD_PX: f64 = 4.0;
@@ -44,23 +48,39 @@ pub struct Step {
 
 pub struct HostEngine {
     host: Size,
+    links: Vec<Link>,
     router: Router,
     last: (f64, f64),
     peer: Option<PeerId>,
     down: HashSet<Key>,
     /// Pointer events still to trace after the last crossing.
     traced: u8,
+    /// Host edge the cursor last came back through. Local reports near it do not
+    /// cross until the cursor is `REENTER_PX` away from it.
+    returned_via: Option<Edge>,
 }
 
 impl HostEngine {
     pub fn new(host: Size, links: Vec<Link>) -> Self {
         Self {
             host,
+            links: links.clone(),
             router: Router::new(host, links),
             last: (host.w / 2.0, host.h / 2.0),
             peer: None,
             down: HashSet::new(),
             traced: 0,
+            returned_via: None,
+        }
+    }
+
+    /// Distance in px from the host screen edge `edge`, measured at `(x, y)`.
+    fn edge_distance(&self, edge: Edge, (x, y): (f64, f64)) -> f64 {
+        match edge {
+            Edge::Left => x,
+            Edge::Right => self.host.w - 1.0 - x,
+            Edge::Top => y,
+            Edge::Bottom => self.host.h - 1.0 - y,
         }
     }
 
@@ -132,6 +152,13 @@ impl HostEngine {
         let Some(_) = self.peer else {
             let d = (x - self.last.0, y - self.last.1);
             self.last = (x, y);
+            if let Some(edge) = self.returned_via {
+                if self.edge_distance(edge, (x, y)) < REENTER_PX {
+                    // Still at the edge the cursor came back through: no crossing.
+                    return Step::default();
+                }
+                self.returned_via = None;
+            }
             let outs = self.router.motion((x, y), d);
             let mut step = self.apply(outs);
             if self.peer.is_some() {
@@ -170,7 +197,8 @@ impl HostEngine {
             let outs = self.router.motion((x, y), (ox, oy));
             let left = outs.iter().any(|o| matches!(o, Out::Leave { .. }));
             let mut s = self.apply(outs);
-            if self.peer.is_some() {
+            // A return keeps the edge warp apply() set; only a move re-parks at the centre.
+            if !left {
                 s.warp = Some(c);
             }
             (if left { "leave" } else { "move" }, s)
@@ -213,6 +241,7 @@ impl HostEngine {
                     self.peer = None;
                     self.down.clear();
                     self.last = (host_x, host_y);
+                    self.returned_via = self.links.iter().find(|l| l.peer == peer).map(|l| l.edge);
                     s.send.push((peer, Msg::Leave));
                     s.warp = Some((host_x, host_y));
                 }
@@ -387,6 +416,58 @@ mod tests {
             Step::default()
         );
         assert!(!e.is_remote());
+    }
+
+    /// Pushing past the back edge returns control with the cursor on the host
+    /// edge (INSET px inside), not at the centre. Reports queued at that edge
+    /// afterwards must not cross again (ADR-0017).
+    #[test]
+    fn return_warps_to_host_edge_and_queued_reports_do_not_recross() {
+        let mut e = engine();
+        enter(&mut e);
+        let s = e.on_event(Ev::Move { x: 950.0, y: 540.0 });
+        assert_eq!(s.send, vec![(1, Msg::Leave)]);
+        let (wx, wy) = s.warp.expect("return warps the cursor");
+        assert_eq!(wx, 1917.0, "not the host edge");
+        assert!(
+            (wy - 540.0).abs() < 2.0,
+            "y {wy} is not where the cursor left"
+        );
+        assert!(!e.is_remote());
+        for (x, y) in [(1919.0, 540.0), (1918.0, 540.0)] {
+            let s = e.on_event(Ev::Move { x, y });
+            assert_eq!(s, Step::default(), "({x}, {y}) produced a crossing or warp");
+            assert!(!e.is_remote(), "({x}, {y}) crossed again");
+        }
+    }
+
+    /// After a return, reports within 30 px of the edge do not cross. Moving
+    /// at least 30 px away from it and back does (ADR-0017).
+    #[test]
+    fn returned_cursor_must_move_away_before_it_can_cross_again() {
+        let mut e = engine();
+        enter(&mut e);
+        e.on_event(Ev::Move { x: 950.0, y: 540.0 }); // returns at x = 1917
+        for x in [1919.0, 1915.0, 1900.0, 1890.0] {
+            let s = e.on_event(Ev::Move { x, y: 540.0 });
+            assert_eq!(s, Step::default(), "x={x} (within 30 px) produced {s:?}");
+            assert!(!e.is_remote(), "x={x} (within 30 px) crossed");
+        }
+        // 30 px from the edge: the block lifts and the next push crosses.
+        assert_eq!(
+            e.on_event(Ev::Move {
+                x: 1889.0,
+                y: 540.0
+            }),
+            Step::default()
+        );
+        let s = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(matches!(s.send[0].1, Msg::Enter { .. }), "no crossing");
+        assert_eq!(s.warp, Some((960.0, 540.0)));
+        assert!(e.is_remote());
     }
 
     #[test]

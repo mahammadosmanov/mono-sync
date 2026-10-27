@@ -10,6 +10,8 @@ versioning: [SemVer](https://semver.org).
 - Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 
 ### Fixed
+- Host: after the cursor comes back from the other computer, it lands on its own screen at the edge, not the centre, and does not cross straight back (ADR-0017).
+- Host: lower latency while the cursor controls the other computer; Windows reads each warp back only for the first eight warps after a crossing.
 - Windows host: the pointer is swallowed while the cursor controls the other computer, as Input Leap does, so the physical cursor no longer snaps back to the edge.
 - Host: the cursor bounced back to this computer right after crossing to the other one (up to four times per move). Warp jitter near the parked centre and queued edge reports no longer return control; a real move past the edge still does (ADR-0017).
 - Windows host: the cursor stayed on the edge after crossing to the other computer, because re-parking was skipped for stale and held reports. Every report while remote now re-parks the cursor, and the log shows whether each warp landed (ADR-0017).
