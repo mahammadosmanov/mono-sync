@@ -1,6 +1,6 @@
 # 0017. Hold warp jitter and drop stale edge reports while remote
 
-- Status: Accepted
+- Status: Accepted; the hold and stale-edge rules are superseded by ADR-0018
 - Date: 2026-10-26
 
 ## Context

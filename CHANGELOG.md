@@ -9,6 +9,7 @@ versioning: [SemVer](https://semver.org).
 - macOS: the app asks for Accessibility and Input Monitoring itself and starts sharing as soon as they are granted (no restart needed for the host).
 - Windows guest without a mouse: the guest enables Windows MouseKeys while the cursor is on it, like Input Leap, so Windows draws the pointer. MouseKeys is restored when the cursor leaves (ADR-0015). The self-drawn cursor and its setting are removed (ADR-0014 superseded).
 - Windows firewall prompt is now a small button only in host settings, shown when Windows reports no mono-sync rule. The main-screen banner is removed (it gave false alarms while connections worked).
+- Host: while the cursor controls the other computer, every pointer move is forwarded with no 4 px hold. Motion that would take the parked cursor within 10 px of an edge is dropped, as Input Leap does. Warp echoes must match exactly, and the cursor is parked before the other computer hears Enter (ADR-0018).
 
 ### Fixed
 - Host: after the cursor comes back from the other computer, it lands on its own screen at the edge, not the centre, and does not cross straight back (ADR-0017).
