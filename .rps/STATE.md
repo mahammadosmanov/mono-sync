@@ -2,7 +2,7 @@
 
 Updated: 2026-10-28
 RPS protocol: `.rps/PROTOCOL.md` (starter 0.1.0)
-Stage: Alpha; local Mac installation complete, Windows handoff prepared
+Stage: Alpha; local Mac install complete, Windows Setup.exe built
 Profile: P2 provisional (interactive input and file transfer are user-facing)
 
 ## Product and current objective
@@ -43,13 +43,12 @@ display scaling, and reproduction steps are not yet recorded.
 - Change: investigate and fix erratic Windows host pointer movement and delayed
   keyboard input while preserving working file operations.
 - Workspace/branch/commit: `/Users/rohtolos/Documents/GitHub/mono-sync`,
-  `main`, `bd6670a539c8d7706132b8b7d4c09a58c06312a1`.
-- Implementation status: local source changes for input queueing, stale-event
-  generation checks, held-input handling, and hotkey recognition are in the
-  shared working tree. Not committed or released.
-- Uncommitted files: `.rps/` adoption docs and changes in
-  `crates/core/src/run.rs` plus `crates/input/`. Recheck `git status` before
-  editing.
+  `codex/windows-input-installer`, source commit
+  `16f6b920f6214f47188a8ab19c5c280cb8189b2d`.
+- Implementation status: input queueing, stale-event generation checks,
+  held-input handling, and hotkey recognition are committed and pushed on the
+  task branch. The Windows installer is an Actions artifact; no public release
+  was created.
 
 ## Verification evidence
 
@@ -66,7 +65,7 @@ On macOS at the recorded commit:
 These checks do not verify real Windows OS input or cursor behavior. No
 Windows-host reproduction has been run here.
 
-On the current uncommitted shared diff (2026-10-28):
+On source commit `16f6b920f6214f47188a8ab19c5c280cb8189b2d` (2026-10-28):
 
 - `cargo fmt --check` — passed.
 - `cargo test --workspace` — passed, 93 tests across workspace crates,
@@ -81,8 +80,10 @@ On the current uncommitted shared diff (2026-10-28):
 - Installed `/Applications/mono-sync.app` from that bundle after making a recoverable copy. Its executable SHA-256 matches the built bundle executable: `0791f6a991164c47e28194bb054072f6017b9b2924cb680724e7462bb95c4265`. Bundle identifier remains `dev.monosync.app`; installed signature verification passed.
 - Original signed app was copied to `/Users/rohtolos/Documents/mono-sync-app-backups/mono-sync.app-20261028T062318Z` and retained at `/Applications/.mono-sync.app.previous-20261028T062318Z`. Both original executable copies match SHA-256 `79da4961522713c2f32232e3d3f6ec09ead2f859a75d2b34878ae3cb693b3802`.
 - The app was not launched after installation. Its saved configuration uses guest role and an existing host/pairing configuration, so launching could immediately connect and begin input sharing. User config was not modified.
-- Windows source handoff archive: `/Users/rohtolos/Documents/GitHub/mono-sync-windows-handoff-20261028-final.zip`. It includes current uncommitted changes and `.rps` docs; `.git`, `target`, `node_modules`, environment files, key files, and external user config are excluded. The archive includes the native Windows build instructions and the workflow’s `cargo tauri build --bundles nsis` command.
-- This Mac has no PowerShell or Windows runner. The repository workflow uses `windows-latest`; only `mono-input` passed a Windows-target `cargo check` from macOS. No Windows desktop binary/installer or runtime/hardware validation was produced. Native Windows build and the manual cross-OS checklist remain required.
+- Windows NSIS installer built from source commit `16f6b920f6214f47188a8ab19c5c280cb8189b2d` by workflow run [40645785170](https://github.com/mahammadosmanov/mono-sync/actions/runs/40645785170). Both matrix jobs passed; the Windows job completed build, collection, and upload. Artifact ID `12798072524`; uploaded ZIP SHA-256 `cdcce45af4219c6808833de1cf007aafb2267994e31b2e13785b44f2ed07ade9`. Workflow dispatch used a branch ref, so release attachment was skipped.
+- Downloaded Windows artifacts to `/Users/rohtolos/Documents/mono-sync-windows-installer-20261028/`. Setup installer: `mono-sync_0.1.0_x64-setup.exe`, 3,112,619 bytes, SHA-256 `5d84b87ba73e22f59d5ca6adcaf8fa98b6733fa12fb7f02ccfb7464c282af8b5`. Portable binary: `mono-sync-portable-windows-x64.exe`, 13,137,920 bytes, SHA-256 `cad4fd43a77826a56d0e6405966885998bbb1506537ebfba251f1c73c2548aae`.
+- `file` identifies the setup as a Nullsoft installer and the portable executable as PE32+ x86-64 for Windows. The release workflow has no Authenticode signing step; installer is unsigned. Installer was not executed on macOS. Windows installation/runtime behavior and manual cross-OS input acceptance remain unverified.
+- The task branch is pushed to `origin`. The existing workflow was sufficient; no workflow source edit or public release was needed. A previous source ZIP also exists at `/Users/rohtolos/Documents/GitHub/mono-sync-windows-handoff-20261028-final.zip`, but the Windows installer artifact above is the requested deliverable.
 
 ## Blockers / unknowns / risks
 
@@ -98,15 +99,14 @@ On the current uncommitted shared diff (2026-10-28):
   behavior; a physical input transition may therefore be dropped at that narrow
   reconnect boundary. This avoids forwarding a stale remote keydown to the new
   guest. It still needs Windows hardware acceptance.
-- The local Tauri bundle is macOS-only. No Windows installer/executable was
-  produced; the release workflow builds Windows on `windows-latest`.
+- The Windows installer is unsigned and has not been installed on a Windows
+  machine. Windows hardware input acceptance remains necessary.
 - A local macOS install and bundle executable match byte-for-byte, but that
   package check says nothing about the Windows executable or user symptom.
 
 ## Next safe action
 
-Validate the updated Windows executable on the affected host/guest pair. Record
-OS versions, display scaling/resolution, and the relevant mono-sync log around
-one cursor crossing and a short typed sequence. Confirm the reported movement
-and keyboard latency are resolved on hardware; the local tests and Windows
-crate check do not establish that acceptance.
+Install the Windows Setup.exe on the affected Windows host. Record OS versions,
+display scaling/resolution, and the relevant mono-sync log around one cursor
+crossing and a short typed sequence. Confirm pointer movement and keyboard
+latency on hardware; a successful build does not establish runtime acceptance.
