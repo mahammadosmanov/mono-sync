@@ -69,9 +69,13 @@ jobs:
           cmake -S . -B build
           ${{ matrix.target.generator-args }}
           -DSKIP_BUILD_TESTS=ON
-          -DPACKAGE_VERSION_LABEL=1.27.0-monosync
+          -DDESKFLOW_USE_GIT_VERSION=OFF
+          "-DPACKAGE_VERSION_LABEL=1.27.0-monosync"
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
+
+      - name: Verify pinned version metadata
+        run: cmake -DBUILD_DIR=build -P cmake/verify-pinned-package.cmake
 
       - name: Build all targets
         run: cmake --build build --parallel 8

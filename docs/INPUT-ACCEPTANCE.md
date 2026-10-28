@@ -41,9 +41,12 @@ new input apps at the same time.
 ## Acceptance check (15 minutes)
 
 - Make at least 50 edge crossings. No teleport, bounce, stall, or lost control.
-- Type a known 200-character mixed-case sample with punctuation, digits,
-  common modifier shortcuts, and function keys. Compare exact text; verify no
-  missing, duplicated, or stuck key/modifier. Confirm latency feels immediate.
+- Type this 200-character sample by hand, then compare it exactly:
+
+  `AaZz 0123 !? @# QqWw 4567 $% MmNn 89() BbCc 12+=~!DeFg 3456 ^& RrTt 7890 [] HhJj 1357 () KkLl 2468~!PpOo 0246 <> YyUu 9753 {} AaEe 1122 ;; ZzXx 3344~!CcVv 5566 ** NnMm 7788 __ GgFf 9900 ++ DdSs 1234~!`
+
+  Also test common modifier shortcuts and function keys. Verify no missing,
+  duplicated, or stuck key/modifier, and confirm latency feels immediate.
 - Exercise clicks, scrolling, return-to-host behavior, and the configured
   control hotkey.
 - While on the Mac, disconnect the LAN with a key and mouse button held. Both

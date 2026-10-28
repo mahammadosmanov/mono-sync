@@ -1,7 +1,7 @@
 # Current project state
 
 Updated: 2026-10-28
-Stage: Deskflow native input rebuild; Windows generator mismatch under correction
+Stage: Deskflow native input rebuild; pinning package metadata before delivery
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
@@ -20,10 +20,10 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 
 - Local machine has CMake 4.4.3, Apple Clang 21, Xcode Command Line Tools, OpenSSL 4.0.3, and 19 GiB free at last check.
 - Qt 6 remains unavailable locally. Authorized `brew install qt` failed during Homebrew's Ruby bootstrap over HTTP/2; an HTTP/1.1 retry was stopped after 60 seconds at 7%. No package was installed and no full Xcode installation has been attempted.
-- Pinned source archive downloaded and verified against GitHub tag commit API. macOS CI passed 29/29 tests once, but DMG packaging hit a transient `hdiutil: Resource busy` error; the workflow now uses upstream's bounded retry.
-- Windows CI configured and built every target. CTest reported 27/28 passing; `I18NTests` failed because its translation lookup assumes single-config paths, while Visual Studio places binaries in a `Release` subdirectory. Workflow is being changed to install pinned Ninja 1.13.2 and use single-config Ninja on Windows; all tests remain enabled.
-- Latest attempted run `40724918414` was canceled after its Windows job failed and macOS remained queued. No package artifact is available from that run. Workflow change has passed local YAML parsing, `actionlint`, and `git diff --check`; dispatch and verify the next run.
-- `.github/workflows/native-packages.yml` targets Windows 2022 x64 and macOS 15 ARM64 on this branch's push or manual dispatch, runs upstream tests, packages both targets, and uploads artifacts only. It does not publish a release.
+- Pinned source archive downloaded and verified against GitHub tag commit API. Run `40726949413` passed 29/29 macOS tests and 28/28 Windows tests; both native packages built and uploaded.
+- The first packages were rejected before installation. Git history inherited from Mono Sync caused upstream's Git-derived project version to report `0.1.0.9`, and the Windows package basename appeared as `deskflow-1-win-x64`. These artifacts are preserved under `Documents/MonoSync-Deskflow-deliverables/INVALID-not-for-install-0.1.0.9/`.
+- `DESKFLOW_USE_GIT_VERSION` now defaults to `OFF`, preserving the pinned source fallback `1.27.0.0`; the workflow explicitly disables Git-derived versions, quotes the CPack label, and verifies version and package basename before compiling. The CPack assertion passed against a representative config; `actionlint` and `git diff --check` pass. Actual CI verification is pending.
+- `.github/workflows/native-packages.yml` targets Windows 2022 x64 and macOS 15 ARM64, runs upstream tests, packages both targets, and uploads artifacts only. It does not publish a release.
 
 ## Acceptance gate
 
@@ -31,4 +31,4 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 
 ## Next
 
-Commit and push the Ninja generator fix, obtain passing Windows and macOS CI packages, verify package contents and signatures, then install only the distinct Deskflow app. Physical input acceptance remains gated on the actual Windows/Mac pair.
+Commit and push the package-version fix. Obtain corrected Windows and Mac artifacts, verify their version metadata, API digests, and signatures, then install the distinct Deskflow app. Physical input acceptance remains gated on the actual Windows/Mac pair.
