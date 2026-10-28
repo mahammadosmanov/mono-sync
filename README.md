@@ -1,76 +1,19 @@
-# mono-sync
+# Mono Sync
 
-One keyboard and mouse across several computers on the same network, plus
-quick file and clipboard transfer between them. Windows and macOS first;
-open source; LAN-only; no accounts, no cloud.
+Mono Sync is rebuilding its keyboard and mouse sharing app on the native Deskflow application and input engine. This branch contains Deskflow `v1.27.0` at upstream commit `081f6478e654a112168879e67a41ce7d7e4ae3af`.
 
-> **Status: alpha.** Keyboard, mouse, text clipboard and file transfer work
-> between two computers on one LAN. Tested end to end on loopback and Mac to
-> Windows by hand. Not yet: 3+ computers, multi-monitor layouts, auto-start,
-> code signing. Expect rough edges.
-
-## Goals
-
-- Cross-OS compatibility first: physical-key mapping, Cmd/Ctrl profiles, DPI-aware edges.
-- Input that feels local (target < 5 ms added latency on a wired LAN).
-- Safe by default: TLS 1.3 (QUIC), pinned host identity, pairing token.
-- Single binary per OS, installable without admin rights.
-
-Full details: [PRD](docs/prd.md) · [Architecture](docs/architecture.md) ·
-[Roadmap](docs/roadmap.md) · [ADRs](docs/adr/README.md) ·
-[Threat model](docs/threat-model.md) · [Testing](docs/testing.md)
+This first phase builds the existing Deskflow GUI, server/client, TLS protocol, permissions flow, and operating system input backends. The former Mono Sync Rust/rdev input engine is not part of this branch. File transfer is deferred until input passes manual testing between the actual Windows host and Mac client.
 
 ## Build
 
-```sh
-cargo build --workspace
-cargo test --workspace
-```
+Requirements and build options are in [Deskflow's developer guide](docs/dev/build.md). Minimums for this source: CMake 3.24, Qt 6.7, and OpenSSL 3. On macOS use `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`, `cmake --build build`, then `cmake --build build --target package`. On Windows, follow the documented MSVC, Qt, vcpkg, and WiX setup.
 
-Linux needs `libx11-dev libxi-dev libxtst-dev`. macOS needs Accessibility and
-Input Monitoring permission once input features land.
+A manual GitHub Actions workflow builds a macOS ARM64 DMG and a Windows x64 installer package. It uploads workflow artifacts only; it does not publish releases.
 
-## Use it
+## Acceptance
 
-1. Install from the latest [release](https://github.com/mahammadosmanov/mono-sync/releases):
-   Windows `mono-sync_*_x64-setup.exe` (installs for your user, no admin) or the
-   portable `mono-sync-portable-windows-x64.exe`; macOS `.dmg`. Needs the WebView2
-   runtime on Windows (already present on Windows 11 and current Windows 10).
-2. Open **mono-sync** on **both** computers.
-3. Computer with the keyboard and mouse: choose **This computer has the keyboard and mouse**,
-   pick the side where the other computer sits, **Save and start**. It shows an
-   address and a pairing code.
-4. Other computer: choose **Control this computer from another**, enter the
-   address and code, **Save and start**.
-5. Push the cursor through the chosen edge. `Ctrl+Alt(Option)+Esc` returns control.
-6. Copied text is shared automatically. Drop files on the window to send them.
-   Closing the window keeps sharing running in the tray icon; Quit is in the tray menu.
-
-Unsigned builds: Windows SmartScreen says More info, Run anyway; macOS says
-right-click, Open (and allow in Privacy & Security). macOS needs **Accessibility**
-and **Input Monitoring** for mono-sync. Windows firewall: allow mono-sync on
-private networks if asked. Settings: `%APPDATA%\mono-sync` or
-`~/Library/Application Support/mono-sync`.
-
-Headless: `mono host --edge left`, `mono guest <ip:port> <code>` (crate `mono-cli`).
-
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `crates/proto` | Wire messages |
-| `crates/net` | QUIC transport, pairing handshake |
-| `crates/input` | Layout router, host/guest engines, stuck-key guard, rdev OS glue |
-| `crates/clip` | Text clipboard sync |
-| `crates/core` | Settings, identity, host/guest loops (no UI) |
-| `crates/app` | Tauri desktop app (window, tray) |
-| `crates/cli` | Headless `mono` command |
-| `docs/` | PRD, architecture, ADRs, threat model, test plan |
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+Build and unit-test results do not verify physical input. The Windows host and Mac client must pass the cursor crossing, text/modifier, click/scroll, hotkey, disconnect-release, and reconnect checks in [the input acceptance gate](docs/mono-sync-deskflow-design.md) before file transfer work begins.
 
 ## License
 
-Licensed under either of [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT) at your option.
+Deskflow is GPL-2.0-only with its documented OpenSSL linking exception. See [LICENSE](LICENSE), [LICENSES](LICENSES), and [upstream provenance](docs/UPSTREAM.md).
