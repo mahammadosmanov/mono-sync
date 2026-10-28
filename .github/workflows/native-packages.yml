@@ -55,13 +55,18 @@ jobs:
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DSKIP_BUILD_TESTS=ON
           -DPACKAGE_VERSION_LABEL=1.27.0-monosync
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
-      - name: Build all targets and run upstream unit tests
+      - name: Build all targets
         shell: bash
         run: cmake --build build --config Release --parallel 8
+
+      - name: Run upstream unit tests
+        shell: bash
+        run: ctest --test-dir build/src/unittests -C Release --output-on-failure --timeout 120
 
       - name: Build and package
         shell: bash
