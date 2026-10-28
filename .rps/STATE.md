@@ -21,7 +21,7 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 - Local machine has CMake 4.4.3, Apple Clang 21, Xcode Command Line Tools, OpenSSL 4.0.3, and 19 GiB free at last check.
 - Qt 6 was missing. Authorized `brew install qt` is in progress (Homebrew formula 6.12.0); no full Xcode installation has been attempted.
 - Pinned source archive downloaded and verified against GitHub tag commit API; no compile/test result yet.
-- Manual workflow `.github/workflows/native-packages.yml` targets Windows 2022 x64 and macOS 15 ARM64, uses upstream dependency setup, and uploads artifacts only. It does not publish a release.
+- `.github/workflows/native-packages.yml` targets Windows 2022 x64 and macOS 15 ARM64 on this branch's push or manual dispatch; it runs upstream `run_tests`, packages both targets, and uploads artifacts only. It does not publish a release.
 
 ## Acceptance gate
 

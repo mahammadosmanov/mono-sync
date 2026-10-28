@@ -1,6 +1,9 @@
 name: Native packages
 
 on:
+  push:
+    branches:
+      - codex/deskflow-rebuild
   workflow_dispatch:
 
 permissions:
@@ -49,10 +52,13 @@ jobs:
         shell: bash
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          -DSKIP_BUILD_TESTS=ON
           -DPACKAGE_VERSION_LABEL=1.27.0-monosync
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
+
+      - name: Build and run upstream unit tests
+        shell: bash
+        run: cmake --build build --config Release --parallel 8 --target run_tests
 
       - name: Build and package
         shell: bash
