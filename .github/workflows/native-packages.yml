@@ -23,7 +23,7 @@ jobs:
             arch: amd64
             qt-version: 6.11.3
             vcpkg-triplet: x64-windows-release
-            config-args: -G Ninja
+            config-args: ''
           - name: macos-arm64
             os: macos-15
             qt-version: 6.11.3
@@ -56,9 +56,9 @@ jobs:
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
-      - name: Build and run upstream unit tests
+      - name: Build all targets and run upstream unit tests
         shell: bash
-        run: cmake --build build --config Release --parallel 8 --target run_tests
+        run: cmake --build build --config Release --parallel 8
 
       - name: Build and package
         shell: bash
