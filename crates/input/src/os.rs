@@ -8,13 +8,13 @@
 
 use crate::guest::Act;
 use crate::host::{Ev, HostEngine, Step};
-use crate::layout::{PeerId, Size};
+use crate::layout::Size;
+use crate::queue::InputQueue;
 use anyhow::{anyhow, Result};
 use mono_proto::Msg;
 use rdev::EventType;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc::UnboundedSender;
 
 /// Size of the main screen in the coordinate space the OS uses for pointer events.
 ///
@@ -200,7 +200,10 @@ fn convert(t: &EventType) -> Option<Ev> {
 
 /// Carries out one step. The warp happens before any message is sent, so the
 /// peer never hears Enter while the host cursor is still on the edge (ADR-0018 (e)).
-fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) -> Option<String> {
+fn apply(step: &Step, tx: &InputQueue, generation: u64, warps: &mut WarpLog) -> Option<String> {
+    if !tx.is_current(generation) {
+        return None;
+    }
     if step
         .send
         .iter()
@@ -213,7 +216,7 @@ fn apply(step: &Step, tx: &UnboundedSender<(PeerId, Msg)>, warps: &mut WarpLog) 
         warps.note((x, y), &res, Instant::now())
     });
     for (p, m) in &step.send {
-        let _ = tx.send((*p, m.clone()));
+        tx.push_if_generation(generation, *p, m.clone());
     }
     note
 }
@@ -790,9 +793,13 @@ fn lock(e: &SharedEngine) -> std::sync::MutexGuard<'_, HostEngine> {
     e.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-/// Replace the engine's layout (new guest connected).
-pub fn set_engine(e: &SharedEngine, new: HostEngine) {
-    *lock(e) = new;
+/// Replace the engine's layout (new guest connected) and invalidate stale events.
+pub fn set_engine(e: &SharedEngine, queue: &InputQueue, mut new: HostEngine) {
+    let mut current = lock(e);
+    queue.activate(|| {
+        new.inherit_local_state(&current);
+        *current = new;
+    });
 }
 
 /// Take control back locally (guest gone). Sends nothing: the link is dead.
@@ -811,7 +818,7 @@ pub fn release_host(e: &SharedEngine, log: impl Fn(String)) {
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn run_host(
     engine: SharedEngine,
-    tx: UnboundedSender<(PeerId, Msg)>,
+    tx: InputQueue,
     log: impl Fn(String) + Send + 'static,
 ) -> Result<()> {
     let warps = Mutex::new(WarpLog::default());
@@ -819,10 +826,14 @@ pub fn run_host(
         let Some(ev) = convert(&event.event_type) else {
             return Some(event);
         };
-        let step = lock(&engine).on_event(ev);
+        let (step, generation) = {
+            let mut e = lock(&engine);
+            let generation = tx.generation();
+            (e.on_event(ev), generation)
+        };
         let note = {
             let mut w = warps.lock().unwrap_or_else(|p| p.into_inner());
-            apply(&step, &tx, &mut w)
+            apply(&step, &tx, generation, &mut w)
         };
         if let Some(line) = &step.trace {
             log(line.clone());
@@ -840,11 +851,7 @@ pub fn run_host(
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub fn run_host(
-    _: SharedEngine,
-    _: UnboundedSender<(PeerId, Msg)>,
-    _: impl Fn(String) + Send + 'static,
-) -> Result<()> {
+pub fn run_host(_: SharedEngine, _: InputQueue, _: impl Fn(String) + Send + 'static) -> Result<()> {
     Err(anyhow!(
         "host mode is not supported on this OS yet (Windows and macOS only)"
     ))
@@ -853,7 +860,74 @@ pub fn run_host(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mono_proto::Key;
+    use crate::host::Ev;
+    use crate::layout::{Edge, Link};
+    use mono_proto::{Button, Key};
+
+    #[test]
+    fn set_engine_preserves_local_pressed_keys() {
+        let host = Size {
+            w: 1920.0,
+            h: 1080.0,
+        };
+        let guest = Size {
+            w: 1000.0,
+            h: 500.0,
+        };
+        let engine = Arc::new(Mutex::new(HostEngine::new(host, vec![])));
+        {
+            let mut e = lock(&engine);
+            e.on_event(Ev::Move {
+                x: 1000.0,
+                y: 540.0,
+            });
+            e.on_event(Ev::Key {
+                key: Key::ControlLeft,
+                down: true,
+            });
+            e.on_event(Ev::Button {
+                button: Button::Left,
+                down: true,
+            });
+        }
+
+        let queue = InputQueue::default();
+        set_engine(
+            &engine,
+            &queue,
+            HostEngine::new(
+                host,
+                vec![Link {
+                    edge: Edge::Right,
+                    peer: 1,
+                    size: guest,
+                }],
+            ),
+        );
+        let mut e = lock(&engine);
+        let blocked = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(blocked.send.is_empty());
+        assert!(!e.is_remote());
+        e.on_event(Ev::Key {
+            key: Key::ControlLeft,
+            down: false,
+        });
+        e.on_event(Ev::Button {
+            button: Button::Left,
+            down: false,
+        });
+        assert!(e
+            .on_event(Ev::Move {
+                x: 1919.0,
+                y: 540.0
+            })
+            .send
+            .iter()
+            .any(|(_, msg)| matches!(msg, Msg::Enter { .. })));
+    }
 
     #[cfg(not(windows))]
     #[test]

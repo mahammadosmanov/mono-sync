@@ -57,6 +57,9 @@ pub struct HostEngine {
     last: (f64, f64),
     peer: Option<PeerId>,
     down: HashSet<Key>,
+    /// Physical inputs passed through locally. Do not hand off while any remain held.
+    local_keys: HashSet<Key>,
+    local_buttons: HashSet<Button>,
     /// Pointer events still to trace after the last crossing.
     traced: u8,
     /// Host edge the cursor last came back through. Local reports near it do not
@@ -75,6 +78,8 @@ impl HostEngine {
             last: (host.w / 2.0, host.h / 2.0),
             peer: None,
             down: HashSet::new(),
+            local_keys: HashSet::new(),
+            local_buttons: HashSet::new(),
             traced: 0,
             returned_via: None,
             echoes: 0,
@@ -112,6 +117,14 @@ impl HostEngine {
         self.peer.is_some()
     }
 
+    /// Carry state that belongs to locally held devices across a layout replacement.
+    pub(crate) fn inherit_local_state(&mut self, previous: &Self) {
+        self.last = previous.last;
+        self.returned_via = previous.returned_via;
+        self.local_keys.clone_from(&previous.local_keys);
+        self.local_buttons.clone_from(&previous.local_buttons);
+    }
+
     fn center(&self) -> (f64, f64) {
         ((self.host.w / 2.0).floor(), (self.host.h / 2.0).floor())
     }
@@ -120,7 +133,7 @@ impl HostEngine {
         match ev {
             Ev::Move { x, y } => self.on_move(x, y),
             Ev::Key { key, down } => self.on_key(key, down),
-            Ev::Button { button, down } => self.forward(Msg::Button { button, down }),
+            Ev::Button { button, down } => self.on_button(button, down),
             Ev::Wheel { dx, dy } => self.forward(Msg::Wheel { dx, dy }),
         }
     }
@@ -154,6 +167,11 @@ impl HostEngine {
 
     fn on_key(&mut self, key: Key, down: bool) -> Step {
         if self.peer.is_none() {
+            if down {
+                self.local_keys.insert(key);
+            } else {
+                self.local_keys.remove(&key);
+            }
             return Step::default();
         }
         if down {
@@ -164,14 +182,26 @@ impl HostEngine {
         // Escape hatch: Ctrl + Alt/Option + Esc returns control to the host.
         let hotkey = down
             && key == Key::Escape
-            && self.down.contains(&Key::ControlLeft)
-            && self.down.contains(&Key::Alt);
+            && (self.down.contains(&Key::ControlLeft) || self.down.contains(&Key::ControlRight))
+            && (self.down.contains(&Key::Alt) || self.down.contains(&Key::AltGr));
         if hotkey {
             let mut s = self.force_local();
             s.swallow = true;
             return s;
         }
         self.forward(Msg::Key { key, down })
+    }
+
+    fn on_button(&mut self, button: Button, down: bool) -> Step {
+        if self.peer.is_some() {
+            return self.forward(Msg::Button { button, down });
+        }
+        if down {
+            self.local_buttons.insert(button);
+        } else {
+            self.local_buttons.remove(&button);
+        }
+        Step::default()
     }
 
     fn on_move(&mut self, x: f64, y: f64) -> Step {
@@ -184,6 +214,9 @@ impl HostEngine {
                     return Step::default();
                 }
                 self.returned_via = None;
+            }
+            if !self.local_keys.is_empty() || !self.local_buttons.is_empty() {
+                return Step::default();
             }
             let outs = self.router.motion((x, y), d);
             let mut step = self.apply(outs);
@@ -611,6 +644,142 @@ mod tests {
         assert_eq!(s.send, vec![(1, Msg::Leave)]);
         assert!(s.swallow);
         assert!(!e.is_remote());
+    }
+
+    #[test]
+    fn hotkey_accepts_right_control_and_right_alt() {
+        for control in [Key::ControlLeft, Key::ControlRight] {
+            for alt in [Key::Alt, Key::AltGr] {
+                let mut e = engine();
+                enter(&mut e);
+                e.on_event(Ev::Key {
+                    key: control,
+                    down: true,
+                });
+                e.on_event(Ev::Key {
+                    key: alt,
+                    down: true,
+                });
+                let s = e.on_event(Ev::Key {
+                    key: Key::Escape,
+                    down: true,
+                });
+                assert_eq!(s.send, vec![(1, Msg::Leave)], "{control:?} + {alt:?}");
+                assert!(s.swallow);
+                assert!(!e.is_remote());
+            }
+        }
+    }
+
+    #[test]
+    fn local_key_must_be_released_before_crossing() {
+        let mut e = engine();
+        e.on_event(Ev::Move {
+            x: 1000.0,
+            y: 540.0,
+        });
+        e.on_event(Ev::Key {
+            key: Key::ControlLeft,
+            down: true,
+        });
+        let blocked = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(blocked.send.is_empty());
+        assert!(!blocked.swallow && !e.is_remote());
+
+        e.on_event(Ev::Key {
+            key: Key::ControlLeft,
+            down: false,
+        });
+        let crossed = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(matches!(crossed.send[0].1, Msg::Enter { .. }));
+        assert!(e.is_remote());
+    }
+
+    #[test]
+    fn local_mouse_button_must_be_released_before_crossing() {
+        let mut e = engine();
+        e.on_event(Ev::Move {
+            x: 1000.0,
+            y: 540.0,
+        });
+        e.on_event(Ev::Button {
+            button: Button::Left,
+            down: true,
+        });
+        let blocked = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(blocked.send.is_empty());
+        assert!(!blocked.swallow && !e.is_remote());
+
+        e.on_event(Ev::Button {
+            button: Button::Left,
+            down: false,
+        });
+        let crossed = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(matches!(crossed.send[0].1, Msg::Enter { .. }));
+        assert!(e.is_remote());
+    }
+
+    #[test]
+    fn repeated_down_then_one_up_and_unpaired_up_leave_local_state_clear() {
+        let mut e = engine();
+        for _ in 0..2 {
+            e.on_event(Ev::Key {
+                key: Key::ShiftLeft,
+                down: true,
+            });
+        }
+        e.on_event(Ev::Key {
+            key: Key::ShiftLeft,
+            down: false,
+        });
+        e.on_event(Ev::Button {
+            button: Button::Right,
+            down: false,
+        });
+
+        let crossed = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(matches!(crossed.send[0].1, Msg::Enter { .. }));
+    }
+
+    #[test]
+    fn remote_hotkey_release_events_do_not_leave_local_inputs_held() {
+        let mut e = engine();
+        enter(&mut e);
+        for key in [Key::ControlLeft, Key::AltGr] {
+            e.on_event(Ev::Key { key, down: true });
+        }
+        let s = e.on_event(Ev::Key {
+            key: Key::Escape,
+            down: true,
+        });
+        assert!(s.send.iter().any(|(_, msg)| matches!(msg, Msg::Leave)));
+        for key in [Key::ControlLeft, Key::AltGr, Key::Escape] {
+            e.on_event(Ev::Key { key, down: false });
+        }
+        e.on_event(Ev::Move {
+            x: 1000.0,
+            y: 540.0,
+        });
+        let crossed = e.on_event(Ev::Move {
+            x: 1919.0,
+            y: 540.0,
+        });
+        assert!(matches!(crossed.send[0].1, Msg::Enter { .. }));
     }
 
     /// Crossing: the crossing move is swallowed, the host cursor is parked at the

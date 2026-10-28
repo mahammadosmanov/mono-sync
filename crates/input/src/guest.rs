@@ -126,6 +126,20 @@ mod tests {
     }
 
     #[test]
+    fn opposite_moves_keep_the_clamped_edge_path() {
+        let mut e = g();
+        e.on_msg(&Msg::Enter { x: 0.0, y: 0.5 });
+        assert_eq!(
+            e.on_msg(&Msg::Move { dx: -5, dy: 0 }),
+            vec![Act::MoveTo(0.0, 249.5)]
+        );
+        assert_eq!(
+            e.on_msg(&Msg::Move { dx: 5, dy: 0 }),
+            vec![Act::MoveTo(5.0, 249.5)]
+        );
+    }
+
+    #[test]
     fn leave_releases_held_keys_and_buttons() {
         let mut e = g();
         e.on_msg(&Msg::Enter { x: 0.0, y: 0.0 });

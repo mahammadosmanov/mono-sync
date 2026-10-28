@@ -8,6 +8,7 @@ use mono_input::{
     host::HostEngine,
     layout::{Link, PeerId, Size},
     os::{self, SharedEngine},
+    queue::InputQueue,
 };
 use mono_net::{connect, file, Connection, Host};
 use mono_proto::Msg;
@@ -163,8 +164,7 @@ pub struct Core {
     /// Fallback when the OS cannot report a display (headless CI).
     screen: Size,
     engine: SharedEngine,
-    input_tx: mpsc::UnboundedSender<(PeerId, Msg)>,
-    input_rx: AsyncMutex<mpsc::UnboundedReceiver<(PeerId, Msg)>>,
+    input: InputQueue,
     clip: AsyncMutex<Clip>,
     grab_running: AtomicBool,
     task: Mutex<Option<JoinHandle<()>>>,
@@ -191,7 +191,6 @@ impl Core {
     }
 
     fn build(grab: bool, clipboard: bool) -> Result<Arc<Core>> {
-        let (input_tx, input_rx) = mpsc::unbounded_channel();
         let screen = os::screen_size().unwrap_or(Size {
             w: 1920.0,
             h: 1080.0,
@@ -200,8 +199,7 @@ impl Core {
             sh: Shared::default(),
             screen,
             engine: Arc::new(Mutex::new(HostEngine::new(screen, vec![]))),
-            input_tx,
-            input_rx: AsyncMutex::new(input_rx),
+            input: InputQueue::default(),
             clip: AsyncMutex::new(if clipboard {
                 Clip::start()
             } else {
@@ -336,7 +334,7 @@ impl Core {
                 return;
             }
             let sh = core.sh.clone();
-            let r = os::run_host(core.engine.clone(), core.input_tx.clone(), move |line| {
+            let r = os::run_host(core.engine.clone(), core.input.clone(), move |line| {
                 sh.note(line)
             });
             core.grab_running.store(false, Ordering::SeqCst);
@@ -469,7 +467,6 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         .with(|s| s.code = Some(format!("{}:{}", id.fingerprint(), token)));
     core.ensure_grab();
     let host_screen = os::screen_size().unwrap_or(core.screen);
-    let mut rx = core.input_rx.lock().await;
     let mut clip = core.clip.lock().await;
     let mut next: Option<mono_net::Session> = None;
     loop {
@@ -493,6 +490,7 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
         };
         os::set_engine(
             &core.engine,
+            &core.input,
             HostEngine::new(
                 host_screen,
                 vec![Link {
@@ -502,14 +500,13 @@ async fn host_loop(core: &Arc<Core>, cfg: &Config) -> Result<()> {
                 }],
             ),
         );
-        while rx.try_recv().is_ok() {}
         core.attach(session.connection(), cfg.download_dir());
         core.sh
             .note("Guest connected. Ctrl+Alt(Option)+Esc takes control back");
         core.sh.state("Connected");
         loop {
             tokio::select! {
-                Some((_, m)) = rx.recv() => {
+                (_, m) = core.input.recv() => {
                     match m {
                         Msg::Enter { .. } => core.sh.note("Cursor moved to the other computer"),
                         Msg::Leave => core.sh.note("Cursor came back to this computer"),
@@ -638,6 +635,61 @@ mod tests {
     use mono_input::{guest::Act, host::Ev, layout::Edge};
     use mono_net::Identity;
     use mono_proto::Key;
+
+    #[tokio::test]
+    async fn activation_drops_old_events_and_keeps_new_engine_enter() {
+        let queue = InputQueue::default();
+        let old_generation = queue.generation();
+        assert!(queue.push_if_generation(old_generation, PEER, Msg::Move { dx: 9, dy: 0 }));
+        let engine = Arc::new(Mutex::new(HostEngine::new(
+            Size {
+                w: 1920.0,
+                h: 1080.0,
+            },
+            vec![],
+        )));
+
+        os::set_engine(
+            &engine,
+            &queue,
+            HostEngine::new(
+                Size {
+                    w: 1920.0,
+                    h: 1080.0,
+                },
+                vec![Link {
+                    edge: Edge::Right,
+                    peer: PEER,
+                    size: Size {
+                        w: 1000.0,
+                        h: 500.0,
+                    },
+                }],
+            ),
+        );
+        assert!(!queue.push_if_generation(old_generation, PEER, Msg::Leave));
+
+        let (generation, step) = {
+            let mut e = engine.lock().unwrap();
+            let generation = queue.generation();
+            e.on_event(Ev::Move {
+                x: 1000.0,
+                y: 540.0,
+            });
+            (
+                generation,
+                e.on_event(Ev::Move {
+                    x: 1919.0,
+                    y: 540.0,
+                }),
+            )
+        };
+        assert!(matches!(step.send[0].1, Msg::Enter { .. }));
+        for (peer, msg) in step.send {
+            assert!(queue.push_if_generation(generation, peer, msg));
+        }
+        assert_eq!(queue.recv().await, (PEER, Msg::Enter { x: 0.0, y: 0.5 }));
+    }
 
     #[tokio::test]
     async fn host_events_reach_guest_actions_and_disconnect_releases() {
