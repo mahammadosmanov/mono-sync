@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - codex/deskflow-rebuild
+    paths-ignore:
+      - docs/**
+      - .rps/**
+      - README.md
   workflow_dispatch:
 
 permissions:
@@ -49,7 +53,6 @@ jobs:
           vcpkg-triplet: ${{ matrix.target.vcpkg-triplet }}
 
       - name: Configure
-        shell: bash
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           -DPACKAGE_VERSION_LABEL=1.27.0-monosync
