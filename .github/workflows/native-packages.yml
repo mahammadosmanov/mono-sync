@@ -27,10 +27,12 @@ jobs:
             arch: amd64
             qt-version: 6.11.3
             vcpkg-triplet: x64-windows-release
+            generator-args: '-G Ninja -DCMAKE_BUILD_TYPE=Release'
             config-args: ''
           - name: macos-arm64
             os: macos-15
             qt-version: 6.11.3
+            generator-args: '-DCMAKE_BUILD_TYPE=Release'
             config-args: '-DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=14'
     steps:
       - name: Checkout
@@ -45,6 +47,16 @@ jobs:
           arch: ${{ matrix.target.arch }}
           spectre: true
 
+      - name: Install Ninja for single-config test paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install ninja --version=1.13.2 --yes --no-progress
+          $ninja = Join-Path $env:ChocolateyInstall 'bin/ninja.exe'
+          & $ninja --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
       - name: Install pinned upstream dependencies
         id: get-deps
         uses: ./.github/actions/install-dependencies
@@ -54,19 +66,18 @@ jobs:
 
       - name: Configure
         run: >-
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build
+          ${{ matrix.target.generator-args }}
           -DSKIP_BUILD_TESTS=ON
           -DPACKAGE_VERSION_LABEL=1.27.0-monosync
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
       - name: Build all targets
-        shell: bash
-        run: cmake --build build --config Release --parallel 8
+        run: cmake --build build --parallel 8
 
       - name: Run upstream unit tests
-        shell: bash
-        run: ctest --test-dir build/src/unittests -C Release --output-on-failure --timeout 120
+        run: ctest --test-dir build/src/unittests --output-on-failure --timeout 120
 
       - name: Package macOS with transient DMG retry
         if: runner.os == 'macOS'
@@ -74,7 +85,7 @@ jobs:
         run: |
           packaged=false
           for i in $(seq 1 5); do
-            if cmake --build build --config Release --parallel 8 --target package; then
+            if cmake --build build --parallel 8 --target package; then
               packaged=true
               break
             fi
@@ -88,8 +99,7 @@ jobs:
 
       - name: Package Windows
         if: runner.os == 'Windows'
-        shell: bash
-        run: cmake --build build --config Release --parallel 8 --target package
+        run: cmake --build build --parallel 8 --target package
 
       - name: Upload package
         uses: actions/upload-artifact@v4

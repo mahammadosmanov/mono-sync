@@ -12,7 +12,7 @@ The GitHub Actions workflow builds upstream unit tests, then creates a macOS ARM
 
 ## Acceptance
 
-Build and unit-test results do not verify physical input. The Windows host and Mac client must pass the cursor crossing, text/modifier, click/scroll, hotkey, disconnect-release, and reconnect checks in [the input acceptance gate](docs/mono-sync-deskflow-design.md) before file transfer work begins.
+Build and unit-test results do not verify physical input. Follow the [Windows host to Mac client input check](docs/INPUT-ACCEPTANCE.md) and accept every item on the actual pair before file-transfer work begins.
 
 ## License
 
