@@ -68,7 +68,26 @@ jobs:
         shell: bash
         run: ctest --test-dir build/src/unittests -C Release --output-on-failure --timeout 120
 
-      - name: Build and package
+      - name: Package macOS with transient DMG retry
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          packaged=false
+          for i in $(seq 1 5); do
+            if cmake --build build --config Release --parallel 8 --target package; then
+              packaged=true
+              break
+            fi
+            echo "Package attempt $i failed"
+            sleep 1
+          done
+          if [[ "$packaged" != true ]]; then
+            echo "Packaging failed after $i attempts" >&2
+            exit 1
+          fi
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
         shell: bash
         run: cmake --build build --config Release --parallel 8 --target package
 
