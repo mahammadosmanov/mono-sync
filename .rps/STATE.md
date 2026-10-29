@@ -1,7 +1,7 @@
 # Current project state
 
 Updated: 2026-10-29
-Stage: Per-user Windows Setup packaging in progress; physical input acceptance remains pending
+Stage: Per-user Windows Setup built and lifecycle-smoke verified; physical input acceptance remains pending
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
@@ -48,14 +48,15 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 
 ## Per-user Windows Setup
 
-- User requirement: make `MonoSync-Setup.exe` the normal Windows download and keep installation, update, and removal available to a standard Windows account.
+- User requirement: make `MonoSync-Setup.exe` the normal Windows download and keep install, update, and removal available to a standard Windows account.
 - `deploy/windows/standard-user-setup.nsi` builds a no-admin NSIS setup fixed at `%LOCALAPPDATA%\Programs\Mono Sync`. It writes Start menu shortcuts and uninstall metadata only in the current user's profile/registry. It does not add services, machine-wide firewall rules, or auto-start entries.
 - `deploy/windows/package-standard-user-setup.py` wraps the verified portable ZIP, validates required app-local runtimes/licenses, removes the portable settings marker so profile/TLS data stays under `%APPDATA%\Deskflow`, and generates exact-file uninstall commands. Uninstall preserves profile contents and unrecognized files.
-- `deploy/windows/verify-windows-as-invoker.py` checks PE manifests. Local NSIS 3.13 build passed for Setup.exe, the extracted uninstaller, `deskflow.exe`, and `deskflow-core.exe`; each is `asInvoker`, `uiAccess=false`.
-- Local deliverable: `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Setup.exe`, SHA-256 `de44a23af2e9a3b0d1ca92f4942433a3b84aeda95a8a846ffe89e809c179947e`. It was built from the verified Windows payload in CI run `40817892346`, source revision `7b5240c14226218ad1131e0b6ba944b0e1b4d231`. CI run `40827381534` also built the Setup.exe, but the later smoke failure prevented artifact upload.
-- CI now builds the setup by default and runs install/update/uninstall while checking profile and unrecognized install-file preservation. Run `40827381534` passed the Windows build, 28 tests, CPack, NSIS setup build, and all macOS steps (29 tests), but the `runas /trustlevel:0x20000` wrapper exited 1 with no useful output. Run `40828572071` exposed that the hosted runner already has `%APPDATA%\Deskflow\Deskflow.conf`; the smoke aborted rather than overwrite it. The smoke now hashes and preserves any existing profile file and uses a unique test sentinel; the `runas` wrapper remains removed because its exit result did not identify whether it started the child. It prints the hosted token's Administrators-group membership and is not represented as a standard-user token test. PE manifest checks remain the direct evidence that setup and app request `asInvoker`.
-- Firewall policy and SmartScreen remain Windows OS/organization controls; no attempt is made to bypass them. Physical input acceptance is still pending.
+- `deploy/windows/verify-windows-as-invoker.py` checks PE manifests. Setup, extracted uninstaller, `deskflow.exe`, and `deskflow-core.exe` are all `asInvoker`, `uiAccess=false`.
+- CI deliverable: `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Setup.exe`, SHA-256 `3dc62cd5a693463d0902208a50094590610691439e5e46b89c54dcf7291b9152`. GitHub run `40830479591`, workflow revision `6f3df3770c15763645844fe4899168b2471a312b`, Deskflow payload `1.27.0` from commit `7b5240c14226218ad1131e0b6ba944b0e1b4d231`. Artifact ID `12878339335`; archive SHA-256 `8ddacae6599e548887bb4abe2e7987f426568d76aee8200367415aee8a2de7ae`.
+- Run `40830479591` passed Windows build, upstream tests (28/28), package generation, NSIS Setup creation, install/update/uninstall smoke, and artifact upload. Smoke confirmed existing profile data, a unique profile sentinel, and an unrecognized install-folder file survived update/uninstall; packaged files, shortcuts, and HKCU uninstall registration were removed. macOS ARM64 build/tests (29/29) and package also passed.
+- The smoke ran under the GitHub hosted token, which reported membership in the Administrators group. This is not represented as a standard-user-token test. The setup, app and uninstaller manifests request `asInvoker`; install paths and registry writes are current-user scoped.
+- Firewall/organization policy and SmartScreen remain OS-controlled and may show their own notices. The app does not attempt to bypass them. Physical input acceptance is still pending.
 
 ## Next
 
-Run the workflow again to verify the Windows NSIS setup build and profile-safe install/update/uninstall smoke test. The CI smoke runs under the hosted runner's reported token, which is administrator-capable in current logs; it is not a standard-user-token acceptance test. The setup/app `asInvoker` manifests and user-only write paths are checked separately. Then run the actual Windows host/Mac client input acceptance gate. No cross-device input acceptance has been recorded yet.
+Run the actual Windows host/Mac client input acceptance gate. No cross-device input acceptance has been recorded yet.
