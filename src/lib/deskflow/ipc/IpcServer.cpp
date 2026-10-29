@@ -80,27 +80,41 @@ void IpcServer::handleNewConnection()
 void IpcServer::handleReadyRead()
 {
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
+  if (clientSocket == nullptr) {
+    return;
+  }
   LOG_VERBOSE("%s ipc server ready to read data", m_typeName.constData());
 
-  QByteArray data = clientSocket->readAll();
-  if (data.isEmpty()) {
-    LOG_WARN("%s ipc server got empty message", m_typeName.constData());
-    return;
-  }
-
-  // we don't handle incomplete messages yet; each socket read must have delimiters.
-  if (!data.contains('\n')) {
-    LOG_WARN("%s ipc server got incomplete message: %s", m_typeName.constData(), data.constData());
-    return;
-  }
-
-  // each message is delimited by a newline to keep the protocol super simple.
-  while (data.contains('\n')) {
-    const auto index = data.indexOf('\n');
-    QByteArray messageData = data.left(index);
-    data.remove(0, index + 1);
-    QString message = QString::fromUtf8(messageData);
-    processMessage(clientSocket, message);
+  auto &buffer = m_readBuffers[clientSocket];
+  constexpr qsizetype kMaximumLineSize = 64 * 1024;
+  constexpr qint64 kReadBlockSize = 16 * 1024;
+  while (clientSocket->bytesAvailable() > 0) {
+    const auto block = clientSocket->read(kReadBlockSize);
+    if (block.isEmpty()) {
+      break;
+    }
+    buffer.append(block);
+    while (true) {
+      const auto index = buffer.indexOf('\n');
+      if (index < 0) {
+        break;
+      }
+      if (index > kMaximumLineSize) {
+        LOG_WARN("%s ipc server got an oversized message", m_typeName.constData());
+        m_readBuffers.remove(clientSocket);
+        clientSocket->disconnectFromServer();
+        return;
+      }
+      QByteArray messageData = buffer.left(index);
+      buffer.remove(0, index + 1);
+      processMessage(clientSocket, QString::fromUtf8(messageData));
+    }
+    if (buffer.size() > kMaximumLineSize) {
+      LOG_WARN("%s ipc server got an oversized message", m_typeName.constData());
+      m_readBuffers.remove(clientSocket);
+      clientSocket->disconnectFromServer();
+      return;
+    }
   }
 }
 
@@ -109,6 +123,7 @@ void IpcServer::handleDisconnected()
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
   LOG_DEBUG("%s ipc server client disconnected", m_typeName.constData());
   m_clients.remove(clientSocket);
+  m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
 
@@ -122,6 +137,7 @@ void IpcServer::handleErrorOccurred()
   }
 
   m_clients.remove(clientSocket);
+  m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
 

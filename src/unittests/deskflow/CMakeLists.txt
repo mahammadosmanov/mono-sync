@@ -46,6 +46,14 @@ create_test(
 )
 
 create_test(
+  NAME IpcServerFramingTests
+  DEPENDS app
+  LIBS arch base io
+  SOURCE IpcServerFramingTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
+)
+
+create_test(
   NAME IKeyStateTests
   DEPENDS app
   LIBS arch base ${extra_libs}

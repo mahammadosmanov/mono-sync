@@ -54,6 +54,7 @@ void IpcClient::connectToServer()
 
   m_retryCount = 0;
   m_serverPeerVerified = false;
+  m_readBuffer.clear();
   attemptConnection();
 }
 
@@ -108,6 +109,7 @@ void IpcClient::disconnectFromServer()
   qDebug().noquote() << QStringLiteral("%1 ipc client disconnecting from server").arg(m_typeName);
   m_socket->disconnectFromServer();
   m_state = State::Unconnected;
+  m_readBuffer.clear();
 }
 
 void IpcClient::handleDisconnected()
@@ -141,42 +143,61 @@ void IpcClient::handleErrorOccurred()
 
 void IpcClient::handleReadyRead()
 {
-  QByteArray data = m_readBuffer + m_socket->readAll();
-  m_readBuffer.clear();
-
-  while (data.contains('\n')) {
-    const auto index = data.indexOf('\n');
-    const auto message = QString::fromUtf8(data.left(index));
-    data.remove(0, index + 1);
-
-    if (isSensitiveMessage(message)) {
-      qDebug().noquote() << QStringLiteral("%1 ipc client received file-transfer command").arg(m_typeName);
-    } else {
-      qDebug().noquote() << QStringLiteral("%1 ipc client message: %2").arg(m_typeName, message);
+  constexpr qint64 kReadBlockSize = 16 * 1024;
+  constexpr qsizetype kMaximumLineSize = 64 * 1024;
+  while (m_socket->bytesAvailable() > 0) {
+    const auto block = m_socket->read(kReadBlockSize);
+    if (block.isEmpty()) {
+      break;
     }
-    const auto parts = message.split('=');
-    if (parts.isEmpty()) {
-      qWarning().noquote() << QStringLiteral("%1 ipc client got invalid message").arg(m_typeName);
-      continue;
-    }
+    m_readBuffer.append(block);
+    while (true) {
+      const auto index = m_readBuffer.indexOf('\n');
+      if (index < 0) {
+        break;
+      }
+      if (index > kMaximumLineSize) {
+        qWarning().noquote() << QStringLiteral("%1 ipc client received an oversized message").arg(m_typeName);
+        m_readBuffer.clear();
+        disconnectFromServer();
+        Q_EMIT connectionFailed();
+        return;
+      }
+      const auto message = QString::fromUtf8(m_readBuffer.left(index));
+      m_readBuffer.remove(0, index + 1);
 
-    if (m_state == State::Connecting) {
-      handleHandshakeMessage(parts);
-      continue;
-    }
+      if (isSensitiveMessage(message)) {
+        qDebug().noquote() << QStringLiteral("%1 ipc client received file-transfer command").arg(m_typeName);
+      } else {
+        qDebug().noquote() << QStringLiteral("%1 ipc client message: %2").arg(m_typeName, message);
+      }
+      const auto parts = message.split('=');
+      if (parts.isEmpty()) {
+        qWarning().noquote() << QStringLiteral("%1 ipc client got invalid message").arg(m_typeName);
+        continue;
+      }
 
-    if (parts.at(0) == QStringLiteral("bye")) {
-      qDebug().noquote() << QStringLiteral("%1 ipc server is shutting down").arg(m_typeName);
+      if (m_state == State::Connecting) {
+        handleHandshakeMessage(parts);
+        continue;
+      }
+
+      if (parts.at(0) == QStringLiteral("bye")) {
+        qDebug().noquote() << QStringLiteral("%1 ipc server is shutting down").arg(m_typeName);
+        disconnectFromServer();
+        Q_EMIT serverShutdown();
+        return;
+      }
+
+      processCommand(parts.at(0), parts);
+    }
+    if (m_readBuffer.size() > kMaximumLineSize) {
+      qWarning().noquote() << QStringLiteral("%1 ipc client received an oversized message").arg(m_typeName);
+      m_readBuffer.clear();
       disconnectFromServer();
-      Q_EMIT serverShutdown();
+      Q_EMIT connectionFailed();
       return;
     }
-
-    processCommand(parts.at(0), parts);
-  }
-
-  if (!data.isEmpty()) {
-    m_readBuffer = data;
   }
 }
 
