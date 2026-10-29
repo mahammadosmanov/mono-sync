@@ -8,7 +8,9 @@ This first phase builds the existing Deskflow GUI, server/client, TLS protocol, 
 
 Requirements and build options are in [Deskflow's developer guide](docs/dev/build.md). Minimums for this source: CMake 3.24, Qt 6.7, and OpenSSL 3. On macOS use `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`, `cmake --build build`, then `cmake --build build --target package`. On Windows, follow the documented MSVC, Qt, vcpkg, and WiX setup.
 
-The GitHub Actions workflow builds upstream unit tests, then creates a macOS ARM64 DMG and Windows x64 installer package when this branch is pushed. It uploads workflow artifacts only; it does not publish releases.
+The GitHub Actions workflow builds upstream unit tests, then creates a macOS ARM64 DMG and Windows x64 portable ZIP when this branch is pushed. It uploads workflow artifacts only; it does not publish releases. The WiX MSI installs a Windows service and firewall rules, so it requires administrator approval and is not the normal-user download.
+
+For Windows, use the [portable package instructions](docs/WINDOWS-PORTABLE.md). It runs from a writable folder under the current account and does not install the service. Windows firewall policy may still block incoming connections, and the portable build cannot control UAC prompts or the login screen. macOS still requires its own input-control permission.
 
 ## Acceptance
 

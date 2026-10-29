@@ -105,10 +105,20 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake --build build --parallel 8 --target package
 
-      - name: Upload package
+      - name: Upload macOS package
+        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: mono-sync-${{ matrix.target.name }}
-          path: build/deskflow-*.*
+          path: build/deskflow-*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Windows portable package
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mono-sync-windows-x64-portable
+          path: build/deskflow-*-portable.zip
           if-no-files-found: error
           retention-days: 14

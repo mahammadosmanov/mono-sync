@@ -7,9 +7,11 @@ new input apps at the same time.
 
 ## Set up the pair
 
-1. Install the Windows package and Mac DMG. Confirm both show Deskflow 1.27.0.
-   On macOS, allow Accessibility and Input Monitoring only for Deskflow if
-   macOS asks. Restart Deskflow only when macOS requests it.
+1. Extract the Windows portable ZIP into a writable folder under the current
+   user and run `deskflow.exe`. Open the Mac DMG and move Deskflow to Applications.
+   Confirm both show Deskflow 1.27.0. macOS may require an input-control permission
+   for Deskflow; Windows firewall policy may block incoming connections. Do not
+   bypass either operating-system control.
 2. On Windows, select **Use this computer's keyboard and mouse (server)**.
    Configure the Windows screen and Mac screen with the exact computer names
    shown in Deskflow. Place the Mac screen to match the physical layout.

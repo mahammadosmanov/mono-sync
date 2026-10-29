@@ -1,7 +1,7 @@
 # Current project state
 
-Updated: 2026-10-28
-Stage: Deskflow baseline installed; awaiting Windows/Mac physical input acceptance
+Updated: 2026-10-29
+Stage: Windows portable package prepared; awaiting Windows/Mac physical input acceptance
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
@@ -24,8 +24,11 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 - The first packages were rejected before installation. Git history inherited from Mono Sync caused upstream's Git-derived project version to report `0.1.0.9`, and the Windows package basename appeared as `deskflow-1-win-x64`. These artifacts are preserved under `Documents/MonoSync-Deskflow-deliverables/INVALID-not-for-install-0.1.0.9/`.
 - `DESKFLOW_USE_GIT_VERSION` defaults to `OFF`, preserving the pinned source version `1.27.0.0`; CI explicitly sets the CPack label and verifies version and package basename before compiling. The corrected CI guards passed.
 - `.github/workflows/native-packages.yml` targets Windows 2022 x64 and macOS 15 ARM64, runs upstream tests, packages both targets, and uploads artifacts only. It does not publish a release.
-- Corrected Windows MSI: `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/Deskflow-1.27.0-Windows-x64-Setup.msi`, 15,994,759 bytes, SHA-256 `ca063db0ad9dd4e968007965f477659881c1cf4fb0b352d216d5a2a677554141`; MSI metadata identifies x64 and Deskflow. The original named package and portable ZIP remain in `Windows/payload/`.
-- GitHub run: `https://github.com/mahammadosmanov/mono-sync/actions/runs/40731756390`, source revision `485092eaf2a708391425f63fe6cd5b94aeb11e97`. Windows artifact ID `12834854969`; macOS artifact ID `12833919872`; neither was expired at last check. Windows archive SHA-256 is `7804532b60db60e47038145d65f4d4e2828abec1a50c8e27ab6fb8ce14fa874d`; macOS archive SHA-256 is `b66afcfaf78029df735f507d63f22d4567abb33aa8e78d15d4d1f2e4b3e737d4`.
+- The MSI requests elevation because `deploy/windows/wix-patch.xml.in` installs an automatic Windows service, adds machine-wide firewall exceptions, and launches the GUI from the installer. The MSI is kept under `Documents/MonoSync-Deskflow-deliverables/Windows/Admin-required-MSI-not-default/` and is not the standard-user download.
+- The verified portable ZIP from the same successful build is copied to `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Windows-Portable.zip`, SHA-256 `036c8f301d9c3a523fa75bc5d76fb53015fe4bb0d19b6c743f4c9d90e0ca3c3f`; ZIP CRC passes. It bundles Qt, OpenSSL, and MSVC runtime DLLs, writes settings/TLS into its `settings` folder, and omits `deskflow-daemon.exe`. The GUI and core embedded Windows manifests both use `asInvoker` and `uiAccess=false`; portable mode selects desktop process mode. It cannot control UAC or the login screen and does not create firewall exceptions.
+- A concise handoff is at `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/START-HERE.txt`; repo instructions are in `docs/WINDOWS-PORTABLE.md`. Windows network/firewall policy may still require administrator approval.
+- GitHub run: `https://github.com/mahammadosmanov/mono-sync/actions/runs/40731756390`, source revision `485092eaf2a708391425f63fe6cd5b94aeb11e97`. Windows artifact ID `12834854969`; macOS artifact ID `12833919872`; neither was expired at last check. The original Windows CI artifact wraps both the MSI and portable ZIP; the standalone portable deliverable above avoids that ambiguity. Windows archive SHA-256 is `7804532b60db60e47038145d65f4d4e2828abec1a50c8e27ab6fb8ce14fa874d`; macOS archive SHA-256 is `b66afcfaf78029df735f507d63f22d4567abb33aa8e78d15d4d1f2e4b3e737d4`.
+- The workflow now uploads only the macOS DMG and the Windows `*-portable.zip` package. This workflow edit has not run in CI yet; no Windows or macOS source changed, and the portable binary is the one covered by run `40731756390`.
 - Corrected macOS artifact came from the same pinned source revision. Its ARM64 app bundle reports `1.27.0.0`. The downloaded CI bundle needed deep signing with the existing Apple Development identity because nested Qt signatures had a Team ID mismatch; deep strict verification then passed. The locally installed `/Applications/Deskflow.app` passes deep strict signature verification; executable SHA-256 is `617de79427203f6e3689bde2f27287d4feb337e6af9cecfe9c87da3ddec234dc`, and `--version` reports `Deskflow: 1.27.0`.
 - Deskflow's main window was visibly confirmed in CUA. System Settings > Device Control and Data Access lists Deskflow with access `off`. The user authorized this exact permission, but macOS requires Touch ID or the account password to apply it; the OS authentication sheet is open for the user. Client mode is selected; the server address is blank and Connect remains disabled. No sharing session or peer trust was configured. Previous Mono Sync app copies were moved recoverably to `~/.Trash`; configuration remains preserved.
 
@@ -35,4 +38,4 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 
 ## Next
 
-Run the manual acceptance gate on the actual Windows host and Mac client. The CI builds and Mac startup are verified, but cross-device input behavior remains untested. Do not start file-transfer work until the user accepts that input gate.
+Extract and run the portable ZIP on Windows as a standard user, then complete the manual acceptance gate on the actual Windows host and Mac client. The portable package itself does not request elevation, but Windows firewall policy and macOS input-control authorization remain OS-level gates. Cross-device input behavior remains untested; do not start file-transfer work until the user accepts that input gate.
