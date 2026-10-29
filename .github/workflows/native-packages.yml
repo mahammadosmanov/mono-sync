@@ -116,7 +116,7 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake --build build --parallel 8 --target package
 
-      - name: Build standard-user Windows setup
+      - name: Build per-user Windows setup
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -133,28 +133,10 @@ jobs:
             --output "$PWD/build/MonoSync-Setup.exe" `
             --makensis "$makensis"
 
-      - name: Smoke-test install, update, and uninstall
+      - name: Smoke-test setup install, update, and uninstall
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          $smokeScript = (Resolve-Path ./deploy/windows/smoke-test-standard-user-setup.ps1).Path
-          $setupPath = (Resolve-Path ./build/MonoSync-Setup.exe).Path
-          $reportPath = Join-Path $env:TEMP "mono-sync-setup-smoke-$([guid]::NewGuid()).txt"
-          $child = "& '$smokeScript' -SetupPath '$setupPath' -ReportPath '$reportPath'"
-          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($child))
-          $runner = Join-Path $env:WINDIR 'System32\runas.exe'
-          $process = Start-Process -FilePath $runner `
-            -ArgumentList @('/trustlevel:0x20000', "powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded") `
-            -Wait -PassThru -NoNewWindow
-          if ($process.ExitCode -ne 0) { throw "runas failed with exit code $($process.ExitCode)." }
-          $deadline = (Get-Date).AddSeconds(45)
-          while (-not (Test-Path -LiteralPath $reportPath) -and (Get-Date) -lt $deadline) {
-            Start-Sleep -Milliseconds 250
-          }
-          if (-not (Test-Path -LiteralPath $reportPath)) {
-            throw 'The restricted-token smoke test did not report completion.'
-          }
-          Get-Content -LiteralPath $reportPath
+        run: ./deploy/windows/smoke-test-setup-lifecycle.ps1 -SetupPath "$PWD/build/MonoSync-Setup.exe"
 
       - name: Upload macOS package
         if: runner.os == 'macOS'

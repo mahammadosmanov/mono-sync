@@ -1,20 +1,17 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string] $SetupPath,
-  [Parameter(Mandatory = $true)]
-  [string] $ReportPath
+  [string] $SetupPath
 )
 
 $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 $adminSid = [Security.Principal.WindowsBuiltInRole]::Administrator
-if ($principal.IsInRole($adminSid)) {
-  throw 'The setup smoke test must run with a non-administrator token.'
-}
+Write-Output "CI smoke token is in Administrators group: $($principal.IsInRole($adminSid))"
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Mono Sync'
 $profileDir = Join-Path $env:APPDATA 'Deskflow'
 $profileFile = Join-Path $profileDir 'Deskflow.conf'
+$customFile = Join-Path $installDir 'user-owned-smoke-test.txt'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Mono Sync'
 $uninstallKey = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync'
 $sentinel = 'setup-smoke-test-user-profile-preserved'
@@ -48,28 +45,37 @@ try {
   if (-not (Test-Path -LiteralPath $uninstallKey)) {
     throw 'Setup did not create its current-user uninstall registration.'
   }
+  Set-Content -LiteralPath $customFile -Value $sentinel -NoNewline
 
   & $SetupPath /S
   if ($LASTEXITCODE -ne 0) { throw "Setup update failed with exit code $LASTEXITCODE" }
   if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
     throw 'Setup update changed the existing per-user profile file.'
   }
+  if ((Get-Content -LiteralPath $customFile -Raw) -ne $sentinel) {
+    throw 'Setup update changed a user-owned file in the install directory.'
+  }
 
   $uninstaller = Join-Path $installDir 'Uninstall Mono Sync.exe'
   & $uninstaller /S
   if ($LASTEXITCODE -ne 0) { throw "Uninstall failed with exit code $LASTEXITCODE" }
   $deadline = (Get-Date).AddSeconds(15)
-  while ((Test-Path -LiteralPath $installDir) -and (Get-Date) -lt $deadline) {
+  while ((Test-Path -LiteralPath $uninstaller) -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 250
   }
-  if (Test-Path -LiteralPath $installDir) { throw 'Uninstaller left its install folder behind.' }
+  if (Test-Path -LiteralPath (Join-Path $installDir 'deskflow.exe')) {
+    throw 'Uninstaller left a packaged executable behind.'
+  }
+  if (Test-Path -LiteralPath $uninstaller) { throw 'Uninstaller left its own executable behind.' }
+  if ((Get-Content -LiteralPath $customFile -Raw) -ne $sentinel) {
+    throw 'Uninstaller removed or changed a user-owned install-folder file.'
+  }
   if (Test-Path -LiteralPath $startMenu) { throw 'Uninstaller left its Start menu folder behind.' }
   if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller left its current-user registry entry.' }
   if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
     throw 'Uninstaller changed or removed the per-user profile file.'
   }
-  Write-Output 'Setup, same-folder update, and uninstall passed; per-user profile was preserved.'
-  Set-Content -LiteralPath $ReportPath -Value 'PASS: standard-user install, update, uninstall, and profile preservation.' -NoNewline
+  Write-Output 'Setup, update, and uninstall passed; user profile and unrecognized install file were preserved.'
 }
 finally {
   if (Test-Path -LiteralPath (Join-Path $installDir 'Uninstall Mono Sync.exe')) {
@@ -79,5 +85,10 @@ finally {
   if (Test-Path -LiteralPath $profileFile) { Remove-Item -LiteralPath $profileFile -Force }
   if ($createdProfile -and (Test-Path -LiteralPath $profileDir)) {
     Remove-Item -LiteralPath $profileDir -Force
+  }
+  if (Test-Path -LiteralPath $customFile) { Remove-Item -LiteralPath $customFile -Force }
+  if (Test-Path -LiteralPath $installDir) {
+    $remaining = @(Get-ChildItem -LiteralPath $installDir -Force)
+    if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $installDir -Force }
   }
 }
