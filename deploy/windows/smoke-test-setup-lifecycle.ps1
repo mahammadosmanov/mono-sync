@@ -11,26 +11,34 @@ Write-Output "CI smoke token is in Administrators group: $($principal.IsInRole($
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Mono Sync'
 $profileDir = Join-Path $env:APPDATA 'Deskflow'
 $profileFile = Join-Path $profileDir 'Deskflow.conf'
+$profileSentinel = Join-Path $profileDir "MonoSync-Setup-Smoke-$([guid]::NewGuid()).txt"
 $customFile = Join-Path $installDir 'user-owned-smoke-test.txt'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Mono Sync'
 $uninstallKey = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync'
 $sentinel = 'setup-smoke-test-user-profile-preserved'
 $createdProfile = -not (Test-Path -LiteralPath $profileDir)
+$createdProfileFile = -not (Test-Path -LiteralPath $profileFile)
+$existingProfileHash = $null
 
 if (Test-Path -LiteralPath $installDir) {
   throw "Refusing to overwrite a pre-existing test install: $installDir"
 }
-if (Test-Path -LiteralPath $profileFile) {
-  throw "Refusing to overwrite pre-existing profile data: $profileFile"
-}
 if (Test-Path -LiteralPath $uninstallKey) {
   throw "Refusing to overwrite a pre-existing uninstall registration: $uninstallKey"
 }
-
-New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-Set-Content -LiteralPath $profileFile -Value $sentinel -NoNewline
+if (Test-Path -LiteralPath $startMenu) {
+  throw "Refusing to overwrite a pre-existing Start menu folder: $startMenu"
+}
 
 try {
+  New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+  if ($createdProfileFile) {
+    Set-Content -LiteralPath $profileFile -Value $sentinel -NoNewline
+  } else {
+    $existingProfileHash = (Get-FileHash -LiteralPath $profileFile -Algorithm SHA256).Hash
+  }
+  Set-Content -LiteralPath $profileSentinel -Value $sentinel -NoNewline
+
   & $SetupPath /S
   if ($LASTEXITCODE -ne 0) { throw "Setup failed with exit code $LASTEXITCODE" }
   foreach ($path in @(
@@ -49,8 +57,17 @@ try {
 
   & $SetupPath /S
   if ($LASTEXITCODE -ne 0) { throw "Setup update failed with exit code $LASTEXITCODE" }
-  if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
-    throw 'Setup update changed the existing per-user profile file.'
+  if (Test-Path -LiteralPath $profileFile) {
+    if ($createdProfileFile) {
+      if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
+        throw 'Setup update changed the test-created profile file.'
+      }
+    } elseif ((Get-FileHash -LiteralPath $profileFile -Algorithm SHA256).Hash -ne $existingProfileHash) {
+      throw 'Setup update changed the existing per-user profile file.'
+    }
+  } else { throw 'Setup update removed the per-user profile file.' }
+  if ((Get-Content -LiteralPath $profileSentinel -Raw) -ne $sentinel) {
+    throw 'Setup update changed an unrecognized per-user profile file.'
   }
   if ((Get-Content -LiteralPath $customFile -Raw) -ne $sentinel) {
     throw 'Setup update changed a user-owned file in the install directory.'
@@ -72,19 +89,34 @@ try {
   }
   if (Test-Path -LiteralPath $startMenu) { throw 'Uninstaller left its Start menu folder behind.' }
   if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller left its current-user registry entry.' }
-  if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
-    throw 'Uninstaller changed or removed the per-user profile file.'
+  if (Test-Path -LiteralPath $profileFile) {
+    if ($createdProfileFile) {
+      if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
+        throw 'Uninstaller changed or removed the test-created profile file.'
+      }
+    } elseif ((Get-FileHash -LiteralPath $profileFile -Algorithm SHA256).Hash -ne $existingProfileHash) {
+      throw 'Uninstaller changed or removed the existing per-user profile file.'
+    }
+  } else { throw 'Uninstaller removed the per-user profile file.' }
+  if ((Get-Content -LiteralPath $profileSentinel -Raw) -ne $sentinel) {
+    throw 'Uninstaller changed or removed an unrecognized per-user profile file.'
   }
-  Write-Output 'Setup, update, and uninstall passed; user profile and unrecognized install file were preserved.'
+  Write-Output 'Setup, update, and uninstall passed; existing profile, test sentinel, and unrecognized install file were preserved.'
 }
 finally {
   if (Test-Path -LiteralPath (Join-Path $installDir 'Uninstall Mono Sync.exe')) {
     $uninstaller = Join-Path $installDir 'Uninstall Mono Sync.exe'
     & $uninstaller /S
   }
-  if (Test-Path -LiteralPath $profileFile) { Remove-Item -LiteralPath $profileFile -Force }
+  if ($createdProfileFile -and (Test-Path -LiteralPath $profileFile)) {
+    Remove-Item -LiteralPath $profileFile -Force
+  }
+  if (Test-Path -LiteralPath $profileSentinel) {
+    Remove-Item -LiteralPath $profileSentinel -Force
+  }
   if ($createdProfile -and (Test-Path -LiteralPath $profileDir)) {
-    Remove-Item -LiteralPath $profileDir -Force
+    $remainingProfileFiles = @(Get-ChildItem -LiteralPath $profileDir -Force)
+    if ($remainingProfileFiles.Count -eq 0) { Remove-Item -LiteralPath $profileDir -Force }
   }
   if (Test-Path -LiteralPath $customFile) { Remove-Item -LiteralPath $customFile -Force }
   if (Test-Path -LiteralPath $installDir) {
