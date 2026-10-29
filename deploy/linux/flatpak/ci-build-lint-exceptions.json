@@ -1,5 +1,5 @@
 {
-    "org.deskflow.deskflow": [
+    "dev.monosync.app": [
         "appstream-external-screenshot-url",
         "appstream-screenshots-not-mirrored-in-ostree"
     ]

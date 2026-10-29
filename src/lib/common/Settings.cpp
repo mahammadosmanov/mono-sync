@@ -14,14 +14,122 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileSystemWatcher>
+#include <QTemporaryDir>
 #include <QRect>
 #include <QRegularExpression>
 #include <QStandardPaths>
+
+namespace {
+
+bool copyProfileFile(const QString &sourcePath, const QString &destinationPath)
+{
+  const QFileInfo sourceInfo(sourcePath);
+  if (!sourceInfo.exists()) {
+    return true;
+  }
+  if (sourceInfo.isSymLink() || !sourceInfo.isFile() || !QFile::copy(sourcePath, destinationPath)) {
+    return false;
+  }
+  return QFile::setPermissions(destinationPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+bool setOwnerOnlyDirectory(const QString &path)
+{
+  return QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+}
+
+bool samePath(const QString &left, const QString &right)
+{
+  const auto normalizedLeft = QDir::cleanPath(QDir::fromNativeSeparators(left));
+  const auto normalizedRight = QDir::cleanPath(QDir::fromNativeSeparators(right));
+#ifdef Q_OS_WIN
+  return normalizedLeft.compare(normalizedRight, Qt::CaseInsensitive) == 0;
+#else
+  return normalizedLeft == normalizedRight;
+#endif
+}
+
+} // namespace
 
 Settings *Settings::instance()
 {
   static Settings m;
   return &m;
+}
+
+bool Settings::migrateLegacyProfile(const QString &sourceDir, const QString &destinationDir)
+{
+  const QFileInfo sourceInfo(sourceDir);
+  if (!sourceInfo.exists() || !sourceInfo.isDir() || sourceInfo.isSymLink() || QFileInfo::exists(destinationDir)) {
+    return false;
+  }
+
+  const QFileInfo destinationInfo(destinationDir);
+  if (!QDir().mkpath(destinationInfo.absolutePath())) {
+    return false;
+  }
+
+  QTemporaryDir staging(QDir(destinationInfo.absolutePath()).filePath(".mono-sync-profile-XXXXXX"));
+  if (!staging.isValid()) {
+    return false;
+  }
+  const QString stagedProfile = QDir(staging.path()).filePath("profile");
+  if (!QDir().mkpath(stagedProfile) || !setOwnerOnlyDirectory(stagedProfile)) {
+    return false;
+  }
+
+  const QString oldSettings = QDir(sourceDir).filePath("Deskflow.conf");
+  const QString newSettings = QDir(stagedProfile).filePath(QStringLiteral("%1.conf").arg(kAppName));
+  const bool hasSettings = QFileInfo::exists(oldSettings);
+  if (hasSettings && !copyProfileFile(oldSettings, newSettings)) {
+    return false;
+  }
+
+  const QString sourceTls = QDir(sourceDir).filePath("tls");
+  const QString stagedTls = QDir(stagedProfile).filePath("tls");
+  if (QFileInfo(sourceTls).isSymLink()) {
+    return false;
+  }
+  const QStringList tlsFiles{"deskflow.pem", "trusted-servers", "trusted-clients"};
+  for (const QString &fileName : tlsFiles) {
+    const QString sourceFile = QDir(sourceTls).filePath(fileName);
+    if (!QFileInfo::exists(sourceFile)) {
+      continue;
+    }
+    if (!QDir().mkpath(stagedTls) || !setOwnerOnlyDirectory(stagedTls) ||
+        !copyProfileFile(sourceFile, QDir(stagedTls).filePath(fileName))) {
+      return false;
+    }
+  }
+
+  const QString oldCertificate = QDir(stagedTls).filePath("deskflow.pem");
+  const QString newCertificate = QDir(stagedTls).filePath("mono-sync.pem");
+  if (QFileInfo::exists(oldCertificate) && !QFileInfo::exists(newCertificate) &&
+      !QFile::rename(oldCertificate, newCertificate)) {
+    return false;
+  }
+
+  if (hasSettings) {
+    QSettings migratedSettings(newSettings, QSettings::IniFormat);
+    const QString certificateSetting = Settings::Security::Certificate;
+    if (samePath(migratedSettings.value(certificateSetting).toString(),
+                 QDir(sourceDir).filePath("tls/deskflow.pem"))) {
+      if (!QFileInfo::exists(newCertificate)) {
+        return false;
+      }
+      migratedSettings.setValue(certificateSetting, QDir(destinationDir).filePath("tls/mono-sync.pem"));
+      migratedSettings.sync();
+      if (migratedSettings.status() != QSettings::NoError) {
+        return false;
+      }
+    }
+  }
+
+  if (!QDir().rename(stagedProfile, destinationDir)) {
+    return false;
+  }
+  staging.setAutoRemove(true);
+  return true;
 }
 
 void Settings::setSettingsFile(const QString &settingsFile)
@@ -69,6 +177,20 @@ void Settings::clearState()
 
 Settings::Settings(QObject *parent) : QObject(parent), m_settingsWatcher{new QFileSystemWatcher(this)}
 {
+  QString legacyUserDir;
+#ifdef Q_OS_WIN
+  legacyUserDir = QStringLiteral("%1/AppData/Roaming/Deskflow").arg(QDir::homePath());
+#elif defined(Q_OS_MACOS)
+  legacyUserDir = QStringLiteral("%1/Library/Deskflow").arg(QDir::homePath());
+#else
+  const auto xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME");
+  legacyUserDir = xdgConfigHome.isEmpty() ? QStringLiteral("%1/.config/Deskflow").arg(QDir::homePath())
+                                          : QStringLiteral("%1/Deskflow").arg(xdgConfigHome);
+#endif
+  if (Settings::migrateLegacyProfile(legacyUserDir, UserDir)) {
+    qInfo("migrated existing Deskflow settings and TLS trust to the Mono Sync profile");
+  }
+
   QString fileToLoad;
 #ifdef Q_OS_WIN
   const auto portableFile = portableSettingsFile();
@@ -101,6 +223,11 @@ Settings::Settings(QObject *parent) : QObject(parent), m_settingsWatcher{new QFi
                              ? xdgStateHome
                              : QStandardPaths::standardLocations(QStandardPaths::GenericStateLocation).at(0);
   const auto stateFile = QStringLiteral("%1/%2.state").arg(stateBase, kAppName);
+  const auto legacyStateFile = QStringLiteral("%1/Deskflow.state").arg(stateBase);
+  const QFileInfo legacyStateInfo(legacyStateFile);
+  if (!QFileInfo::exists(stateFile) && legacyStateInfo.isFile() && !legacyStateInfo.isSymLink()) {
+    QFile::copy(legacyStateFile, stateFile);
+  }
 
   m_stateSettings = new QSettings(stateFile, QSettings::IniFormat, this);
 
@@ -310,6 +437,9 @@ void Settings::checkIfSettingsWritableChange()
 
 QVariant Settings::defaultValue(const QString &key)
 {
+  if (key == Gui::AutoUpdateCheck)
+    return false;
+
 #ifdef Q_OS_WIN
   if (key == Daemon::Elevate)
     return false;
@@ -317,8 +447,6 @@ QVariant Settings::defaultValue(const QString &key)
   if (key == Core::ProcessMode)
     return ProcessMode::Desktop;
 
-  if (key == Gui::AutoUpdateCheck)
-    return false;
 #endif
 
   if (key.startsWith(QStringLiteral("computer_"))) {
@@ -492,10 +620,13 @@ void Settings::setValue(const QString &key, const QVariant &value)
 
 QVariant Settings::value(const QString &key)
 {
+  if (key == Gui::AutoUpdateCheck)
+    return false;
+
 #ifdef Q_OS_WIN
   if (key == Core::ProcessMode)
     return ProcessMode::Desktop;
-  if (key == Daemon::Elevate || key == Gui::AutoUpdateCheck)
+  if (key == Daemon::Elevate)
     return false;
 #endif
 

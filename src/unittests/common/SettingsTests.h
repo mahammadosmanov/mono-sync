@@ -16,6 +16,8 @@ private Q_SLOTS:
   // Test are run in order top to bottom
   void setSettingsFile();
   void setStateFile();
+  void migrateLegacyProfilePreservesSettingsAndTls();
+  void migrateLegacyProfileResolvesDefaultCertificatePath();
   void settingsFile();
   void settingsPath();
   void tlsDir();

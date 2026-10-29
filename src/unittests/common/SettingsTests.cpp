@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 
 void SettingsTests::initTestCase()
 {
@@ -26,6 +27,93 @@ void SettingsTests::setSettingsFile()
 void SettingsTests::setStateFile()
 {
   Settings::setStateFile(m_stateFile);
+}
+
+void SettingsTests::migrateLegacyProfilePreservesSettingsAndTls()
+{
+  QTemporaryDir temporary;
+  QVERIFY(temporary.isValid());
+  const QString source = temporary.filePath("Deskflow");
+  const QString destination = temporary.filePath("Mono Sync");
+  const QString tls = QDir(source).filePath("tls");
+  QVERIFY(QDir().mkpath(tls));
+
+  const QString oldSettingsPath = QDir(source).filePath("Deskflow.conf");
+  QFile unrelatedFile(QDir(source).filePath("old-log.txt"));
+  QVERIFY(unrelatedFile.open(QIODevice::WriteOnly));
+  QCOMPARE(unrelatedFile.write("unrelated history"), qint64(17));
+  unrelatedFile.close();
+  QSettings oldSettings(oldSettingsPath, QSettings::IniFormat);
+  oldSettings.setValue(Settings::Security::Certificate,
+                       QDir::toNativeSeparators(QDir(tls).filePath("deskflow.pem")));
+  oldSettings.setValue(Settings::Core::ComputerName, "ExistingHost");
+  oldSettings.sync();
+  QVERIFY(oldSettings.status() == QSettings::NoError);
+
+  const QByteArray certificate = "preserve existing certificate bytes";
+  const QByteArray trustedServers = "preserve existing peer trust";
+  QFile certificateFile(QDir(tls).filePath("deskflow.pem"));
+  QVERIFY(certificateFile.open(QIODevice::WriteOnly));
+  QCOMPARE(certificateFile.write(certificate), certificate.size());
+  certificateFile.close();
+  QFile trustFile(QDir(tls).filePath("trusted-servers"));
+  QVERIFY(trustFile.open(QIODevice::WriteOnly));
+  QCOMPARE(trustFile.write(trustedServers), trustedServers.size());
+  trustFile.close();
+
+  QVERIFY(Settings::migrateLegacyProfile(source, destination));
+  const QString migratedSettingsPath = QDir(destination).filePath("Mono Sync.conf");
+  QVERIFY(QFileInfo::exists(migratedSettingsPath));
+  QSettings migratedSettings(migratedSettingsPath, QSettings::IniFormat);
+  QCOMPARE(migratedSettings.value(Settings::Core::ComputerName).toString(), QStringLiteral("ExistingHost"));
+  QCOMPARE(migratedSettings.value(Settings::Security::Certificate).toString(),
+           QDir(destination).filePath("tls/mono-sync.pem"));
+  QFile migratedCertificate(QDir(destination).filePath("tls/mono-sync.pem"));
+  QVERIFY(migratedCertificate.open(QIODevice::ReadOnly));
+  QCOMPARE(migratedCertificate.readAll(), certificate);
+#ifndef Q_OS_WIN
+  const auto migratedCertificatePermissions = QFileInfo(migratedCertificate).permissions();
+  QVERIFY(migratedCertificatePermissions.testFlag(QFileDevice::ReadOwner));
+  QVERIFY(migratedCertificatePermissions.testFlag(QFileDevice::WriteOwner));
+  QVERIFY(!(migratedCertificatePermissions & (QFileDevice::ReadGroup | QFileDevice::WriteGroup |
+                                              QFileDevice::ReadOther | QFileDevice::WriteOther)));
+#endif
+  QFile migratedTrust(QDir(destination).filePath("tls/trusted-servers"));
+  QVERIFY(migratedTrust.open(QIODevice::ReadOnly));
+  QCOMPARE(migratedTrust.readAll(), trustedServers);
+  QVERIFY(QFileInfo::exists(oldSettingsPath));
+  QVERIFY(QFileInfo::exists(QDir(tls).filePath("deskflow.pem")));
+  QVERIFY(!QFileInfo::exists(QDir(destination).filePath("old-log.txt")));
+
+  QFile userData(QDir(destination).filePath("keep.txt"));
+  QVERIFY(userData.open(QIODevice::WriteOnly));
+  userData.write("do not overwrite");
+  userData.close();
+  QVERIFY(!Settings::migrateLegacyProfile(source, destination));
+  QCOMPARE(userData.size(), qint64(16));
+}
+
+void SettingsTests::migrateLegacyProfileResolvesDefaultCertificatePath()
+{
+  QTemporaryDir temporary;
+  QVERIFY(temporary.isValid());
+  const QString source = temporary.filePath("Deskflow");
+  const QString destination = temporary.filePath("Mono Sync");
+  const QString sourceTls = QDir(source).filePath("tls");
+  QVERIFY(QDir().mkpath(sourceTls));
+
+  QFile certificate(QDir(sourceTls).filePath("deskflow.pem"));
+  QVERIFY(certificate.open(QIODevice::WriteOnly));
+  QCOMPARE(certificate.write("legacy certificate"), qint64(18));
+  certificate.close();
+
+  QVERIFY(Settings::migrateLegacyProfile(source, destination));
+  const auto migratedSettingsFile = QDir(destination).filePath("Mono Sync.conf");
+  const auto previousSettingsFile = Settings::settingsFile();
+  Settings::setSettingsFile(migratedSettingsFile);
+  QCOMPARE(Settings::defaultValue(Settings::Security::Certificate).toString(),
+           QDir(destination).filePath("tls/mono-sync.pem"));
+  Settings::setSettingsFile(previousSettingsFile);
 }
 
 void SettingsTests::settingsFile()
@@ -68,6 +156,8 @@ void SettingsTests::checkValidSettings()
     QCOMPARE(spy.count(), 1);
     QCOMPARE(qvariant_cast<QString>(spy.first().at(0)), setting);
     auto expectedAfterWrite = QStringLiteral("NEW_VALUE");
+    if (setting == Settings::Gui::AutoUpdateCheck)
+      expectedAfterWrite = Settings::defaultValue(setting).toString();
 #ifdef Q_OS_WIN
     if (setting == Settings::Core::ProcessMode || setting == Settings::Daemon::Elevate ||
         setting == Settings::Gui::AutoUpdateCheck)

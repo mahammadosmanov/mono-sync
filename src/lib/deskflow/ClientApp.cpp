@@ -101,7 +101,7 @@ void ClientApp::parseArgs()
 const char *ClientApp::daemonName() const
 {
   if (deskflow::platform::isWindows())
-    return "Deskflow Client";
+    return "Mono Sync Client";
   return "deskflow-client";
 }
 

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="ja_JP" sourcelanguage="en_US">
+<TS version="2.1" language="zh_CN" sourcelanguage="en_US">
 <context>
     <name>AboutDialog</name>
     <message>
         <source>About Deskflow</source>
-        <translation>Deskflow について</translation>
+        <translation type="vanished">关于 Deskflow</translation>
     </message>
     <message>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -17,15 +17,15 @@ p, li { white-space: pre-wrap; }
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://www.gnu.org/licenses/old-licenses/gpl-2.0.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;ライセンス: GNU GPL Version 2&lt;/a&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://www.gnu.org/licenses/old-licenses/gpl-2.0.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;许可证：GNU GPL 版本 2&lt;/a&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Version: </source>
-        <translation>バージョン: </translation>
+        <translation>版本： </translation>
     </message>
     <message>
         <source>Copy version info</source>
-        <translation>バージョン情報をコピー</translation>
+        <translation>复制版本信息</translation>
     </message>
     <message>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -37,160 +37,173 @@ p, li { white-space: pre-wrap; }
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://github.com/deskflow/deskflow/graphs/contributors&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;コントリビューター&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://github.com/deskflow/deskflow/graphs/contributors&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;代码贡献者&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Icons from &lt;a href=&quot;https://develop.kde.org/frameworks/breeze-icons/&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#007af4;&quot;&gt;KDE Breeze&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;アイコン提供: &lt;a href=&quot;https://develop.kde.org/frameworks/breeze-icons/&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#007af4;&quot;&gt;KDE Breeze&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;图标来源： &lt;a href=&quot;https://develop.kde.org/frameworks/breeze-icons/&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#007af4;&quot;&gt;KDE Breeze&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Important Developers</source>
-        <translation>主要な開発者</translation>
+        <translation>主要开发者</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>閉じる(&amp;C)</translation>
+        <translation>关闭(&amp;C)</translation>
+    </message>
+    <message>
+        <source>About Mono Sync</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1
+Based on Deskflow 1.27.0.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>ActionDialog</name>
     <message>
         <source>Configure Action</source>
-        <translation>アクションを設定</translation>
+        <translation>配置动作</translation>
     </message>
     <message>
         <source>When the hotkey is pressed</source>
-        <translation>ホットキーを押した時</translation>
+        <translation>当按下热键时</translation>
     </message>
     <message>
         <source>When the hotkey is released</source>
-        <translation>ホットキーを離した時</translation>
+        <translation>当释放热键时</translation>
     </message>
     <message>
         <source>Press key(s)</source>
-        <translation>キーを押した時</translation>
+        <translation>按下按键</translation>
     </message>
     <message>
         <source>Release key(s)</source>
-        <translation>キーを離した時</translation>
+        <translation>释放按键</translation>
     </message>
     <message>
         <source>Press and release key(s)</source>
-        <translation>キーを押して離した時</translation>
+        <translation>按下并释放按键</translation>
     </message>
     <message>
         <source>Switch to a computer</source>
-        <translation>指定したコンピューターに切り替える</translation>
+        <translation>切换到某台计算机</translation>
     </message>
     <message>
         <source>Switch in a direction</source>
-        <translation>指定した方向のコンピューターに切り替える</translation>
+        <translation>向指定方向切换</translation>
     </message>
     <message>
         <source>Switch to next computer</source>
-        <translation>次のコンピューターに切り替える</translation>
+        <translation>切换到下一台计算机</translation>
     </message>
     <message>
         <source>Modify the cursor lock</source>
-        <translation>カーソルロックを変更する</translation>
+        <translation>修改光标锁定状态</translation>
     </message>
     <message>
         <source>Restart the server</source>
-        <translation>サーバーを再起動する</translation>
+        <translation>重启服务器</translation>
     </message>
     <message>
         <source>Switch to the computer on the left</source>
-        <translation>左側のコンピューターに切り替える</translation>
+        <translation>切换到左侧的计算机</translation>
     </message>
     <message>
         <source>Switch to the computer on the right</source>
-        <translation>右側のコンピューターに切り替える</translation>
+        <translation>切换到右侧的计算机</translation>
     </message>
     <message>
         <source>Switch to the computer above</source>
-        <translation>上側のコンピューターに切り替える</translation>
+        <translation>切换到上方的计算机</translation>
     </message>
     <message>
         <source>Switch to the computer below</source>
-        <translation>下側のコンピューターに切り替える</translation>
+        <translation>切换到下方的计算机</translation>
     </message>
     <message>
         <source>Toggle the cursor lock</source>
-        <translation>カーソルロックをトグル</translation>
+        <translation>切换光标锁定</translation>
     </message>
     <message>
         <source>Enable the cursor lock</source>
-        <translation>カーソルロックを有効にする</translation>
+        <translation>启用光标锁定</translation>
     </message>
     <message>
         <source>Disable the cursor lock</source>
-        <translation>カーソルロックを無効にする</translation>
+        <translation>禁用光标锁定</translation>
     </message>
     <message>
         <source>Computers to receive this event</source>
-        <translation>このイベントを受け取るコンピューター</translation>
+        <translation>接收此事件的计算机</translation>
     </message>
     <message>
         <source>Switch to %1</source>
-        <translation>%1 に切り替える</translation>
+        <translation>切换到 %1</translation>
     </message>
 </context>
 <context>
     <name>ClientConfigDialog</name>
     <message>
         <source>Client Configuration</source>
-        <translation>クライアント設定</translation>
+        <translation type="unfinished">客户端配置</translation>
     </message>
     <message>
         <source>Use server&apos;s keyboard language on this computer</source>
-        <translation>サーバー側のキーボード言語をこのコンピューターで使用する</translation>
+        <translation type="unfinished">在此计算机上使用服务器的键盘语言</translation>
     </message>
     <message>
         <source>Scroll Modifiers</source>
-        <translation>スクロール設定</translation>
+        <translation type="unfinished">滚动修饰符</translation>
     </message>
     <message>
         <source>Invert</source>
-        <translation>反転</translation>
+        <translation type="unfinished">倒置</translation>
     </message>
     <message>
         <source>Horizontal Scroll</source>
-        <translation>水平スクロール</translation>
+        <translation type="unfinished">水平滚动</translation>
     </message>
     <message>
         <source>Vertical Scroll</source>
-        <translation>垂直スクロール</translation>
+        <translation type="unfinished">垂直滚动</translation>
     </message>
     <message>
         <source>Scale</source>
-        <translation>倍率</translation>
+        <translation type="unfinished">规模</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Allow the client to slow the rate it attempts to reconnect to the server when connections attempts are failing. The delay between connection attempts will  start at 1 second intervals and can be a maxium of 5 minutes between connection attempts.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;接続試行が失敗し続けている場合に、クライアントがサーバーへ再接続を試みる頻度を徐々に下げます。接続試行の間隔は当初1秒から開始され、最大で5分まで延長されます。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;允许客户端在连接尝试失败时，降低其重连服务器的频率。连接尝试之间的间隔将从 1 秒开始，最长可达 5 分钟。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Use dynamic reconnection time based on connection attempts</source>
-        <translation>接続試行回数に基づき、再接続時間を動的に調整する</translation>
+        <translation type="unfinished">根据连接尝试次数，采用动态重连时间</translation>
     </message>
 </context>
 <context>
     <name>ComputerSettingsDialog</name>
     <message>
         <source>Computer settings</source>
-        <translation type="unfinished">コンピューター設定</translation>
+        <translation type="unfinished">计算机设置</translation>
     </message>
     <message>
         <source>Computer Info</source>
-        <translation type="unfinished">コンピューター情報</translation>
+        <translation type="unfinished">计算机信息</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">名前</translation>
+        <translation type="unfinished">名称</translation>
     </message>
     <message>
         <source>Modifier Keys</source>
-        <translation type="unfinished">修飾キー</translation>
+        <translation type="unfinished">修饰键</translation>
     </message>
     <message>
         <source>M&amp;eta</source>
@@ -234,7 +247,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished">なし</translation>
+        <translation type="unfinished">无</translation>
     </message>
     <message>
         <source>&amp;Shift</source>
@@ -246,7 +259,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Dead Corners</source>
-        <translation type="unfinished">無効領域</translation>
+        <translation type="unfinished">屏幕死角</translation>
     </message>
     <message>
         <source>Top Left</source>
@@ -258,7 +271,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Corner si&amp;ze</source>
-        <translation type="unfinished">大きさ(&amp;Z)</translation>
+        <translation type="unfinished">角落大小(&amp;Z)</translation>
     </message>
     <message>
         <source>Bottom Left</source>
@@ -274,289 +287,293 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>SCROLL LOCK key</source>
-        <translation type="unfinished">SCROLL LOCK キー</translation>
+        <translation type="unfinished">SCROLL LOCK 键</translation>
     </message>
     <message>
         <source>CAPS LOCK key</source>
-        <translation type="unfinished">CAPS LOCK キー</translation>
+        <translation type="unfinished">CAPS LOCK 键</translation>
     </message>
     <message>
         <source>NUM LOCK key</source>
-        <translation type="unfinished">NUM LOCK キー</translation>
+        <translation type="unfinished">NUM LOCK 键</translation>
     </message>
     <message>
         <source>XTest for Xinerama</source>
-        <translation type="unfinished">Xinerama での XTest</translation>
+        <translation type="unfinished">用于 Xinerama 的 XTest</translation>
     </message>
     <message>
         <source>X11 computers Only, When enabled the client will not give focus to its focused window as soon as the client is switched to. This can help prevent unwanted focus stealing with some X11 setups.</source>
-        <translation type="unfinished">X11環境でのみ有効です。この設定を有効にすると、クライアントに切り替えた際、そのクライアント内のウィンドウに即座にフォーカスが移らなくなります。これにより、一部のX11環境で発生しがちな、意図しないフォーカスの横取り（フォーカス・スティーリング）を防ぐことができます。</translation>
+        <translation type="unfinished">仅限 X11 系统：启用此选项后，当切换到该客户端时，其当前获得焦点的窗口不会立即获取焦点。这有助于在某些 X11 配置下防止意外的焦点抢占。</translation>
     </message>
     <message>
         <source>Weaken X11 Focus</source>
-        <translation type="unfinished">X11のフォーカスを弱める</translation>
+        <translation type="unfinished">弱化 X11 焦点</translation>
     </message>
     <message>
         <source>Aliases</source>
-        <translation type="unfinished">別名</translation>
+        <translation type="unfinished">别名</translation>
     </message>
     <message>
         <source>&amp;Add</source>
-        <translation type="unfinished">追加(&amp;A)</translation>
+        <translation type="unfinished">添加(&amp;A)</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
-        <translation type="unfinished">削除(&amp;R)</translation>
+        <translation type="unfinished">移除(&amp;R)</translation>
     </message>
     <message>
         <source>Computer name is empty</source>
-        <translation type="unfinished">コンピューター名が空です</translation>
+        <translation type="unfinished">计算机名称为空</translation>
     </message>
     <message>
         <source>The computer name cannot be empty. Please either fill in a name or cancel the dialog.</source>
-        <translation type="unfinished">コンピューター名を空にすることはできません。名前を入力するか、ダイアログをキャンセルしてください。</translation>
+        <translation type="unfinished">计算机名称不能为空。请填写名称或取消对话框。</translation>
     </message>
     <message>
         <source>Computer name matches alias</source>
-        <translation type="unfinished">コンピューター名がエイリアスと一致しています</translation>
+        <translation type="unfinished">计算机名称与别名匹配</translation>
     </message>
     <message>
         <source>The computer name cannot be the same as an alias. Please either remove the alias or change the computer name.</source>
-        <translation type="unfinished">コンピューター名をエイリアスと同じにすることはできません。エイリアスを削除するか、コンピューター名を変更してください。</translation>
+        <translation type="unfinished">计算机名称不能与别名相同。请删除别名或更改计算机名称。</translation>
     </message>
 </context>
 <context>
     <name>ComputerSetupModel</name>
     <message>
         <source>&lt;center&gt;Computer: &lt;b&gt;%1&lt;/b&gt;&lt;/center&gt;&lt;br&gt;Double click to edit settings&lt;br&gt;Drag computer to the trashcan to remove it</source>
-        <translation type="unfinished">&lt;center&gt;コンピュータ: &lt;b&gt;%1&lt;/b&gt;&lt;/center&gt;&lt;br&gt;ダブルクリックして設定を編集&lt;br&gt;コンピュータをゴミ箱にドラッグして削除</translation>
+        <translation type="unfinished">&lt;center&gt;计算机：&lt;b&gt;%1&lt;/b&gt;&lt;/center&gt;&lt;br&gt;双击以编辑设置&lt;br&gt;将计算机拖至废纸篓以将其移除</translation>
     </message>
 </context>
 <context>
     <name>FingerprintDialog</name>
     <message>
         <source>Local Fingerprints</source>
-        <translation>自分の指紋</translation>
+        <translation>本地指纹</translation>
     </message>
     <message>
         <source>Local computer&apos;s fingerprint</source>
-        <translation>このコンピューターの指紋</translation>
+        <translation>本地计算机的指纹</translation>
     </message>
     <message>
         <source>Compare the fingerprints in this dialog to those on the %1.
 Only connect if they match!</source>
-        <translation>このダイアログの指紋を %1 の指紋と比較してください。
-両者が一致する場合にのみ接続してください！</translation>
+        <translation>请将此对话框中的指纹与 %1 上的指纹进行比对。
+只有两者匹配时才进行连接！</translation>
     </message>
     <message>
         <source>New client connecting</source>
-        <translation>新しいクライアントの接続</translation>
+        <translation>新客户端正在连接</translation>
     </message>
     <message>
         <source>client</source>
-        <translation>クライアント</translation>
+        <translation>客户端</translation>
     </message>
     <message>
         <source>
 Trust client and allow connection?
 </source>
         <translation>
-クライアントを信頼し接続を許可しますか？
+信任此客户端并允许连接吗？
 </translation>
     </message>
     <message>
         <source>Connecting to a new server</source>
-        <translation>新しいサーバーに接続</translation>
+        <translation>正在连接到新服务器</translation>
     </message>
     <message>
         <source>server</source>
-        <translation>サーバー</translation>
+        <translation>服务器</translation>
     </message>
     <message>
         <source>
 Do you want to connect to the server?
 </source>
         <translation>
-このサーバーに接続しますか？
+您想连接到此服务器吗？
 </translation>
     </message>
     <message>
         <source>Server Fingerprint</source>
-        <translation>サーバーの指紋</translation>
+        <translation>服务器指纹</translation>
     </message>
     <message>
         <source>Client Fingerprint</source>
-        <translation>クライアントの指紋</translation>
+        <translation>客户端指纹</translation>
     </message>
     <message>
         <source>Show image</source>
-        <translation>図を表示</translation>
+        <translation>显示图像</translation>
     </message>
     <message>
         <source>Show hash</source>
-        <translation>ハッシュを表示</translation>
+        <translation>显示哈希值</translation>
     </message>
     <message>
         <source>Display the fingerprint as an image</source>
-        <translation>指紋を図で表示</translation>
+        <translation>以图像形式显示指纹</translation>
     </message>
     <message>
         <source>Display the fingerprint as a hash</source>
-        <translation>指紋をハッシュで表示</translation>
+        <translation>以哈希值形式显示指纹</translation>
     </message>
 </context>
 <context>
     <name>FingerprintPreview</name>
     <message>
         <source>Invalid hash format</source>
-        <translation>不正なハッシュ形式</translation>
+        <translation>无效的哈希格式</translation>
     </message>
 </context>
 <context>
     <name>HelpDialog</name>
     <message>
         <source>%1 Help</source>
-        <translation>%1 ヘルプ</translation>
+        <translation type="unfinished">%1 帮助</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="unfinished">关闭</translation>
     </message>
 </context>
 <context>
     <name>HotkeyDialog</name>
     <message>
         <source>Hotkey</source>
-        <translation>ホットキー</translation>
+        <translation>热键</translation>
     </message>
     <message>
         <source>Enter the specification for the hotkey:</source>
-        <translation>ホットキーの入力方法を設定:</translation>
+        <translation>输入热键定义：</translation>
     </message>
 </context>
 <context>
     <name>LogDock</name>
     <message>
         <source>Log</source>
-        <translation>ログ</translation>
+        <translation>日志</translation>
     </message>
     <message>
         <source>Detach from window</source>
-        <translation>ウィンドウから切り離し</translation>
+        <translation>从窗口分离</translation>
     </message>
     <message>
         <source>Close Log</source>
-        <translation>ログを閉じる</translation>
+        <translation>关闭日志</translation>
     </message>
     <message>
         <source>Attach to window</source>
-        <translation>ウィンドウに結合</translation>
+        <translation>吸附到窗口</translation>
     </message>
 </context>
 <context>
     <name>LogLevel</name>
     <message>
         <source>Fatal</source>
-        <translation>重大</translation>
+        <translation type="unfinished">致命</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>エラー</translation>
+        <translation type="unfinished">错误</translation>
     </message>
     <message>
         <source>Warning</source>
-        <translation>警告</translation>
+        <translation type="unfinished">警告</translation>
     </message>
     <message>
         <source>Info</source>
-        <translation>情報</translation>
+        <translation type="unfinished">信息</translation>
     </message>
     <message>
         <source>Debug</source>
-        <translation>デバッグ</translation>
+        <translation type="unfinished">调试</translation>
     </message>
     <message>
         <source>Verbose</source>
-        <translation>冗長</translation>
+        <translation type="unfinished">冗长的</translation>
     </message>
 </context>
 <context>
     <name>MainWindow</name>
     <message>
         <source>This computer&apos;s name:</source>
-        <translation>このコンピューターの名前:</translation>
+        <translation>此计算机名称：</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Name can&apos;t have have spaces or special characters&lt;/p&gt;&lt;p&gt;Use Enter to save the name change.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;名前は英数字のみで空白や特殊文字は使えません&lt;/p&gt;&lt;p&gt;Enterキーで確定&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;名称不能包含空格或特殊字符&lt;/p&gt;&lt;p&gt;按 Enter 键保存更改。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Edit Computer Name</source>
-        <translation>コンピューター名を編集</translation>
+        <translation>编辑计算机名称</translation>
     </message>
     <message>
         <source>Use this computer&apos;s keyboard and mouse
 (make this computer the server)</source>
-        <translation>このコンピューターのキーボードとマウスを使用する
-(このコンピューターをサーバーにする)</translation>
+        <translation>使用此计算机的键盘和鼠标
+(将此计算机设为服务器)</translation>
     </message>
     <message>
         <source>Use another computer’s mouse and keyboard
 (make this computer the client)</source>
-        <translation>別のコンピューターのキーボードとマウスを使用する
-(このコンピューターをクライアントにする)</translation>
+        <translation>使用另一台计算机的鼠标和键盘
+(将此计算机设为客户端)</translation>
     </message>
     <message>
         <source>&amp;Configure Server</source>
-        <translation>サーバー設定(&amp;C)</translation>
+        <translation>配置服务器(&amp;C)</translation>
     </message>
     <message>
         <source>Export server configuration</source>
-        <translation>サーバー設定をエクスポート</translation>
+        <translation>导出服务器配置</translation>
     </message>
     <message>
         <source>You must select a mode</source>
-        <translation>動作モードを選択してください</translation>
+        <translation>您必须选择一种模式</translation>
     </message>
     <message>
         <source>&amp;Start</source>
-        <translation>起動(&amp;S)</translation>
+        <translation>启动(&amp;S)</translation>
     </message>
     <message>
         <source>Restart</source>
-        <translation>再起動</translation>
+        <translation>重启</translation>
     </message>
     <message>
         <source>Your current TLS key is smaller than the minimum allowed size, A new key 2048-bit key will be generated.</source>
-        <translation>現在のTLS鍵長が許容される長さより小さいため、新しい2048ビット長の鍵を生成します。</translation>
+        <translation>您当前的 TLS 密钥长度小于允许的最小值，将生成一个新的 2048 位密钥。</translation>
+    </message>
+    <message>
+        <source>The local core connection closed.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>invalid certificate, generating a new one</source>
-        <translation>無効な証明書、新しい証明書を生成しています</translation>
+        <translation type="unfinished">证书无效，正在生成新证书</translation>
     </message>
     <message>
         <source>Address missing</source>
-        <translation>アドレスが指定されていません</translation>
+        <translation>缺少地址</translation>
     </message>
     <message>
         <source>Please enter the hostname or IP address of the other computer.</source>
-        <translation>他のコンピューターのIPアドレスかホスト名を入力してください。</translation>
+        <translation>请输入另一台计算机的主机名或 IP 地址。</translation>
     </message>
     <message>
         <source>Save server configuration as...</source>
-        <translation>サーバー設定を保存…</translation>
+        <translation>另存服务器配置为...</translation>
     </message>
     <message>
         <source>Save failed</source>
-        <translation>保存に失敗</translation>
+        <translation>保存失败</translation>
     </message>
     <message>
         <source>Could not save server configuration to file.</source>
-        <translation>サーバー設定をファイルに保存できませんでした。</translation>
+        <translation>无法将服务器配置保存到文件。</translation>
     </message>
     <message>
         <source>Start</source>
-        <translation>起動</translation>
+        <translation>启动</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -564,19 +581,31 @@ Do you want to connect to the server?
     </message>
     <message>
         <source>Connect</source>
-        <translation>接続</translation>
+        <translation>连接</translation>
     </message>
     <message>
         <source>Disconnect</source>
-        <translation>切断</translation>
+        <translation>断开</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to connect to the server &apos;%1&apos;.&lt;/p&gt;&lt;p&gt;A Client with your name is already connected to the server.&lt;/p&gt;Please ensure that you&apos;re using a unique name and that only a single instance of the client process is running.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;サーバー &apos;%1&apos; への接続に失敗しました。&lt;/p&gt;&lt;p&gt;同じ名前のクライアントがサーバーに接続済です。&lt;/p&gt;&lt;p&gt;名前の重複がないことと、クライアントプロセスが多重起動していない事を確認してください。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;连接到服务器“%1”失败。&lt;/p&gt;&lt;p&gt;一个同名的客户端已连接到服务器。&lt;/p&gt;请确保您使用的名称唯一，且只有一个客户端进程实例在运行。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Stopping file operation before quitting…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File transfer stopped because the peer disconnected.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>View &amp;Help</source>
-        <translation>ヘルプを表示(&amp;H)</translation>
+        <translation type="unfinished">查看帮助(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Send a file…</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid Computer Name</source>
@@ -588,70 +617,147 @@ Do you want to connect to the server?
     </message>
     <message>
         <source>No IP Detected</source>
-        <translation>IPアドレスが見つかりません</translation>
+        <translation>未检测到 IP</translation>
     </message>
     <message>
         <source>Unable to detect an IP address. Check your network connection is active.</source>
-        <translation>IPアドレスが見つかりません。ネットワーク接続を確認してください。</translation>
+        <translation>无法检测到 IP 地址。请检查您的网络连接是否正常。</translation>
     </message>
     <message>
         <source>Using IP: </source>
-        <translation>使用IPアドレス： </translation>
+        <translation type="unfinished">使用IP地址： </translation>
     </message>
     <message>
         <source>&lt;p&gt;If connecting via the hostname fails, try %1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ホスト名での接続が失敗する場合は %1 を試してください。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;如果通过主机名连接失败，请尝试 %1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>the suggested IP.</source>
-        <translation>推奨するIPアドレス。</translation>
+        <translation>建议的 IP 地址。</translation>
     </message>
     <message>
         <source>one of the following IPs:&lt;br/&gt;%1</source>
-        <translation>以下のIPアドレスのいずれか:&lt;br/&gt;%1</translation>
+        <translation>以下 IP 地址之一：&lt;br/&gt;%1</translation>
+    </message>
+    <message>
+        <source>Wait for the previous file operation to stop.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File transfer is available only with a connected Mono Sync peer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connected peer:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected peer disconnected. Choose a connected peer and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected peer disconnected. Try again when it reconnects.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a file to send</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preparing file…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel transfer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File transfer canceled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for the receiving peer to accept…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sending file…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save file from %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiving file…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Received an invalid file chunk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File sent and verified by the receiving peer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File transfer ended before completion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the received file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File received and verified:
+%1</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>
 A bound IP is now invalid, you may need to restart the server.</source>
-        <translation>
-割り当て済みのIPアドレスが無効になりました。サーバーを再起動する必要があるかもしれません。</translation>
+        <translation type="unfinished">
+绑定的IP地址现在无效，您可能需要重启服务器。</translation>
     </message>
     <message>
         <source>&amp;File</source>
-        <translation>ファイル(&amp;F)</translation>
+        <translation>文件(&amp;F)</translation>
     </message>
     <message>
         <source>&amp;Edit</source>
-        <translation>編集(&amp;E)</translation>
+        <translation>编辑(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;View</source>
-        <translation>表示(&amp;V)</translation>
+        <translation>视图(&amp;V)</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>ヘルプ(&amp;H)</translation>
+        <translation>帮助(&amp;H)</translation>
     </message>
     <message>
         <source>&amp;Minimize to tray</source>
-        <translation>トレイに最小化(&amp;M)</translation>
+        <translation>最小化到托盘(&amp;M)</translation>
     </message>
     <message>
         <source>&amp;Quit</source>
-        <translation>終了(&amp;Q)</translation>
+        <translation>退出(&amp;Q)</translation>
     </message>
     <message>
         <source>&amp;Open %1</source>
         <extracomment>%1 will be the replaced with the appname</extracomment>
-        <translation>%1 を開く(&amp;O)</translation>
+        <translation>打开 %1(&amp;O)</translation>
     </message>
     <message>
         <source>&amp;Preferences</source>
-        <translation>設定(&amp;P)</translation>
+        <translation>首选项(&amp;P)</translation>
     </message>
     <message>
         <source>Rest&amp;art</source>
-        <translation>再起動(&amp;A)</translation>
+        <translation>重启(&amp;A)</translation>
     </message>
     <message>
         <source>S&amp;top</source>
@@ -660,7 +766,7 @@ A bound IP is now invalid, you may need to restart the server.</source>
     <message>
         <source>About %1...</source>
         <extracomment>%1 will be the replaced with the appname</extracomment>
-        <translation>%1 について…</translation>
+        <translation>关于 %1...</translation>
     </message>
     <message>
         <source>Ctrl+S</source>
@@ -684,64 +790,64 @@ Valid names:
 • Use letters and numbers
 • May also use _ or -
 • Are between 1 and 255 characters</source>
-        <translation>選択した名前が不正です。
+        <translation>您选择的名称无效。
 
-名前に使える文字と文字長:
-・英数字
-・_ と -
-・1から255文字まで</translation>
+有效名称：
+• 使用字母和数字
+• 可以使用 _ 或 -
+• 长度在 1 到 255 个字符之间</translation>
     </message>
     <message>
         <source>%1 Connection Error</source>
-        <translation>%1 接続エラー</translation>
+        <translation>%1 连接错误</translation>
     </message>
     <message>
         <source>Suggested IP: </source>
-        <translation>推奨IPアドレス: </translation>
+        <translation type="unfinished">建议 IP： </translation>
     </message>
     <message>
         <source>&amp;Configure Client</source>
-        <translation>クライアント設定 (&amp;C)</translation>
+        <translation type="unfinished">配置客户端(&amp;C)</translation>
     </message>
     <message>
         <source>Connect to:</source>
-        <translation>接続先:</translation>
+        <translation type="unfinished">连接到：</translation>
     </message>
     <message>
         <source>&lt;html&gt;Hostname or IP address of the server computer.&lt;br/&gt;May contain a comma seperated list.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;サーバーコンピューターのホスト名または IP アドレス。&lt;br/&gt;カンマ区切りのリストを含めることができます。&lt;/html&gt;</translation>
+        <translation type="unfinished">&lt;html&gt;服务器计算机的主机名或 IP 地址。&lt;br/&gt;可以包含以逗号分隔的列表。&lt;/html&gt;</translation>
     </message>
     <message>
         <source>read</source>
-        <translation>読み取り</translation>
+        <translation type="unfinished">读取</translation>
     </message>
     <message>
         <source>read and write</source>
-        <translation>書き込み</translation>
+        <translation type="unfinished">读取和写入</translation>
     </message>
     <message>
         <source>The Core executable could not be started.
 Please check if you have sufficient permissions to run %1.</source>
-        <translation>Coreの実行ファイルを起動できませんでした。
-%1を実行するための十分な権限があるか確認してください。</translation>
+        <translation type="unfinished">无法启动Core可执行文件。
+请检查您是否有足够的权限来运行%1。</translation>
     </message>
     <message>
         <source>
 Additionally, check you are able to %1 the server config file: %2</source>
-        <translation>
-また、サーバー設定ファイルへの%1権限があることを確認してください: %2</translation>
+        <translation type="unfinished">
+另外，请检查您是否能够%1服务器配置文件：%2</translation>
     </message>
     <message>
         <source>Don&apos;t show this again</source>
-        <translation>再表示しない</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Missing Keyboard Layouts</source>
-        <translation>キーボードレイアウトの不足</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;p&gt;Keyboard layout support requires matching layouts on all computers. The following layouts from the other computer are not installed on this computer:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Please install them to enable support for these layouts.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;キーボードレイアウトのサポートには対応するレイアウトが全てのコンピューターに必要です。別のコンピューターで使用されている以下のレイアウトがこのコンピューターにインストールされていません:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;サポートを有効にするには、これらのレイアウトをインストールしてください。&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -749,84 +855,84 @@ Additionally, check you are able to %1 the server config file: %2</source>
     <message>
         <source>Unnamed</source>
         <extracomment>Used as the hostname. Translation may not contain spaces</extracomment>
-        <translation type="unfinished">Unnamed</translation>
+        <translation type="unfinished">未命名</translation>
     </message>
 </context>
 <context>
     <name>QObject</name>
     <message>
         <source>fatal error</source>
-        <translation>致命的なエラー</translation>
+        <translation>致命错误</translation>
     </message>
     <message>
         <source>error</source>
-        <translation>エラー</translation>
+        <translation>错误</translation>
     </message>
     <message>
         <source>&lt;p&gt;Sorry, a fatal error has occurred and the application must now exit.&lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;申し訳ありません、致命的なエラーが発生したため、アプリケーションを終了します。&lt;/p&gt;
+        <translation>&lt;p&gt;抱歉，发生了致命错误，应用程序现在必须退出。&lt;/p&gt;
 </translation>
     </message>
     <message>
         <source>&lt;p&gt;Sorry, a critical error has occurred.&lt;/p&gt;
 </source>
-        <translatorcomment>&lt;p&gt;申し訳ありません、重大なエラーが発生しました。&lt;/p&gt;
+        <translatorcomment>&lt;p&gt;抱歉，发生了严重错误。&lt;/p&gt;
 </translatorcomment>
-        <translation>&lt;p&gt;Sorry, a critical error has occurred.&lt;/p&gt;
+        <translation>&lt;p&gt;抱歉，发生了严重错误。&lt;/p&gt;
 </translation>
     </message>
     <message>
         <source>&lt;p&gt;%1 will continue to run in the background and can be accessed via the %1 icon in your system notifications area. This setting can be disabled.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1 はバックグラウンドで引き続き実行され、システム通知領域の %1 アイコンからアクセスできます。この設定は無効にできます。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;%1 将在后台继续运行，可通过系统通知区域的 %1 图标访问。此设置可以禁用。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please &lt;a href=&quot;%1&quot;&gt;report a bug&lt;/a&gt; and copy/paste the following error:&lt;/p&gt;&lt;pre&gt;v%2
 %3
 %4&lt;/pre&gt;</source>
-        <translation>&lt;p&gt;&lt;a href=&quot;%1&quot;&gt;バグレポート&lt;/a&gt;して以下のエラーをコピー＆ペーストしてください:&lt;/p&gt;&lt;pre&gt;v%2
+        <translation>&lt;p&gt;请 &lt;a href=&quot;%1&quot;&gt;报告 Bug&lt;/a&gt; 并复制/粘贴以下错误：&lt;/p&gt;&lt;pre&gt;v%2
 %3
 %4&lt;/pre&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;On Linux systems using GNOME 3, the notification area might be disabled. You may need to &lt;a href=&quot;%1&quot;&gt;enable an extension&lt;/a&gt; to see the %2 tray icon.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;GNOME 3 を使用している Linux システムでは、通知領域が無効化されていることがあります。その場合は %2 トレイアイコンを表示するために&lt;a href=&quot;%1&quot;&gt;拡張機能の有効化&lt;/a&gt;が必要かもしれません。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;在使用 GNOME 3 的 Linux 系统上，通知区域可能被禁用。您可能需要 &lt;a href=&quot;%1&quot;&gt;启用扩展&lt;/a&gt; 才能看到 %2 托盘图标。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>%1 Server</source>
-        <translation>%1 サーバー</translation>
+        <translation>%1 服务器</translation>
     </message>
     <message>
         <source>&lt;p&gt;Great, the %1 server is now running.&lt;/p&gt;&lt;p&gt;Now you can connect your client computers to this server. You should see a prompt here on the server when a new client tries to connect.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;すばらしい、%1 サーバーが起動できました。&lt;/p&gt;&lt;p&gt;これでクライアントをこのサーバーに接続できます。新しいクライアントが接続する際にはここに通知が表示されます。&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;太好了，服务器 %1 已在运行。&lt;/p&gt;&lt;p&gt;现在您可以将客户端计算机连接到此服务器。当新客户端尝试连接时，您会在服务器端看到提示。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;%1 is now connected!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1 が接続しました！&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;%1 已连接！&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Try moving your mouse to your other computer. Once there, go ahead and type something.&lt;/p&gt;&lt;p&gt;Don&apos;t forget, you can copy and paste between computers too.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;マウスを別のコンピューターに移動してみてください。移動できたら、キーボードから何か入力してみてください。&lt;/p&gt;&lt;p&gt;コンピューター間でコピー＆ペーストできる事もお忘れなく。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;试着将鼠标移动到另一台计算机。移动过去后，尝试输入一些内容。&lt;/p&gt;&lt;p&gt;别忘了，您还可以在计算机之间进行复制和粘贴。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Try controlling this computer remotely.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;このコンピューターを遠隔操作してみましょう。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;尝试远程控制此计算机。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;As you do not have the setting enabled to keep %1 running in the background, you&apos;ll need to keep this window open or minimized to keep %1 running.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1 をバックグラウンドで実行する設定が無効のため、%1 を使用し続けるためにはこのウィンドウを開いたままにするか、最小化しておく必要があります。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;由于您未启用让 %1 在后台运行的设置，您需要保持此窗口打开或最小化以使 %1 保持运行。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can now close this window and %1 will continue to run in the background. This setting can be disabled.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;このウィンドウを閉じても %1 はバックグラウンドで引き続き実行されます。この設定は無効にできます。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;您现在可以关闭此窗口，%1 将在后台继续运行。此设置可以禁用。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>%1 Connected</source>
-        <translation>%1 接続完了</translation>
+        <translation>%1 已连接</translation>
     </message>
     <message>
         <source>%1 - New Client</source>
-        <translation>%1 - 新しいクライアント</translation>
+        <translation>%1 - 新客户端</translation>
     </message>
     <message>
         <source>A new client called &apos;%1&apos; has been accepted. You&apos;ll need to add it to your server&apos;s computer layout.</source>
@@ -834,66 +940,66 @@ Additionally, check you are able to %1 the server config file: %2</source>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>無視</translation>
+        <translation>忽略</translation>
     </message>
     <message>
         <source>Add client</source>
-        <translation>クライアントを追加</translation>
+        <translation>添加客户端</translation>
     </message>
     <message>
         <source>A new client called &apos;%1&apos; wants to connect</source>
-        <translation>新しいクライアント &apos;%1&apos; が接続を求めています</translation>
+        <translation>名为“%1”的新客户端请求连接</translation>
     </message>
     <message>
         <source>No thanks</source>
-        <translation>不要です</translation>
+        <translation>不，谢谢</translation>
     </message>
     <message>
         <source>Check for updates</source>
-        <translation>更新を確認する</translation>
+        <translation>检查更新</translation>
     </message>
     <message>
         <source>&lt;p&gt;Would you like to check for updates when %1 starts?&lt;/p&gt;&lt;p&gt;Checking for updates requires an Internet connection.&lt;/p&gt;&lt;p&gt;URL: &lt;pre&gt;%2&lt;/pre&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1 の起動時にソフトウェア更新を確認しますか？&lt;/p&gt;&lt;p&gt;更新の確認にはインターネット接続が必要です。&lt;/p&gt;&lt;p&gt;URL: &lt;pre&gt;%2&lt;/pre&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;您希望在 %1 启动时检查更新吗？&lt;/p&gt;&lt;p&gt;检查更新需要互联网连接。&lt;/p&gt;&lt;p&gt;URL: &lt;pre&gt;%2&lt;/pre&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Background service offline</source>
-        <translation>バックグラウンドサービス停止中</translation>
+        <translation>后台服务离线</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>再試行</translation>
+        <translation>重试</translation>
     </message>
     <message>
         <source>Disable</source>
-        <translation>無効化</translation>
+        <translation>禁用</translation>
     </message>
     <message>
         <source>&lt;p&gt;There was a problem finding the %1 background service (daemon).&lt;/p&gt;&lt;p&gt;The background service makes %1 work with UAC prompts and the login screen.&lt;/p&gt;&lt;p&gt;If don&apos;t want to use the background service and intentionally stopped it, you can prevent it&apos;s use by disabling this feature.&lt;/p&gt;&lt;p&gt;If you did not stop the background service intentionally, there may be a problem with it. Please retry or try restarting the %1 service from the Windows services program.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1 バックグラウンドサービス(デーモン)が検出できませんでした。&lt;/p&gt;&lt;p&gt;バックグラウンドサービスは %1 がUACプロンプトとログイン画面で動作するために必要です。&lt;/p&gt;&lt;p&gt;もしバックグラウンドサービスが不要で意図的に停止したのであれば、この機能を無効化することで利用を止めることができます。&lt;/p&gt;&lt;p&gt;もし意図的に止めたのでなければ、何か問題があるかもしれません。再試行するか、%1 サービスをWindowsのサービス設定から再起動してみてください。&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;查找 %1 后台服务（守护进程）时出现问题。&lt;/p&gt;&lt;p&gt;%1 需后台服务来与 UAC 提示和登录屏幕配合工作。&lt;/p&gt;&lt;p&gt;如果您不想使用后台服务并已将其停止，可以通过禁用此功能来阻止使用它。&lt;/p&gt;&lt;p&gt;如果您并非有意停止后台服务，则可能存在问题。请重试，或尝试从 Windows 服务程序中重启 %1 服务。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>failed to read key from certificate file: %1</source>
         <extracomment>%1 will be replaced by the certificate path</extracomment>
-        <translation>証明書ファイルからキーを読み取ることができませんでした: %1</translation>
+        <translation type="unfinished">无法从证书文件中读取密钥：%1</translation>
     </message>
     <message>
         <source>failed to parse certificate file: %1</source>
         <extracomment>%1 will be replaced by the certificate path</extracomment>
-        <translation>証明書ファイルの解析に失敗しました: %1</translation>
+        <translation type="unfinished">解析证书文件失败：%1</translation>
     </message>
     <message>
         <source>key detected is the incorrect size</source>
-        <translation>検出されたキーのサイズが正しくありません</translation>
+        <translation type="unfinished">检测到的密钥大小不正确</translation>
     </message>
     <message>
         <source>failed to read RSA key from certificate file: %1</source>
         <extracomment>%1 will be replaced by the certificate path</extracomment>
-        <translation>証明書ファイルから RSA キーを読み取ることができませんでした: %1</translation>
+        <translation type="unfinished">无法从证书文件中读取 RSA 密钥：%1</translation>
     </message>
     <message>
         <source>%1 is already running</source>
-        <translation>%1 は既に起動中です</translation>
+        <translation>%1 已经在运行中</translation>
     </message>
     <message>
         <source>Alt</source>
@@ -913,7 +1019,7 @@ Additionally, check you are able to %1 the server config file: %2</source>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished">なし</translation>
+        <translation type="unfinished">无</translation>
     </message>
     <message>
         <source>Shift</source>
@@ -928,106 +1034,106 @@ Additionally, check you are able to %1 the server config file: %2</source>
     <name>SearchWidget</name>
     <message>
         <source>Search</source>
-        <translation>検索</translation>
+        <translation type="unfinished">搜索</translation>
     </message>
     <message>
         <source>Find next</source>
-        <translation>次を検索</translation>
+        <translation type="unfinished">查找下一个</translation>
     </message>
     <message>
         <source>Find previous</source>
-        <translation>前を検索</translation>
+        <translation type="unfinished">查找上一个</translation>
     </message>
     <message>
         <source>Find...</source>
-        <translation>検索...</translation>
+        <translation type="unfinished">寻找...</translation>
     </message>
 </context>
 <context>
     <name>ServerConfigDialog</name>
     <message>
         <source>Server Configuration</source>
-        <translation>サーバー設定</translation>
+        <translation>服务器配置</translation>
     </message>
     <message>
         <source>Computers</source>
-        <translation>コンピューター</translation>
+        <translation>计算机</translation>
     </message>
     <message>
         <source>Drag a computer from the grid to the trashcan to remove it.</source>
-        <translation>コンピューターを削除するには、ゴミ箱にドラッグしてください。</translation>
+        <translation>将计算机从网格拖到垃圾桶以将其移除。</translation>
     </message>
     <message>
         <source>Configure the layout of your computer displays by dragging to where you want.</source>
-        <translation>コンピューターの画面を置きたい場所にドラッグして画面配置を設定してください。</translation>
+        <translation>通过将计算机显示器拖动到所需位置来配置布局。</translation>
     </message>
     <message>
         <source>Drag to the grid to add a new computer.</source>
-        <translation>新しいコンピューターを追加するには、下の枠にドラッグしてください。</translation>
+        <translation>拖动到网格以添加新计算机。</translation>
     </message>
     <message>
         <source>Hotkeys</source>
-        <translation>ホットキー</translation>
+        <translation>热键</translation>
     </message>
     <message>
         <source>&amp;Hotkeys</source>
-        <translation>ホットキー(&amp;H)</translation>
+        <translation>热键(&amp;H)</translation>
     </message>
     <message>
         <source>&amp;New</source>
-        <translation>新規(&amp;N)</translation>
+        <translation>新建(&amp;N)</translation>
     </message>
     <message>
         <source>&amp;Edit</source>
-        <translation>編集(&amp;E)</translation>
+        <translation>编辑(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
-        <translation>削除(&amp;R)</translation>
+        <translation>移除(&amp;R)</translation>
     </message>
     <message>
         <source>A&amp;ctions</source>
-        <translation>動作(&amp;A)</translation>
+        <translation>动作(&amp;A)</translation>
     </message>
     <message>
         <source>Ne&amp;w</source>
-        <translation>新規(&amp;W)</translation>
+        <translation>新建(&amp;W)</translation>
     </message>
     <message>
         <source>E&amp;dit</source>
-        <translation>編集(&amp;D)</translation>
+        <translation>编辑(&amp;D)</translation>
     </message>
     <message>
         <source>Re&amp;move</source>
-        <translation>削除(&amp;M)</translation>
+        <translation>移除(&amp;M)</translation>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>詳細設定</translation>
+        <translation>高级</translation>
     </message>
     <message>
         <source>&amp;Misc</source>
-        <translation>その他(&amp;M)</translation>
+        <translation>杂项(&amp;M)</translation>
     </message>
     <message>
         <source>Disable lock to computer (scroll lock key)</source>
-        <translation>コンピューター間移動のロック機能を無効にする(Scroll Lock キー)</translation>
+        <translation>禁用锁定到计算机 (Scroll Lock 键)</translation>
     </message>
     <message>
         <source>Use &amp;relative mouse movements</source>
-        <translation>マウスの相対移動を使用する(&amp;R)</translation>
+        <translation>使用相对鼠标移动(&amp;R)</translation>
     </message>
     <message>
         <source>Don&apos;t take &amp;foreground window (Windows only)</source>
-        <translation>前面ウィンドウのフォーカスを奪わないようにする(&amp;F) (Windows のみ)</translation>
+        <translation>不获取前台窗口焦点 (仅限 Windows)(&amp;F)</translation>
     </message>
     <message>
         <source>Enable clipboard sharing</source>
-        <translation>クリップボード共有を有効にする</translation>
+        <translation>启用剪贴板共享</translation>
     </message>
     <message>
         <source>Limit to:</source>
-        <translation>サイズ上限:</translation>
+        <translation>限制为：</translation>
     </message>
     <message>
         <source>MB</source>
@@ -1035,362 +1141,370 @@ Additionally, check you are able to %1 the server config file: %2</source>
     </message>
     <message>
         <source>&amp;Network</source>
-        <translation>ネットワーク(&amp;N)</translation>
+        <translation>网络(&amp;N)</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enables the network heartbeat to ping clients every &lt;span style=&quot; font-style:italic;&quot;&gt;n&lt;/span&gt; seconds. This may help to diagnose network problems by retrying the connection if the client becomes unresponsive.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;指定した秒数ごとにクライアントの死活監視を実施します。クライアントが無反応になった際に接続を再試行することで、ネットワークの問題を診断しやすくなります。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;启用网络心跳，每 &lt;span style=&quot; font-style:italic;&quot;&gt;n&lt;/span&gt; 秒 ping 一次客户端。如果客户端无响应，通过重试连接可能有助于诊断网络问题。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&amp;Check clients every</source>
-        <translation>指定した間隔でクライアントを監視する(&amp;C)</translation>
+        <translation>检查客户端间隔(&amp;C)</translation>
     </message>
     <message>
         <source>ms</source>
-        <translation>ms</translation>
+        <translation>毫秒</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enables compatibility with programs that use either the Synergy or Barrier protocols:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 uses the Synergy protocol.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap and Synergy 1 uses the Barrier protocol.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;A Deskflow client will automatically use either the Synergy or Barrier protocol depending on the server protocol.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Synergy もしくは Barrier プロトコルを利用するプログラムとの互換性を有効にします。&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 は Synergy プロトコルを利用します。&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier、Input-Leap、Synergy 1 は Barrier プロトコルを利用します。&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Deskflow クライアントはサーバー側のプロトコルに従って自動的に Synergy か Barrier プロトコルを選択します。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;启用与使用 Synergy 或 Barrier 协议的程序的兼容性：&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 使用 Synergy 协议。&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap 和 Synergy 1 使用 Barrier 协议。&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Deskflow 客户端将根据服务器协议自动使用 Synergy 或 Barrier 协议。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Network protocol</source>
-        <translation>ネットワークプロトコル</translation>
+        <translation>网络协议</translation>
     </message>
     <message>
         <source>&amp;Switching</source>
-        <translation>画面移動(&amp;S)</translation>
+        <translation>切换(&amp;S)</translation>
     </message>
     <message>
         <source>Switch &amp;after waiting</source>
-        <translation>画面端で指定時間経過すると移動(&amp;A)</translation>
+        <translation>等待后切换(&amp;A)</translation>
     </message>
     <message>
         <source>Switch on double &amp;tap within</source>
-        <translation>指定時間内に画面端ダブルタップで移動(&amp;T)</translation>
+        <translation>在指定时间内双击切换(&amp;T)</translation>
     </message>
     <message>
         <source>Use a server config file to create complex computer layouts that are not possible with the simple grid-based computer layout editor.
 
 Enabling this setting will disable the server config GUI.</source>
-        <translation>GUIでの単純な配置ではできないような複雑なコンピューター配置を設定したい場合は、サーバー設定ファイルを使用してください。
+        <translation>使用服务器配置文件来创建简单的网格布局编辑器无法实现的复杂计算机布局。
 
-この設定を有効にすると、サーバー設定用GUIは無効になります。</translation>
+启用此设置将禁用服务器配置 GUI。</translation>
     </message>
     <message>
         <source>Use a server config file</source>
-        <translation>サーバー設定ファイルを利用する</translation>
+        <translation>使用服务器配置文件</translation>
     </message>
     <message>
         <source>Config file path</source>
-        <translation>設定ファイルのパス</translation>
+        <translation>配置文件路径</translation>
     </message>
     <message>
         <source>%1 Configurations (*.conf);;All files (*.*)</source>
         <extracomment>%1 is replaced with the application names (*.conf) and (*.*) should not be translated</extracomment>
-        <translation>%1 設定 (*.conf);;すべてのファイル (*.*)</translation>
+        <translation>%1 配置 (*.conf);;所有文件 (*.*)</translation>
     </message>
     <message>
         <source>Browse for a config file</source>
-        <translation>設定ファイルを選択</translation>
+        <translation>浏览配置文件</translation>
     </message>
     <message>
         <source>Enable lock to computer at startup</source>
-        <translation>起動時にコンピューター間移動のロックを有効にする</translation>
+        <translation type="unfinished">启动时启用锁定到计算机</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enables compatibility with programs that use either the Synergy or Barrier protocols:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 uses the Synergy protocol.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap and Synergy 1 uses the Barrier protocol.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;A Mono Sync client will automatically use either the Synergy or Barrier protocol depending on the server protocol.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>SettingsDialog</name>
     <message>
         <source>Preferences</source>
-        <translation>設定</translation>
+        <translation>首选项</translation>
     </message>
     <message>
         <source>Check for updates on startup</source>
-        <translation>起動時にソフトウェア更新を確認する</translation>
+        <translation>启动时检查更新</translation>
     </message>
     <message>
         <source>Prevent this computer from going to sleep</source>
-        <translation>このコンピューターがスリープしないようにする</translation>
+        <translation>防止此计算机进入睡眠状态</translation>
     </message>
     <message>
         <source>Tray icon style</source>
-        <translation>トレイアイコン</translation>
+        <translation>托盘图标样式</translation>
     </message>
     <message>
         <source>Colorful</source>
-        <translation>カラフル</translation>
+        <translation>彩色</translation>
     </message>
     <message>
         <source>Monocolor</source>
-        <translation>モノクロ</translation>
+        <translation>单色</translation>
     </message>
     <message>
         <source>Enable TLS Encryption</source>
-        <translation>TLS 暗号化を有効にする</translation>
+        <translation>启用 TLS 加密</translation>
     </message>
     <message>
         <source>Certificate</source>
-        <translation>証明書</translation>
+        <translation>证书</translation>
     </message>
     <message>
         <source>Key length</source>
-        <translation>鍵長</translation>
+        <translation>密钥长度</translation>
     </message>
     <message>
         <source>Regenerate certificate</source>
-        <translation>証明書を再生成</translation>
+        <translation>重新生成证书</translation>
     </message>
     <message>
         <source>Require client certificates</source>
-        <translation>クライアント証明書を要求する</translation>
+        <translation>需要客户端证书</translation>
     </message>
     <message>
         <source>&amp;Advanced</source>
-        <translation>詳細(&amp;A)</translation>
+        <translation>高级(&amp;A)</translation>
     </message>
     <message>
         <source>Port</source>
-        <translation>ポート</translation>
+        <translation>端口</translation>
     </message>
     <message>
         <source>Network IP</source>
-        <translation>IPアドレス</translation>
+        <translation>网络 IP</translation>
     </message>
     <message>
         <source>Level</source>
-        <translation>レベル</translation>
+        <translation>级别</translation>
     </message>
     <message>
         <source>Log path</source>
-        <translation>ログファイルのパス</translation>
+        <translation>日志路径</translation>
     </message>
     <message>
         <source>Enable GUI debug messages</source>
-        <translation>GUIのデバッグメッセージを有効にする</translation>
+        <translation>启用 GUI 调试消息</translation>
     </message>
     <message>
         <source>Use background service (daemon)</source>
-        <translation>バックグラウンドサービス(デーモン)を有効にする</translation>
+        <translation>使用后台服务 (守护进程)</translation>
     </message>
     <message>
         <source>Always run as system (work at login screen and UAC)</source>
-        <translation>常にsystem権限で実行する(ログイン画面とUACで必要)</translation>
+        <translation type="unfinished">始终以系统身份运行 (在登录屏幕和 UAC 下工作)</translation>
     </message>
     <message>
         <source>Language</source>
-        <translation>言語</translation>
+        <translation>语言</translation>
     </message>
     <message>
         <source>TLS Certificate Regenerated</source>
-        <translation>TLS 証明書再生成</translation>
+        <translation>TLS 证书已重新生成</translation>
     </message>
     <message>
         <source>TLS certificate regenerated successfully.</source>
-        <translation>TLS 証明書が再生成されました。</translation>
+        <translation>TLS 证书重新生成成功。</translation>
     </message>
     <message>
         <source>Select a TLS certificate to use...</source>
-        <translation>使用する TLS 証明書を選択…</translation>
+        <translation>选择要使用的 TLS 证书...</translation>
     </message>
     <message>
         <source>Save log file to...</source>
-        <translation>ログをファイルに保存…</translation>
+        <translation>保存日志文件到...</translation>
     </message>
     <message>
         <source>%1 Clear Settings</source>
-        <translation>%1 設定消去</translation>
+        <translation type="unfinished">%1 清除设置</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to clear all settings and restart %1?&lt;/p&gt; &lt;p&gt;This action cannot be undone.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;すべての設定を消去して %1 を再起動してもよろしいですか？&lt;/p&gt; &lt;p&gt;この操作は元に戻せません。&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;您确定要清除所有设置并重新启动 %1 吗？&lt;/p&gt; &lt;p&gt;此操作无法撤销。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Required messages</source>
-        <translation>必須のメッセージ</translation>
+        <translation>必要消息</translation>
     </message>
     <message>
         <source>Non-fatal errors</source>
-        <translation>致命的でないエラー</translation>
+        <translation>非致命错误</translation>
     </message>
     <message>
         <source>General warnings</source>
-        <translation>一般的な警告</translation>
+        <translation>一般警告</translation>
     </message>
     <message>
         <source>General events [Default]</source>
-        <translation>一般的な事象 [既定]</translation>
+        <translation>一般事件 [默认]</translation>
     </message>
     <message>
         <source>Debug entries</source>
-        <translation>デバッグ情報</translation>
+        <translation>调试条目</translation>
     </message>
     <message>
         <source>Verbose debug output</source>
-        <translation>詳細なデバッグ出力</translation>
+        <translation>详细调试输出</translation>
+    </message>
+    <message>
+        <source>Automatic updates are unavailable. Install a verified Mono Sync build manually.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Automatic</source>
-        <translation>自動</translation>
+        <translation type="unfinished">自动的</translation>
     </message>
     <message>
         <source>Include version in the window title</source>
-        <translation>ウィンドウタイトルにバージョン情報を含める</translation>
+        <translation type="unfinished">在窗口标题中包含版本信息</translation>
     </message>
     <message>
         <source>Log to file</source>
-        <translation>ファイルにログを保存する</translation>
+        <translation>记录日志到文件</translation>
     </message>
     <message>
         <source>&amp;Logs</source>
-        <translation>ログ(&amp;L)</translation>
+        <translation type="unfinished">日志(&amp;L)</translation>
     </message>
     <message>
         <source>&amp;General</source>
-        <translation>一般(&amp;G)</translation>
+        <translation>常规(&amp;G)</translation>
     </message>
     <message>
         <source>&amp;Network</source>
-        <translation>ネットワーク(&amp;N)</translation>
+        <translation>网络(&amp;N)</translation>
     </message>
     <message>
         <source>&amp;Window</source>
-        <translation>ウィンドウ(&amp;W)</translation>
+        <translation type="unfinished">窗户(&amp;W)</translation>
     </message>
     <message>
         <source>When the main window is closed</source>
-        <translation>メインウィンドウを閉じたとき</translation>
+        <translation type="unfinished">主窗口关闭时</translation>
     </message>
     <message>
         <source>Exit</source>
-        <translation>アプリケーションを終了する</translation>
+        <translation type="unfinished">出口</translation>
     </message>
     <message>
         <source>Send to background</source>
-        <translation>バックグラウンドで実行する</translation>
+        <translation type="unfinished">发送到后台</translation>
     </message>
     <message>
         <source>When the application starts</source>
-        <translation>アプリケーション起動時</translation>
+        <translation type="unfinished">应用程序启动时</translation>
     </message>
     <message>
         <source>Show the main window</source>
-        <translation>メインウィンドウを表示する</translation>
+        <translation type="unfinished">显示主窗口</translation>
     </message>
     <message>
         <source>Run command on enter</source>
-        <translation>画面に入る時にコマンドを実行</translation>
+        <translation type="unfinished">按下回车键执行命令</translation>
     </message>
     <message>
         <source>Run command on exit</source>
-        <translation>画面から出る時にコマンドを実行</translation>
+        <translation type="unfinished">退出时运行命令</translation>
     </message>
     <message>
         <source>Using a log level higher than Info may affect performance.</source>
-        <translation>Infoよりも高いログレベルを使用すると、パフォーマンスに影響を及ぼす可能性があります。</translation>
+        <translation type="unfinished">使用高于 Info 级别的日志级别可能会影响性能。</translation>
     </message>
     <message>
         <source>Remove all settings</source>
-        <translation>すべての設定を消去する</translation>
+        <translation type="unfinished">移除所有设置</translation>
     </message>
 </context>
 <context>
     <name>SettingsDialogButtonBox</name>
     <message>
         <source>Settings are read only</source>
-        <translation>設定は読み取り専用です</translation>
+        <translation type="unfinished">设置仅为只读</translation>
     </message>
     <message>
         <source>%1 is not writable</source>
-        <translation>%1 は書き込み可能ではありません</translation>
+        <translation type="unfinished">%1 不可写入</translation>
     </message>
     <message>
         <source>Close and save changes</source>
-        <translation>変更を保存して閉じる</translation>
+        <translation type="unfinished">关闭并保存更改</translation>
     </message>
     <message>
         <source>Close and forget changes</source>
-        <translation>変更を破棄して閉じる</translation>
+        <translation type="unfinished">关闭并放弃修改</translation>
     </message>
     <message>
         <source>Reset to stored values</source>
-        <translation>変更前の値にリセットする</translation>
+        <translation type="unfinished">重置为存储值</translation>
     </message>
     <message>
         <source>Reset to default values</source>
-        <translation>デフォルト値にリセットする</translation>
+        <translation type="unfinished">重置为默认值</translation>
     </message>
 </context>
 <context>
     <name>StatusBar</name>
     <message>
         <source>%1 is not running</source>
-        <translation>%1 は起動していません</translation>
+        <translation>%1 未在运行</translation>
     </message>
     <message>
         <source>%1 is starting...</source>
-        <translation>%1 は起動処理中です…</translation>
+        <translation>%1 正在启动...</translation>
     </message>
     <message>
         <source>%1 will retry in a moment...</source>
-        <translation>%1 はまもなく再試行します…</translation>
+        <translation>%1 将稍后重试...</translation>
     </message>
     <message>
         <source>%1 is stopping...</source>
-        <translation>%1 は停止処理中です…</translation>
+        <translation>%1 正在停止...</translation>
     </message>
     <message>
         <source>%1 is waiting for clients</source>
-        <translation>%1 はクライアント接続を待機中</translation>
+        <translation>%1 正在等待客户端连接</translation>
     </message>
     <message>
         <source>%1 is connected as client of %2</source>
-        <translation>%1 は %2 にクライアントとして接続中</translation>
+        <translation>%1 已作为 %2 的客户端连接</translation>
     </message>
     <message>
         <source>%1 is disconnected</source>
-        <translation>%1 は切断しました</translation>
+        <translation>%1 已断开连接</translation>
     </message>
     <message numerus="yes">
         <source>%1 is connected, with %n client(s): %2</source>
         <extracomment>Shown when in server mode and at least 1 client is connected %1 is replaced by the app name %2 will be a list of at least one client %n will be replaced by the number of clients (n is &gt;=1), it is not requried to be in the translation</extracomment>
         <translation>
-            <numerusform>%1 は%n台のクライアントと接続中: %2</numerusform>
+            <numerusform>%1 已连接，共有 %n 个客户端：%2</numerusform>
         </translation>
     </message>
     <message>
         <source>Clients:
  %1</source>
-        <translation>クライアント:
+        <translation>客户端：
  %1</translation>
     </message>
     <message>
         <source>A new version v%1 is available</source>
-        <translation>新しいバージョン(v%1)が利用できます</translation>
+        <translation>新版本 v%1 可用</translation>
     </message>
     <message>
         <source>View local fingerprint</source>
-        <translation>自分の指紋を表示</translation>
+        <translation>查看本地指纹</translation>
     </message>
     <message>
         <source>Update available</source>
-        <translation>ソフトウェア更新あり</translation>
+        <translation>有可用更新</translation>
     </message>
     <message>
         <source>%1 is connecting...</source>
-        <translation>%1 は接続処理中…</translation>
+        <translation>%1 正在连接...</translation>
     </message>
     <message>
         <source>%1 is waiting %2 seconds before the next retry</source>
-        <translation>%1 は次の再試行まであと %2 秒待機します</translation>
+        <translation type="unfinished">%1 正在等待 %2 秒，然后进行下一次重试</translation>
     </message>
     <message>
         <source>%1 Encryption Enabled</source>
-        <translation>%1 暗号化有効</translation>
+        <translation>%1 加密已启用</translation>
     </message>
     <message>
         <source>Encryption Disabled</source>
-        <translation>暗号化無効</translation>
+        <translation>加密已禁用</translation>
     </message>
 </context>
 <context>
@@ -1398,41 +1512,41 @@ Enabling this setting will disable the server config GUI.</source>
     <message>
         <source>LocalizedName</source>
         <extracomment>Replace with your Language name This is a required string</extracomment>
-        <translation>日本語</translation>
+        <translation>简体中文</translation>
     </message>
 </context>
 <context>
     <name>validators::AliasValidator</name>
     <message>
         <source>Computer name cannot contain spaces</source>
-        <translation>コンピューター名に空白を含めることはできません</translation>
+        <translation>计算机名称不能包含空格</translation>
     </message>
     <message>
         <source>Aliases may not be ip addresses</source>
-        <translation>別名に IP アドレスは設定できません</translation>
+        <translation>不能用 IP 地址作为别名</translation>
     </message>
     <message>
         <source>Contains invalid characters or is too long</source>
-        <translation>無効な文字が含まれているか長すぎます</translation>
+        <translation>包含无效字符或过长</translation>
     </message>
 </context>
 <context>
     <name>validators::ComputerLineNameValidator</name>
     <message>
         <source>Computer name cannot be empty</source>
-        <translation type="unfinished">コンピュータ名を空にすることはできません</translation>
+        <translation type="unfinished">计算机名称不能为空</translation>
     </message>
     <message>
         <source>Computer name cannot contain spaces</source>
-        <translation type="unfinished">コンピューター名に空白を含めることはできません</translation>
+        <translation type="unfinished">计算机名称不能包含空格</translation>
     </message>
     <message>
         <source>Contains invalid characters or is too long</source>
-        <translation type="unfinished">無効な文字が含まれているか長すぎます</translation>
+        <translation type="unfinished">包含无效字符或过长</translation>
     </message>
     <message>
         <source>A computer with this name already exists</source>
-        <translation type="unfinished">この名前のコンピューターはすでに存在します</translation>
+        <translation type="unfinished">一台同名的计算机已经存在</translation>
     </message>
 </context>
 </TS>

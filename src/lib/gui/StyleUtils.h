@@ -42,8 +42,8 @@ inline QString iconMode()
 inline void updateIconTheme()
 {
   // Sets the fallback icon path and fallback theme
-  const auto themeName = QStringLiteral("%1-%2").arg(kAppId, iconMode());
-  if (QIcon::themeName().isEmpty() || QIcon::themeName().startsWith(kAppId))
+  const auto themeName = QStringLiteral("mono-sync-%1").arg(iconMode());
+  if (QIcon::themeName().isEmpty() || QIcon::themeName().startsWith(QStringLiteral("mono-sync")))
     QIcon::setThemeName(themeName);
   else
     QIcon::setFallbackThemeName(themeName);

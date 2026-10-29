@@ -18,6 +18,8 @@
 AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent), ui{std::make_unique<Ui::AboutDialog>()}
 {
   ui->setupUi(this);
+  setWindowTitle(tr("About %1").arg(kAppName));
+  ui->lblName->setText(kAppName);
 
   const int px = (fontMetrics().height() * 6);
   const QSize pixmapSize(px, px);
@@ -30,7 +32,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent), ui{std::make_unique
   connect(ui->btnCopyVersion, &QPushButton::clicked, this, &AboutDialog::copyVersionText);
 
   ui->lblVersion->setText(kDisplayVersion);
-  ui->lblDescription->setText(kAppDescription);
+  ui->lblDescription->setText(tr("%1\nBased on Deskflow 1.27.0.").arg(kAppDescription));
   ui->lblCopyright->setText(kCopyright);
 
   // Use non-breaking space in each awesome dev name so names are not split across lines.

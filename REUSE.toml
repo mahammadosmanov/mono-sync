@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 version = 1
-SPDX-PackageName = "deskflow"
-SPDX-PackageSupplier = "Deskflow Devs"
-SPDX-PackageDownloadLocation = "https://github.com/deskflow/deskflow"
+SPDX-PackageName = "mono-sync"
+SPDX-PackageSupplier = "Mono Sync contributors"
+SPDX-PackageDownloadLocation = "https://github.com/mahammadosmanov/mono-sync"
 
 [[annotations]]
 path = [
@@ -19,7 +19,7 @@ path = [
  , "**/*.md"
  , "docs/**"
  , "deploy/linux/flatpak/**"
- , "deploy/linux/org.deskflow.deskflow.metainfo.xml"
+ , "deploy/linux/dev.monosync.app.metainfo.xml"
  , "deploy/windows/wix-patch.xml.in"
  , "src/apps/deskflow-client/deskflow-client.exe.manifest"
  , "src/apps/deskflow-core/deskflow-core.exe.manifest"
@@ -36,25 +36,29 @@ SPDX-License-Identifier = "MIT"
 path = [
    "deploy/mac/dmg-background.tiff"
  , "deploy/mac/dmg-volume.icns"
- , "deploy/linux/org.deskflow.deskflow.png"
+ , "deploy/linux/dev.monosync.app.png"
+ , "src/apps/res/monosync-128.png"
+ , "src/apps/res/monosync-256.png"
+ , "src/apps/res/MonoSync.icns"
+ , "src/apps/res/monosync.ico"
  , "deploy/windows/wix-banner.png"
  , "deploy/windows/wix-dialog.png"
- , "src/apps/res/icons/deskflow-**/apps/64/deskflow*.svg"
+ , "src/apps/res/icons/mono-sync-**/apps/64/dev.monosync.app*.svg"
  , "src/apps/res/image/welcome.png"
  , "src/apps/res/Deskflow.icns"
  , "src/apps/res/deskflow.ico"
  , "src/apps/res/deskflow.qrc"
 ]
-SPDX-FileCopyrightText = "Deskflow Developers"
+SPDX-FileCopyrightText = "Mono Sync contributors"
 SPDX-License-Identifier = "GPL-2.0-only"
 
 [[annotations]]
-path = "src/apps/res/icons/deskflow-**/**/**/**.svg"
+path = "src/apps/res/icons/mono-sync-**/**/**/**.svg"
 SPDX-FileCopyrightText = "Kde Breeze Icons"
 SPDX-License-Identifier = "LGPL-2.1-only"
 
 [[annotations]]
-path = "src/apps/res/icons/deskflow-**/index.theme"
+path = "src/apps/res/icons/mono-sync-**/index.theme"
 SPDX-FileCopyrightText = "Chris Rizzitello <sithlord48@gmail.com>"
 SPDX-License-Identifier = "LGPL-2.1-only"
 

@@ -32,6 +32,7 @@ SettingsDialog::SettingsDialog(QWidget *parent, const ServerConfig &serverConfig
 {
 
   ui->setupUi(this);
+  ui->cbAutoUpdate->setVisible(false);
   layout()->addWidget(m_buttonBox);
   ui->tabWidget->setCurrentIndex(0);
 
@@ -379,12 +380,8 @@ void SettingsDialog::updateControls()
   ui->rbAutoHide->setEnabled(writable);
   ui->rbShowOnStart->setEnabled(writable);
   ui->btnClearAllSettings->setEnabled(writable);
-#ifdef Q_OS_WIN
   ui->cbAutoUpdate->setEnabled(false);
-  ui->cbAutoUpdate->setToolTip(tr("Windows packages are updated manually with the standard-user portable ZIP."));
-#else
-  ui->cbAutoUpdate->setEnabled(writable);
-#endif
+  ui->cbAutoUpdate->setToolTip(tr("Automatic updates are unavailable. Install a verified Mono Sync build manually."));
   ui->cbPreventSleep->setEnabled(writable);
   ui->lineTlsCertPath->setEnabled(writable);
   ui->comboTlsKeyLength->setEnabled(writable);

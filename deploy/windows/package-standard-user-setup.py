@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a per-user NSIS setup from Deskflow's verified portable package."""
+"""Build a per-user NSIS setup from Mono Sync's verified portable package."""
 
 from __future__ import annotations
 
@@ -40,14 +40,14 @@ def checked_extract(archive: Path, destination: Path) -> Path:
                 roots.add(name.parts[0])
         if len(roots) != 1:
             raise ValueError(f"expected one top-level folder, found {sorted(roots)}")
-        expected_root = "deskflow-1.27.0-monosync-win-x64-portable"
+        expected_root = "mono-sync-0.2.0-win-x64-portable"
         if roots != {expected_root}:
             raise ValueError(f"expected pinned package folder {expected_root!r}, got {sorted(roots)}")
         package.extractall(destination)
     payload = destination / next(iter(roots))
     for required in (
-        "deskflow.exe",
-        "deskflow-core.exe",
+        "monosync.exe",
+        "mono-sync-core.exe",
         "LICENSE",
         "LICENSE_EXCEPTION",
         "vcruntime140.dll",
@@ -58,10 +58,10 @@ def checked_extract(archive: Path, destination: Path) -> Path:
     ):
         if not (payload / required).is_file():
             raise ValueError(f"portable package is missing {required}")
-    if (payload / "deskflow-daemon.exe").exists():
-        raise ValueError("portable package unexpectedly contains deskflow-daemon.exe")
+    if (payload / "mono-sync-daemon.exe").exists():
+        raise ValueError("portable package unexpectedly contains mono-sync-daemon.exe")
 
-    marker = payload / "settings" / "Deskflow.conf"
+    marker = payload / "settings" / "Mono Sync.conf"
     if not marker.is_file():
         raise ValueError("portable settings marker is missing")
     settings_files = list((payload / "settings").rglob("*"))
@@ -134,8 +134,8 @@ def main() -> int:
                 sys.executable,
                 str(verifier),
                 str(output),
-                str(payload / "deskflow.exe"),
-                str(payload / "deskflow-core.exe"),
+                str(payload / "monosync.exe"),
+                str(payload / "mono-sync-core.exe"),
             ],
             check=True,
         )

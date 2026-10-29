@@ -8,12 +8,12 @@ if(NOT EXISTS "${cpack_config}")
 endif()
 
 file(READ "${cpack_config}" cpack_contents)
-if(NOT cpack_contents MATCHES "set\\(CPACK_PACKAGE_VERSION \"1\\.27\\.0\\.0\"\\)")
-  message(FATAL_ERROR "Expected Deskflow project version 1.27.0.0 in ${cpack_config}")
+if(NOT cpack_contents MATCHES "set\\(CPACK_PACKAGE_VERSION \"0\\.2\\.0\\.0\"\\)")
+  message(FATAL_ERROR "Expected Mono Sync product version 0.2.0.0 in ${cpack_config}")
 endif()
 
-if(NOT cpack_contents MATCHES "set\\(CPACK_PACKAGE_FILE_NAME \"deskflow-1\\.27\\.0-monosync-(win-x64|macos-arm64)\"\\)")
-  message(FATAL_ERROR "Expected package basename deskflow-1.27.0-monosync-<platform> in ${cpack_config}")
+if(NOT cpack_contents MATCHES "set\\(CPACK_PACKAGE_FILE_NAME \"mono-sync-0\\.2\\.0-(win-x64|macos-arm64)\"\\)")
+  message(FATAL_ERROR "Expected package basename mono-sync-0.2.0-<platform> in ${cpack_config}")
 endif()
 
-message(STATUS "Verified Deskflow version 1.27.0.0 and pinned package basename")
+message(STATUS "Verified Mono Sync version 0.2.0.0 and package basename")

@@ -50,7 +50,7 @@ void requestOSXNotificationPermission()
 bool isOSXDevelopmentBuild()
 {
   std::string bundleURL = [[[NSBundle mainBundle] bundleURL].absoluteString UTF8String];
-  return (bundleURL.find("Applications/Deskflow.app") == std::string::npos);
+  return (bundleURL.find("Applications/MonoSync.app") == std::string::npos);
 }
 
 bool showOSXNotification(const QString &title, const QString &body)

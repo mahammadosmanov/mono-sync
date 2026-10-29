@@ -39,9 +39,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Fallback for when git can not be found
-set(DESKFLOW_VERSION_MAJOR 1)
-set(DESKFLOW_VERSION_MINOR 27)
+# Mono Sync product version; the upstream source version is recorded separately.
+set(DESKFLOW_VERSION_MAJOR 0)
+set(DESKFLOW_VERSION_MINOR 2)
 set(DESKFLOW_VERSION_PATCH 0)
 set(DESKFLOW_VERSION_TWEAK 0)
 option(DESKFLOW_USE_GIT_VERSION "Derive the project version from Git tags" OFF)
@@ -94,19 +94,20 @@ endif()
 
 #Define our project
 project(
-  deskflow
+  mono-sync
   VERSION "${DESKFLOW_VERSION_MAJOR}.${DESKFLOW_VERSION_MINOR}.${DESKFLOW_VERSION_PATCH}.${DESKFLOW_VERSION_TWEAK}"
-  DESCRIPTION "Keyboard and mouse sharing utility"
-  HOMEPAGE_URL "https://deskflow.org"
+  DESCRIPTION "Keyboard, mouse, and file sharing utility"
+  HOMEPAGE_URL "https://github.com/mahammadosmanov/mono-sync"
   LANGUAGES C CXX
 )
 
 # Define Additional "PROJECT" vars for packaging and metadata
-set(CMAKE_PROJECT_PROPER_NAME "Deskflow")
-set(CMAKE_PROJECT_VENDOR "${CMAKE_PROJECT_PROPER_NAME} Devs")
-set(CMAKE_PROJECT_COPYRIGHT "(C) 2024-2026 ${CMAKE_PROJECT_VENDOR}")
-set(CMAKE_PROJECT_CONTACT "${CMAKE_PROJECT_PROPER_NAME} <maintainers@deskflow.org>")
-set(CMAKE_PROJECT_REV_FQDN "org.deskflow.deskflow")
+set(CMAKE_PROJECT_PROPER_NAME "Mono Sync")
+set(CMAKE_PROJECT_BUNDLE_NAME "MonoSync")
+set(CMAKE_PROJECT_VENDOR "Mono Sync")
+set(CMAKE_PROJECT_COPYRIGHT "(C) 2026 ${CMAKE_PROJECT_VENDOR} contributors")
+set(CMAKE_PROJECT_CONTACT "https://github.com/mahammadosmanov/mono-sync")
+set(CMAKE_PROJECT_REV_FQDN "dev.monosync.app")
 
 #Unset the vars used in the project call
 unset(DESKFLOW_VERSION_MAJOR)
@@ -230,8 +231,8 @@ if (WIN32)
   set(CMAKE_INSTALL_LICENSE_DIR .)
   set(CMAKE_INSTALL_I18N_DIR translations)
 elseif(BUILD_OSX_BUNDLE)
-  set(CMAKE_INSTALL_BINDIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/MacOS)
-  set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/Resources)
+  set(CMAKE_INSTALL_BINDIR ${CMAKE_PROJECT_BUNDLE_NAME}.app/Contents/MacOS)
+  set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_PROJECT_BUNDLE_NAME}.app/Contents/Resources)
   set(CMAKE_INSTALL_DOCDIR ${CMAKE_INSTALL_LICENSE_DIR}/docs)
 else()
   set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_INSTALL_DATADIR}/licenses/${CMAKE_PROJECT_NAME})

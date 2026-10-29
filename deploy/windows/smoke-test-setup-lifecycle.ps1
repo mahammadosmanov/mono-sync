@@ -9,8 +9,8 @@ $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 $adminSid = [Security.Principal.WindowsBuiltInRole]::Administrator
 Write-Output "CI smoke token is in Administrators group: $($principal.IsInRole($adminSid))"
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Mono Sync'
-$profileDir = Join-Path $env:APPDATA 'Deskflow'
-$profileFile = Join-Path $profileDir 'Deskflow.conf'
+$profileDir = Join-Path $env:APPDATA 'Mono Sync'
+$profileFile = Join-Path $profileDir 'Mono Sync.conf'
 $profileSentinel = Join-Path $profileDir "MonoSync-Setup-Smoke-$([guid]::NewGuid()).txt"
 $customFile = Join-Path $installDir 'user-owned-smoke-test.txt'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Mono Sync'
@@ -42,8 +42,8 @@ try {
   $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
   if ($setupProcess.ExitCode -ne 0) { throw "Setup failed with exit code $($setupProcess.ExitCode)" }
   foreach ($path in @(
-    (Join-Path $installDir 'deskflow.exe'),
-    (Join-Path $installDir 'deskflow-core.exe'),
+    (Join-Path $installDir 'monosync.exe'),
+    (Join-Path $installDir 'mono-sync-core.exe'),
     (Join-Path $installDir 'Uninstall Mono Sync.exe'),
     (Join-Path $startMenu 'Mono Sync.lnk'),
     (Join-Path $startMenu 'Uninstall Mono Sync.lnk')
@@ -80,7 +80,7 @@ try {
   while ((Test-Path -LiteralPath $uninstaller) -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 250
   }
-  if (Test-Path -LiteralPath (Join-Path $installDir 'deskflow.exe')) {
+  if (Test-Path -LiteralPath (Join-Path $installDir 'monosync.exe')) {
     throw 'Uninstaller left a packaged executable behind.'
   }
   if (Test-Path -LiteralPath $uninstaller) { throw 'Uninstaller left its own executable behind.' }

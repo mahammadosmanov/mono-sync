@@ -1,8 +1,8 @@
-app-id: org.deskflow.deskflow
+app-id: dev.monosync.app
 runtime: org.kde.Platform
 runtime-version: "6.11"
 sdk: org.kde.Sdk
-command: deskflow
+command: monosync
 finish-args:
   - --share=ipc
   - --socket=wayland

@@ -70,7 +70,7 @@ jobs:
           ${{ matrix.target.generator-args }}
           -DSKIP_BUILD_TESTS=ON
           -DDESKFLOW_USE_GIT_VERSION=OFF
-          "-DPACKAGE_VERSION_LABEL=1.27.0-monosync"
+          "-DPACKAGE_VERSION_LABEL=0.2.0"
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
@@ -126,7 +126,7 @@ jobs:
             if (Test-Path -LiteralPath $candidate) { $makensis = $candidate }
           }
           if (-not $makensis) { throw 'NSIS 3.x was not found on this Windows runner.' }
-          $portable = @(Get-ChildItem -Path build -Filter 'deskflow-*-portable.zip' -File)
+          $portable = @(Get-ChildItem -Path build -Filter 'mono-sync-*-portable.zip' -File)
           if ($portable.Count -ne 1) { throw "Expected one portable ZIP, found $($portable.Count)." }
           python deploy/windows/package-standard-user-setup.py `
             --portable-zip $portable[0].FullName `
@@ -143,7 +143,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mono-sync-${{ matrix.target.name }}
-          path: build/deskflow-*.dmg
+          path: build/mono-sync-*.dmg
           if-no-files-found: error
           retention-days: 14
 

@@ -41,7 +41,7 @@
 
 	<!-- Local Lan Entitlements -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app uses local network permissions for communication between a Deskflow server and clients.</string>
+	<string>Mono Sync uses the local network to connect your computers and transfer files.</string>
 	<key>com.apple.security.networking.local</key>
 	<true/>
 

@@ -1,18 +1,11 @@
-# Deskflow
+# Mono Sync
 
-Deskflow is a free and open source keyboard and mouse sharing app. Use the keyboard, mouse, or trackpad of one computer to control nearby computers, and work seamlessly between them.
+Mono Sync shares a keyboard and mouse between computers and supports consent-based one-file transfers over the authenticated peer connection.
 
-[Homepage](https://deskflow.org) [Code](https://github.com/deskflow/deskflo)
+- [User guide and acceptance checklist](INPUT-ACCEPTANCE.md)
+- [Windows per-user setup](WINDOWS-PORTABLE.md)
+- [Security policy](Security.md)
+- [Source and license provenance](UPSTREAM.md)
+- [Mono Sync source repository](https://github.com/mahammadosmanov/mono-sync)
 
-## Getting help online
-
- - View the [wiki](https://github.com/deskflow/deskflow/wiki) Online resource
-
-### Chat with us
- - Main discussion on Matrix: [`#deskflow:matrix.org`](https://matrix.to/#/#deskflow:matrix.org) ([Matrix clients](https://matrix.org/ecosystem/clients/))
- - Discussion also happens on IRC: `#deskflow` or `#deskflow-dev` on [Libera Chat](https://libera.chat/)
- - Start a [new discussion](https://github.com/deskflow/deskflow/discussions) on our GitHub project.
-
-## Reporting security issues
-
-Check [Security](Security.md) to find out how to report security issues.
+The native input engine is based on Deskflow `v1.27.0`. Required Deskflow and third-party notices remain in the application and source.

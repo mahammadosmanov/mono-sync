@@ -3,35 +3,35 @@
 # SPDX-License-Identifier: MIT
 
 if(APPLE)
-  set(target Deskflow)
+  set(target MonoSync)
 else()
-  set(target deskflow)
+  set(target monosync)
 endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if(WIN32)
   set(EXE_DESCRIPTION "${CMAKE_PROJECT_PROPER_NAME} GUI configuration tool")
-  set(EXE_ICON "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/deskflow.ico\" ")
-  configure_file(${CMAKE_SOURCE_DIR}/src/apps/res/windows.rc.in deskflow.rc)
-  set(platform_extra deskflow.rc)
+  set(EXE_ICON "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/monosync.ico\" ")
+  configure_file(${CMAKE_SOURCE_DIR}/src/apps/res/windows.rc.in monosync.rc)
+  set(platform_extra monosync.rc)
 elseif(BUILD_OSX_BUNDLE)
   #setup our bundle plist file
   set(BUNDLE_EXECUTABLE_NAME "${target}")
-  set(BUNDLE_BUNDLE_NAME "${target}")
-  set(BUNDLE_DISPLAY_NAME "${target}")
+  set(BUNDLE_BUNDLE_NAME "${CMAKE_PROJECT_PROPER_NAME}")
+  set(BUNDLE_DISPLAY_NAME "${CMAKE_PROJECT_PROPER_NAME}")
   set(BUNDLE_GUI_IDENTIFIER "${CMAKE_PROJECT_REV_FQDN}")
-  set(BUNDLE_ICON_FILE ${target}.icns)
+  set(BUNDLE_ICON_FILE MonoSync.icns)
   set(BUNDLE_INFO_STRING "${CMAKE_PROJECT_DESCRIPTION}")
   set(BUNDLE_COPYRIGHT "${CMAKE_PROJECT_COPYRIGHT}")
 
   configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/../res/deskflow.plist.in
-    ${CMAKE_CURRENT_BINARY_DIR}/deskflow.plist
+    ${CMAKE_CURRENT_BINARY_DIR}/MonoSync.plist
     @ONLY
   )
 
-  set(platform_extra ../res/Deskflow.icns)
+  set(platform_extra ../res/MonoSync.icns)
   set_source_files_properties(${platform_extra} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
 
@@ -94,7 +94,7 @@ elseif(APPLE)
   if (BUILD_OSX_BUNDLE)
     set_target_properties(${target} PROPERTIES
       INSTALL_RPATH "@loader_path/../Libraries;@loader_path/../Frameworks"
-      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/deskflow.plist"
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/MonoSync.plist"
       XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME YES
     )
     if (APPLE_CODESIGN_DEV)

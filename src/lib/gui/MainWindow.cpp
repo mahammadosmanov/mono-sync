@@ -766,14 +766,14 @@ void MainWindow::saveSettings() const
 
 void MainWindow::setTrayIcon()
 {
-  static const auto fallbackPath = QStringLiteral(":/icons/%1-%2/apps/64/%3");
+  static const auto fallbackPath = QStringLiteral(":/icons/mono-sync-%1/apps/64/%2");
 
   QString themeIcon = kRevFqdnName;
   if (!Settings::value(Settings::Gui::SymbolicTrayIcon).toBool()) {
     if (deskflow::platform::isMac())
       m_trayIcon->setIcon(QIcon::fromTheme(themeIcon));
     else
-      m_trayIcon->setIcon(QIcon(fallbackPath.arg(kAppId, QStringLiteral("dark"), themeIcon)));
+      m_trayIcon->setIcon(QIcon(fallbackPath.arg(QStringLiteral("dark"), themeIcon)));
     return;
   }
 
@@ -786,11 +786,11 @@ void MainWindow::setTrayIcon()
     );
     const QString theme = settings.value(QStringLiteral("SystemUsesLightTheme"), 1).toBool() ? QStringLiteral("light")
                                                                                              : QStringLiteral("dark");
-    m_trayIcon->setIcon(QIcon(fallbackPath.arg(kAppId, theme, themeIcon)));
+    m_trayIcon->setIcon(QIcon(fallbackPath.arg(theme, themeIcon)));
     return;
   }
 
-  auto icon = QIcon::fromTheme(themeIcon, QIcon(fallbackPath.arg(kAppId, iconMode(), themeIcon)));
+  auto icon = QIcon::fromTheme(themeIcon, QIcon(fallbackPath.arg(iconMode(), themeIcon)));
   icon.setIsMask(true);
   m_trayIcon->setIcon(icon);
 }

@@ -6,7 +6,7 @@
 set(target ${CMAKE_PROJECT_NAME}-core)
 
 add_executable(${target}
-  "${target}.cpp"
+  deskflow-core.cpp
   CoreArgs.h
   CoreArgParser.h
   CoreArgParser.cpp
@@ -15,12 +15,12 @@ add_executable(${target}
 if(WIN32)
   # Generate rc file
   set(EXE_DESCRIPTION "${CMAKE_PROJECT_PROPER_NAME} combined server and client application")
-  set(EXE_ICON "IDI_DESKFLOW ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/deskflow.ico\"")
+  set(EXE_ICON "IDI_DESKFLOW ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/monosync.ico\"")
   configure_file(${CMAKE_SOURCE_DIR}/src/apps/res/windows.rc.in ${target}.rc)
 
   target_sources(${target} PRIVATE
     ${target}.exe.manifest
-    ${CMAKE_SOURCE_DIR}/src/apps/res/deskflow.ico
+    ${CMAKE_SOURCE_DIR}/src/apps/res/monosync.ico
     ${CMAKE_CURRENT_BINARY_DIR}/${target}.rc
   )
 endif()
@@ -49,7 +49,7 @@ if(BUILD_OSX_BUNDLE)
   set_target_properties(${target} PROPERTIES
     BUILD_WITH_INSTALL_RPATH TRUE
     INSTALL_RPATH "@loader_path/../Libraries;@loader_path/../Frameworks"
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_PROPER_NAME}>/MacOS
+    RUNTIME_OUTPUT_DIRECTORY "$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_BUNDLE_NAME}>/MacOS"
     XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME YES
   )
   if (APPLE_CODESIGN_DEV)

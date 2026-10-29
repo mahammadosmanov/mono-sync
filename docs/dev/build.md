@@ -1,4 +1,6 @@
-# Building Deskflow
+# Building Mono Sync
+
+Mono Sync is a derivative of Deskflow `v1.27.0`. These instructions describe the native build in this repository; source and license provenance are in [UPSTREAM.md](../UPSTREAM.md).
 
 To build Deskflow you will a minimum of: 
     - [cmake] 3.24+
@@ -9,15 +11,15 @@ To build Deskflow you will a minimum of:
 
 > ^ Will be fetched if not found on the host system.
 
-By default a build of Deskflow will: 
-     - The GUI application `deskflow`
-     - The Core application `deskflow-core`
+By default a build of Mono Sync will:
+     - The GUI application `monosync` (`MonoSync.app` on macOS)
+     - The Core application `mono-sync-core`
      - Documentation if [doxygen] was found on your system
      - Tests that will be run as part of the build process
 
 ## Configuration
 
-Deskflow supports the following CMake options:
+The build supports the following CMake options:
 
 |         Option           |            Description                  |   Default Value    | Additional requirements |
 :-------------------------:|:---------------------------------------:|:------------------:|:-----------------------:|
@@ -73,7 +75,7 @@ For development codesign:
 5. To get your ID, run: `security find-identity -v -p codesigning login.keychain-db`
 6. Pass the ID to CMake, e.g. `-DAPPLE_CODESIGN_DEV=Apple Development: bob@exmaple.com (KLGSJHLFXY)`
 7. Configure and build
-8. To verify, run: `codesign -d -r- build/bin/Deskflow.app`
+8. To verify, run: `codesign -d -r- build/bin/MonoSync.app`
 
 ## Build
 
@@ -87,17 +89,17 @@ After configuring you should be able to run make to build all targets.
 
  Running `cmake --install build` will install to the `CMAKE_INSTALL_PREFIX`
 
-## Making Deskflow packages
+## Making Mono Sync packages
 
- Deskflow can generate several packages using `cpack`.
+ CMake can generate native packages using `cpack`.
  
  To generate packages build the `package` or `package_source` target.
 
  Example: ` cmake --build build --target package package_source` would generate both package and package source packages.
  
- Deskflow can generate several package types depending on the system. 
+ Package types depend on the system.
  
- Archive-based packages should work on all platforms. On Linux deb and rpm info is set up, Flatpaks can be generated from the included file in deploy/linux and a `PKGBUILD` for Arch linux is generated in the build folder. On macos a dmg file will be created and signed. For windows WiX can be used to create an installer.
+ Archive-based packages are available on supported platforms. The normal Windows installer is the per-user `MonoSync-Setup.exe`; it does not install the service-enabled WiX package. macOS creates a `MonoSync` app bundle and DMG. No package is published automatically by the build workflow.
  
 [Qt]:https://www.qt.io
 [doxygen]:http://www.stack.nl/~dimitri/doxygen/

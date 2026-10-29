@@ -20,6 +20,8 @@ class Settings : public QObject
 {
   Q_OBJECT
 public:
+  static bool migrateLegacyProfile(const QString &sourceDir, const QString &destinationDir);
+
 #if defined(Q_OS_WIN)
   inline const static auto UserDir = QStringLiteral("%1/AppData/Roaming/%2").arg(QDir::homePath(), kAppName);
   inline const static auto SystemDir = QStringLiteral("%1ProgramData/%2").arg(QDir::rootPath(), kAppName);

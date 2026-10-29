@@ -15,12 +15,10 @@ if (OSX_BUNDLE)
   endif()
   install(CODE "execute_process(COMMAND
     ${DEPLOYQT}
-    \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_PROJECT_PROPER_NAME}.app\"
+    \"\${CMAKE_INSTALL_PREFIX}/MonoSync.app\"
     -hardened-runtime -timestamp \"-codesign=${_codesign_identity}\"
   )")
-  set(CPACK_PACKAGE_ICON "${MY_DIR}/dmg-volume.icns")
-  set(CPACK_DMG_BACKGROUND_IMAGE "${MY_DIR}/dmg-background.tiff")
-  set(CPACK_DMG_DS_STORE_SETUP_SCRIPT "${MY_DIR}/generate_ds_store.applescript")
+  set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/src/apps/res/MonoSync.icns")
   set(CPACK_DMG_VOLUME_NAME "${CMAKE_PROJECT_PROPER_NAME}")
   set(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE ON)
   set(CPACK_GENERATOR "DragNDrop")

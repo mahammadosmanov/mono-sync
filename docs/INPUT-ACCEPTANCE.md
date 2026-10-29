@@ -1,62 +1,28 @@
-# Windows host to Mac client input check
+# Windows host to Mac client check
 
-Use the Windows x64 and Apple Silicon Mac packages from the same successful
-GitHub Actions run. This checklist verifies physical input; passing CI alone is
-not acceptance. Keep the old Mono Sync config unchanged. Do not run the old and
-new input apps at the same time.
+Use the Windows x64 setup and Apple Silicon macOS DMG built from the same source revision. Do not run an older keyboard/mouse sharing app at the same time. Build and unit-test results do not verify real-machine input or file transfer.
 
-## Set up the pair
+## Connect the pair
 
-1. Run the Windows `MonoSync-Setup.exe` as the current user. Open the Mac DMG and move Deskflow to Applications.
-   Confirm both show Deskflow 1.27.0. macOS may require an input-control permission
-   for Deskflow; Windows firewall policy may block incoming connections. Do not
-   bypass either operating-system control.
-2. On Windows, select **Use this computer's keyboard and mouse (server)**.
-   Configure the Windows screen and Mac screen with the exact computer names
-   shown in Deskflow. Place the Mac screen to match the physical layout.
-3. On the Mac, select **Use another computer's mouse and keyboard (client)**.
-   Enter the Windows host's current private LAN address. Allow Deskflow through
-   Windows Firewall for the private network only. The default port is TCP
-   `24800`; do not expose it to the public internet.
-4. Keep TLS and fingerprint checking enabled. Before trusting a new peer,
-   compare the presented SHA-256 fingerprint on both machines. Stop if they do
-   not match or if either machine shows an unexpected fingerprint.
-5. Start sharing only after both screen names, layout, and fingerprints check
-   out. Do not enable automatic start for this test.
+1. Install Mono Sync on Windows for the current user. Move Mono Sync from the macOS DMG into Applications. macOS may ask for input-control permission; Windows firewall policy may block a connection.
+2. On Windows, select the server role. On the Mac, select the client role and enter the Windows computer's current private LAN address.
+3. Match the screen names and physical screen layout shown in Mono Sync. Keep TLS and fingerprint checking enabled. Compare a new peer's SHA-256 fingerprint on both computers before trusting it.
+4. Connect only after both names, layout, and fingerprints match. Use the default TCP port `24800`; keep it on the private network.
 
-## Quick check (about 2 minutes)
+## Check keyboard and mouse
 
-1. Move the pointer across the configured edge to the Mac and back 20 times.
-   Look for jumps, bounce-back, stalls, or loss of control.
-2. In an empty text editor on the Mac, type:
+- Move across the configured edge and back, then test typing, modifiers, a harmless shortcut, clicks, scrolling, and returning to the host.
+- If input is lost or a key stays held, disconnect sharing and record the time and relevant logs. Do not include pairing codes or private keys in a report.
 
-   `Deskflow check: AaZz 0123 !? @#`
+The user has reported that Windows-to-Mac keyboard and mouse input works. This document does not claim an independent 15-minute hardware run.
 
-   Confirm the text matches exactly and arrives without perceptible delay. Try
-   a harmless modifier shortcut in the editor (select the sample, then clear
-   the selection), a function key with no destructive action, a click, and
-   vertical scroll.
-3. If a key is stuck, a fingerprint is unexpected, or control is lost, stop
-   sharing and record the time and logs. Do not continue to file-transfer work.
+## Check file transfer
 
-## Acceptance check (15 minutes)
+1. With the trusted peer connected, send a small test file from Windows. On the Mac, confirm the sender name and file name, choose a destination, and wait for the verified completion message.
+2. Compare the received file's contents or SHA-256 with the original. Confirm the original remains unchanged.
+3. Repeat from Mac to Windows. If a file with the same name already exists, confirm Mono Sync leaves it untouched and reports the transfer failure.
+4. Cancel one transfer and disconnect during another. Confirm partial files are removed and keyboard/mouse sharing remains usable or reconnects normally.
 
-- Make at least 50 edge crossings. No teleport, bounce, stall, or lost control.
-- Type this 200-character sample by hand, then compare it exactly:
+The receiver must explicitly choose where to save each file. Mono Sync transfers individual files up to 10 GiB, does not open received files, and does not overwrite existing files. Filesystems without exclusive same-directory hard-link support fail closed.
 
-  `AaZz 0123 !? @# QqWw 4567 $% MmNn 89() BbCc 12+=~!DeFg 3456 ^& RrTt 7890 [] HhJj 1357 () KkLl 2468~!PpOo 0246 <> YyUu 9753 {} AaEe 1122 ;; ZzXx 3344~!CcVv 5566 ** NnMm 7788 __ GgFf 9900 ++ DdSs 1234~!`
-
-  Also test common modifier shortcuts and function keys. Verify no missing,
-  duplicated, or stuck key/modifier, and confirm latency feels immediate.
-- Exercise clicks, scrolling, return-to-host behavior, and the configured
-  control hotkey.
-- While on the Mac, disconnect the LAN with a key and mouse button held. Both
-  must release on the Mac. Reconnect and repeat the quick checks without
-  restarting either app.
-- Record OS versions, screen names, monitor arrangement, resolution, scaling,
-  result, and relevant logs. Do not include pairing codes or private keys.
-
-**Go/no-go:** Only the user can accept input behavior on the actual pair. Do
-not begin file-transfer work until every check passes and the user confirms
-the result. If any check fails, keep file transfer deferred and report the
-exact failure and logs.
+Record OS versions, screen names/layout, result, and relevant logs. Do not include private keys or pairing secrets.

@@ -1,37 +1,32 @@
-# GUI Config
+# Mono Sync GUI Configuration
 
- Deskflow will automatically figure out where to save settings and other files.
+Mono Sync stores settings in the current user's profile. The settings filename is `Mono Sync.conf`.
 
 ## Search paths
 
-Deskflow will look for settings in several places depending on your operating system.
-The search order for a setting file depends on your operating system
+The user settings directory is:
 
 ### Linux
 
-  1. `<XDG_CONFIG_HOME>/Deskflow/Deskflow.conf`
-  2. `~/.config/Deskflow/Deskflow.conf`
-  3. `/etc/Deskflow/Deskflow.conf`
+  1. `<XDG_CONFIG_HOME>/Mono Sync/Mono Sync.conf`
+  2. `~/.config/Mono Sync/Mono Sync.conf`
+  3. `/etc/Mono Sync/Mono Sync.conf`
  
-A new settings file will be created in the user path if no settings file is found.
-The path of the settings file will be used as the base for all other config files.
+Mono Sync creates the user file when no user or system file exists. New TLS files are stored beside that settings file.
 
 ### macOS
  
-  1. `~/Library/Deskflow/Deskflow.conf`
-  2. `/Library/Deskflow/Deskflow.conf`
+  1. `~/Library/Mono Sync/Mono Sync.conf`
+  2. `/Library/Mono Sync/Mono Sync.conf`
  
-A new settings file will be created in the user path if no settings file is found.
-The path of the settings file will be used as the base for all other config files.
+Mono Sync creates the user file when no user or system file exists. New TLS files are stored beside that settings file.
 
 ### Windows
 
-  1. `<install-path>/settings/Deskflow.conf`
-  2. Windows Registry `HKCU\Software\Deskflow\Deskflow`
+  1. `%APPDATA%\Mono Sync\Mono Sync.conf`
+  2. `<program-folder>\settings\Mono Sync.conf` in legacy portable mode
 
-Windows will save to the install dir if settings are loaded from there. If not, it saves any other config files in: `C:\ProgramData\Deskflow\`
-
-When using settings from the install dir, the service mode will not be available.
+The standard-user setup uses the current user's profile and does not install a Windows service or write to `ProgramData`. Mono Sync migrates allowlisted settings and TLS trust files from an existing Deskflow profile only when the Mono Sync destination profile does not already exist.
 
 ## Valid GUI Keys
 
@@ -68,7 +63,7 @@ This section contains general options it will begin with `[core]`
 | coreMode      | `0` or `1` or `2` | The mode to start in 0: None, 1: Client, 2: Server [default: 0]|
 | display       |  int              | The XWindow display to use [default: autodetected] |
 | interface     | IP Address        | Preferred IP to use for network communication. By default the server board casts on any available address |
-| lastVersion   | M.m.p.t           | The version last run used for checking for updates |
+| lastVersion   | M.m.p.t           | Legacy update metadata; Mono Sync update checks are disabled |
 | port          | port #            | Port to use when connecting [default: 24800 |
 | preventSleep  | `true` or `false` | Prevent sleep when Deskflow is active [default: false] |
 | processMode   | `1` or `0`        | The mode we use to start the process Service or Desktop |
@@ -80,14 +75,14 @@ This section contains general options it will begin with `[core]`
 | enableExitCommand | `true` or `false` | Should the exit command be triggered when the computer is exited [defaut: false] |
 | exitCommand  | command | A command to run when the computer is exited. |
 
-### Daemon
+### Daemon (legacy)
 
-This section contains options used by the daemon on windows it will begin with `[daemon]`
+These are upstream compatibility keys. Mono Sync runs in the current user's desktop session and does not enable the elevated Windows service.
 
 |Option | Valid Values|Description|
 |:----------|:-----------:|:-----------|
 | command   | Filename          | The filename of the binary the daemon. This binary exists in the same path as the deskflow GUI |
-| elevate   | `true` or `false` | Elevate the daemon app [default: true unless portable mode ] |
+| elevate   | `true` or `false` | Legacy setting; ignored by Mono Sync |
 | logFile   | Filepath          | Filepath of the daemon log |
 | logLevel  | valid log Level,  | Log Level  |
 
@@ -98,7 +93,7 @@ This section contains options used by the GUI it will begin with `[gui]`
 |Option                          | Valid Values      |Description|
 |:-------------------------------|:-----------------:|:-----------|
 | autoHide                       | `true` or `false` | When true the app will hide itself on start up [default: false] |
-| enableUpdateCheck              | `true` or `false` | When true check the update URL to see if a new version was released on start up [default: false] |
+| enableUpdateCheck              | `true` or `false` | Legacy setting; automatic update checks are disabled in Mono Sync |
 | closeReminder                  | `true` or `false` | Used to track if we have shown the reminder that when you close the app it remain running in the background  [default: true]|
 | closeToTray                    | `true` or `false` | When `true` the gui will run in the systemTray when its closed [default: true] |
 | logExpanded                    | `true` or `false` | Should the log section of the GUI be opened [default: false] |
@@ -108,7 +103,7 @@ This section contains options used by the GUI it will begin with `[gui]`
 | shownServerFirstStartMessage   | `true` or `false` | When `true` GUI has shown the user the Deskflow server is now running message [default: false] |
 | shownVerionInTitle             | `true` or `false` | When `true` GUI will include the version in the window title [default: false] |
 | startCoreWithGui               | `true` or `false` | When true the Core will be started with the GUI. It is set to the Core's state on exit. |
-| updateCheckUrl                 | URL               | The URL to use when checking for a new version number, it should return a version [default: https://api.deskflow.org/version]|
+| updateCheckUrl                 | URL               | Legacy setting; ignored by Mono Sync |
 
 ### Log
 

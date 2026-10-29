@@ -1,24 +1,12 @@
-Welcome to the Deskflow Help!
+# Mono Sync Help
 
-## Introduction
-* [Homepage](https://deskflow.org) - Project home page
-* [Code](https://github.com/deskflow/deskflow) - Read the code
+Mono Sync connects a Windows or macOS computer as a keyboard/mouse host or client. It can also send one file to an authenticated connected peer after the receiver selects a destination.
 
-## User Guides
-* [Configuration] - Configuration files
-* [Raising Issues] - What to do if you have found an issue.
-* [Security Policy] - Our policy around security related topics
+- [Setup and input checklist](INPUT-ACCEPTANCE.md)
+- [Windows per-user setup](WINDOWS-PORTABLE.md)
+- [Configuration](Configuration.md)
+- [Security policy](Security.md)
+- [Mono Sync source](https://github.com/mahammadosmanov/mono-sync)
+- [Deskflow source and license provenance](UPSTREAM.md)
 
-## Getting help online
-
-* View the [Wiki](https://github.com/deskflow/deskflow/wiki) Online resource
-
-### Chat with us
-* Main discussion on Matrix: [`#deskflow:matrix.org`](https://matrix.to/#/#deskflow:matrix.org) ([Matrix clients](https://matrix.org/ecosystem/clients/))
-* Discussion also happens on IRC: `#deskflow` or `#deskflow-dev` on [Libera Chat](https://libera.chat/)
-* Start a [new discussion](https://github.com/deskflow/deskflow/discussions) on our GitHub project.
-
-[Configuration]:Configuration.md
-[Raising Issues]:Issues.md
-[Security Policy]:Security.md
-
+Mono Sync uses Deskflow's GPL-2.0-only source with its documented OpenSSL linking exception. See [LICENSE](../LICENSE) and [LICENSES](../LICENSES).
