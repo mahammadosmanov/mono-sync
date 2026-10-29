@@ -1,7 +1,7 @@
 # Current project state
 
 Updated: 2026-10-29
-Stage: Per-user Windows Setup built and lifecycle-smoke verified; physical input acceptance remains pending
+Stage: Current macOS Deskflow build installed and GUI verified; physical input acceptance remains pending
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
@@ -36,6 +36,15 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 ## Acceptance gate
 
 On the actual Windows host and Mac client, verify 15-minute stability and 50+ edge crossings; exact mixed 200-character typing plus modifiers/function keys; pointer click/scroll and control hotkey; held-key/button release after network disconnect; and clean reconnect. Record OS versions, monitor layout/scaling, and logs. Build/unit tests cannot replace this gate. Do not start file transfer until the user accepts input behavior.
+
+## Latest macOS installation
+
+- Local Qt 6 is unavailable, so this is a CI-built native ARM64 package, not a local CMake build. GitHub Actions run `40830479591` built and tested workflow revision `6f3df3770c15763645844fe4899168b2471a312b`; macOS tests passed 29/29.
+- GitHub macOS artifact ID `12879155514` archive SHA-256 `ee9a60b879f5ab5db4abd9eb1d95cfaf8ad13747f7800d0544de843f16678749`; ranged download was assembled and verified against the API digest, and ZIP CRC passed. The DMG is `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/macOS/Deskflow-1.27.0-macos-arm64.dmg`, SHA-256 `b4e21864cdcd6aec00d433fa809a7ab4f67469aa34e468419ee20e034f4b7cca`. Original artifact ZIP is preserved at `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/macOS/CI-40830479591.zip`.
+- Installed `/Applications/Deskflow.app` from this artifact. Bundle ID `org.deskflow.deskflow`, version `1.27.0.0`, architecture `arm64`, installed executable SHA-256 `38cc0bd3931f182068c21ddac76c69ce115eac2329e8e1706df2f055de3531be`. Re-signed the staged CI app with the existing Apple Development identity `87V22Z9YD7`; deep strict signature verification passes. The pre-install CI DMG app was ad-hoc signed; no certificate or keychain settings were changed.
+- GUI launch is confirmed from `/Applications/Deskflow.app`. It shows client mode, a blank server address, disabled Connect, and status `Deskflow is not running`. No peer connection, trust, or input session was started. The pre-install profile snapshot under `~/Library/Deskflow` was 2 files / 3,109 bytes with aggregate SHA-256 `6e18073ac2ed60d555f4242caf6e3035fa5cffea2f4eaae7306b10487cb9d85a`; the same snapshot remained after installation and GUI launch.
+- The previous app bundle is recoverable at `/Users/rohtolos/.Trash/Deskflow-before-20261029-1300.app`. Only the current Deskflow bundle is in `/Applications`. macOS input-control authorization was not changed; last recorded System Settings state is off and requires user authentication to enable.
+- These checks verify build, package provenance, local signature, bundle identity, installation, and GUI startup. They do not verify Windows-to-Mac input behavior or permission-dependent input injection.
 
 ## Latest verified Windows user-mode build
 
