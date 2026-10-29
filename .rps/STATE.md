@@ -37,6 +37,15 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 
 On the actual Windows host and Mac client, verify 15-minute stability and 50+ edge crossings; exact mixed 200-character typing plus modifiers/function keys; pointer click/scroll and control hotkey; held-key/button release after network disconnect; and clean reconnect. Record OS versions, monitor layout/scaling, and logs. Build/unit tests cannot replace this gate. Do not start file transfer until the user accepts input behavior.
 
+## Latest verified Windows user-mode build
+
+- Source revision: `7b5240c14226218ad1131e0b6ba944b0e1b4d231` on `codex/deskflow-rebuild`.
+- GitHub Actions run `40817892346` completed successfully: Windows CTest 28/28, macOS CTest 29/29, both packages built. Run URL: `https://github.com/mahammadosmanov/mono-sync/actions/runs/40817892346`.
+- Windows artifact ID `12873447693`; outer artifact SHA-256 `a957b88ebacc45ee13ea6334e5fe83fb1c4a5702834a0de96cc36a6d8906cae6`, exact API digest match. Its one inner portable ZIP passes CRC and has SHA-256 `2ec62211f7f1c5966bfdacc554a48036b51a609c5c1f48bfb5820c6c861b9581`.
+- Deliverable: `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Windows-Portable.zip`. Previous friendly ZIP is preserved at `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Windows-Portable.previous-036c8f301d9c.zip`.
+- Inspected archive: 88 entries, includes Deskflow GUI/core, Qt/OpenSSL/MSVC runtime DLLs and license files, no daemon executable. Parsed embedded PE manifests: `deskflow.exe` and `deskflow-core.exe` use `asInvoker`, `uiAccess=false`.
+- This confirms build/package policy and automated tests only. It does not confirm physical Windows runtime/input behavior. Windows Firewall or organization policy may still require administrator approval; macOS input-control authorization remains an OS-level gate. Do not start file-transfer work until the user accepts actual input behavior.
+
 ## Next
 
-Run the updated Windows tests in CI, then produce and inspect the portable ZIP artifact. Extract and run it on Windows as a standard user and complete the manual acceptance gate on the actual Windows host and Mac client. Deskflow does not change Windows firewall policy; organization rules may still require an administrator. macOS input-control authorization remains an OS-level gate. Cross-device input behavior remains untested; do not start file-transfer work until the user accepts that input gate.
+Extract and run this ZIP on the actual Windows host as a standard user, then complete the 15-minute input acceptance gate with the Mac client. Record OS versions, monitor layout/scaling, and logs. No cross-device input acceptance has been recorded yet.
