@@ -104,4 +104,14 @@ The user explicitly confirmed that keyboard and mouse sharing now works between 
 
 ## Next
 
-Push the Windows manifest and setup-upgrade fixes, rerun native CI, then prepare a local macOS package with matching code signatures and no development-only entitlements before installation. Perform a real two-way file-transfer test on the user's Windows/Mac pair before calling file transfer accepted.
+Push the Windows manifest, setup-upgrade, and ZIP-only packaging fixes with the connection UX changes, then rerun native CI. Rebuild the local macOS package with matching code signatures and no development-only entitlements before installation. Perform a real two-way file-transfer test on the user's Windows/Mac pair before calling file transfer accepted.
+
+## Connection guidance and packaging checkpoint (2026-10-29)
+
+- Address suggestions now rank active physical IPv4 on-link subnets ahead of single-host routes. Private-address and link-local preferences remain tie-breakers; the code does not assume that all `10.x` addresses are virtual or unreachable. VPN, virtual, unknown-prefix, and other addresses remain available in the advanced list with interface and prefix labels.
+- Synthetic address-ranking tests cover `/32` versus `/24`, private `/24` versus public `/31`, virtual interfaces, unknown masks, and IPv6 `/64` versus `/128`. Fixtures use documentation-only addresses, not the user's LAN addresses.
+- The server's Copy server address button copies only the recommended IP. If the selected bound address becomes invalid, the stale copy target is cleared and the button disabled.
+- Client connection helpers test only the first manually entered host and configured port using an asynchronous, three-second TCP connect. They send no TLS/application data, do not change the configured peer, do not start/restart the core, and do not bypass normal TLS identity verification. The last-server button restores only an endpoint that previously reached Connected state.
+- Windows deployment now creates only the ZIP payload for the per-user NSIS Setup path; the per-machine WiX MSI generator and firewall/service custom-action setup are removed from the active packaging configuration.
+- Local build completed and isolated CTest passed 35/35 after the connection changes. Targeted `SettingsTests` and `NetworkMonitorTests` passed 2/2 after the final ranking adjustment. `git diff --check` passed. Native CI for this combined checkpoint and a final hardened macOS DMG are still pending.
+- The earlier CPack DMG is stale relative to current source and must not be delivered. No new app install or live input session was started. Physical cross-platform file-transfer acceptance remains pending.

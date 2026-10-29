@@ -144,6 +144,16 @@
          </property>
         </widget>
        </item>
+       <item>
+        <widget class="QPushButton" name="btnCopyAddress">
+         <property name="toolTip">
+          <string>Copy the suggested server IP address.</string>
+         </property>
+         <property name="text">
+          <string>Copy server address</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
@@ -411,6 +421,26 @@
                </property>
               </widget>
              </item>
+            <item>
+             <widget class="QPushButton" name="btnUseLastServer">
+              <property name="toolTip">
+               <string>Restore the last server this client successfully connected to.</string>
+              </property>
+              <property name="text">
+               <string>Use last server</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnTestConnection">
+              <property name="toolTip">
+               <string>Check TCP reachability only. This does not connect Mono Sync or verify the server identity.</string>
+              </property>
+              <property name="text">
+               <string>Test connection</string>
+              </property>
+             </widget>
+            </item>
             </layout>
            </widget>
           </item>

@@ -13,6 +13,8 @@
 #include <QSet>
 #include <QTimer>
 
+#include <algorithm>
+
 namespace deskflow::gui {
 
 bool NetworkMonitor::isVirtualInterface(const QString &interfaceName)
@@ -23,6 +25,33 @@ bool NetworkMonitor::isVirtualInterface(const QString &interfaceName)
       QRegularExpression::CaseInsensitiveOption
   );
   return virtualRegEx.match(interfaceName).hasMatch();
+}
+
+QList<NetworkMonitor::AddressCandidate> NetworkMonitor::rankAddressCandidates(QList<AddressCandidate> candidates)
+{
+  std::ranges::stable_sort(candidates, [](const AddressCandidate &a, const AddressCandidate &b) {
+    const bool aIpv4 = a.address.protocol() == QHostAddress::IPv4Protocol;
+    const bool bIpv4 = b.address.protocol() == QHostAddress::IPv4Protocol;
+    if (aIpv4 != bIpv4)
+      return aIpv4;
+    if (a.virtualInterface != b.virtualInterface)
+      return !a.virtualInterface;
+
+    const int addressBits = aIpv4 ? 32 : 128;
+    const bool aOnLink = a.prefixLength >= 0 && a.prefixLength < addressBits;
+    const bool bOnLink = b.prefixLength >= 0 && b.prefixLength < addressBits;
+    if (aOnLink != bOnLink)
+      return aOnLink;
+
+    if (a.address.isPrivateUse() != b.address.isPrivateUse())
+      return a.address.isPrivateUse();
+    if (a.address.isLinkLocal() != b.address.isLinkLocal())
+      return !a.address.isLinkLocal();
+    return aIpv4 ? a.address.toIPv4Address() < b.address.toIPv4Address()
+                 : a.address.toString() < b.address.toString();
+  });
+
+  return candidates;
 }
 
 NetworkMonitor::NetworkMonitor(QObject *parent) : QObject(parent), m_checkTimer(new QTimer(this))
@@ -54,10 +83,15 @@ void NetworkMonitor::stopMonitoring()
 
 QStringList NetworkMonitor::validAddresses()
 {
-  QList<QHostAddress> physicalIP4;
-  QList<QHostAddress> physicalIP6;
-  QList<QHostAddress> virtualIP4;
-  QList<QHostAddress> virtualIP6;
+  QStringList result;
+  for (const auto &candidate : rankedCandidates())
+    result.append(candidate.address.toString());
+  return result;
+}
+
+QList<NetworkMonitor::AddressCandidate> NetworkMonitor::rankedCandidates()
+{
+  QList<AddressCandidate> candidates;
   QSet<QHostAddress> uniqueAddresses;
 
   const auto allInterfaces = QNetworkInterface::allInterfaces();
@@ -85,55 +119,10 @@ QStringList NetworkMonitor::validAddresses()
       }
 
       uniqueAddresses.insert(address);
-
-      if (address.protocol() == QHostAddress::IPv6Protocol) {
-        if (isVirtual)
-          virtualIP6.append(address);
-        else
-          physicalIP6.append(address);
-      } else {
-        if (isVirtual)
-          virtualIP4.append(address);
-        else
-          physicalIP4.append(address);
-      }
+      candidates.append({address, entry.prefixLength(), isVirtual, interface.humanReadableName()});
     }
   }
-
-  std::ranges::sort(physicalIP4, [](const QHostAddress &a, const QHostAddress &b) {
-    if (a.isPrivateUse() != b.isPrivateUse())
-      return a.isPrivateUse();
-    if (a.isLinkLocal() != b.isLinkLocal())
-      return a.isLinkLocal();
-    return a.toIPv4Address() < b.toIPv4Address();
-  });
-
-  std::ranges::sort(virtualIP4, [](const QHostAddress &a, const QHostAddress &b) {
-    return a.toIPv4Address() < b.toIPv4Address();
-  });
-
-  std::ranges::sort(physicalIP6, [](const QHostAddress &a, const QHostAddress &b) {
-    if (a.isPrivateUse() != b.isPrivateUse())
-      return a.isPrivateUse();
-    if (a.isLinkLocal() != b.isLinkLocal())
-      return a.isLinkLocal();
-    return a.toString() < b.toString();
-  });
-
-  std::ranges::sort(virtualIP6, [](const QHostAddress &a, const QHostAddress &b) {
-    return a.toString() < b.toString();
-  });
-
-  auto result = physicalIP4;
-  result.append(virtualIP4);
-  result.append(physicalIP6);
-  result.append(virtualIP6);
-
-  QStringList ipList;
-  for (const auto &host : result) {
-    ipList.append(host.toString());
-  }
-  return ipList;
+  return rankAddressCandidates(std::move(candidates));
 }
 
 void NetworkMonitor::setIpAddresses(const QStringList &newAddresses)

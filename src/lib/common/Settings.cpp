@@ -437,6 +437,9 @@ void Settings::checkIfSettingsWritableChange()
 
 QVariant Settings::defaultValue(const QString &key)
 {
+  if (key == Client::LastSuccessfulRemoteHost)
+    return QString();
+
   if (key == Gui::AutoUpdateCheck)
     return false;
 

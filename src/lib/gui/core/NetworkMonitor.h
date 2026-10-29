@@ -24,6 +24,14 @@ class NetworkMonitor : public QObject
   Q_OBJECT
 
 public:
+  struct AddressCandidate
+  {
+    QHostAddress address;
+    int prefixLength = -1;
+    bool virtualInterface = false;
+    QString interfaceName;
+  };
+
   /**
    * @brief Construct a new NetworkMonitor object
    * @param parent Parent QObject
@@ -51,6 +59,9 @@ public:
    * @return IP address list
    */
   static QStringList validAddresses();
+
+  static QList<AddressCandidate> rankAddressCandidates(QList<AddressCandidate> candidates);
+  static QList<AddressCandidate> rankedCandidates();
 
   /**
    * @brief Check if a network interface is virtual

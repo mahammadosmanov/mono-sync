@@ -31,6 +31,8 @@ class QAction;
 class QMenu;
 class QLocalServer;
 class QProgressDialog;
+class QTcpSocket;
+class QTimer;
 class QThread;
 class OutgoingFileWorker;
 
@@ -146,6 +148,9 @@ private:
   void toggleCanRunCore(bool enableButtons);
   void remoteHostChanged(const QString &newRemoteHost);
   void updateIpLabel(const QStringList &addresses);
+  void copyServerAddress();
+  void useLastSuccessfulServer();
+  void testServerConnection();
   void updateTimeoutDelay(int newDelay);
   void setHelpFilePath();
   void showHelpViewer() const;
@@ -222,6 +227,9 @@ private:
 
   // Network monitoring
   NetworkMonitor *m_networkMonitor = nullptr;
+  QTcpSocket *m_connectionProbeSocket = nullptr;
+  QTimer *m_connectionProbeTimer = nullptr;
+  bool m_connectionProbeActive = false;
   QString m_currentIpAddress;
 
   QHash<QString, bool> m_fileTransferPeers;

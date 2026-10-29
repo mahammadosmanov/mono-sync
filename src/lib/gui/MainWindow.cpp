@@ -34,12 +34,15 @@
 #include "net/FingerprintDatabase.h"
 #include "widgets/StatusBar.h"
 
+#include <QAbstractSocket>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QInputDialog>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -55,6 +58,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QTimer>
+#include <QTcpSocket>
 #include <QThread>
 #include <QJsonObject>
 #include <QJsonDocument>
@@ -96,6 +100,40 @@ MainWindow::MainWindow()
       m_networkMonitor{new NetworkMonitor(this)}
 {
   ui->setupUi(this);
+
+  m_connectionProbeSocket = new QTcpSocket(this);
+  m_connectionProbeTimer = new QTimer(this);
+  m_connectionProbeTimer->setSingleShot(true);
+  connect(m_connectionProbeSocket, &QTcpSocket::connected, this, [this] {
+    if (!m_connectionProbeActive)
+      return;
+    m_connectionProbeActive = false;
+    m_connectionProbeTimer->stop();
+    ui->btnTestConnection->setEnabled(true);
+    m_statusBar->showMessage(
+        tr("TCP connection reached the server. Mono Sync will verify TLS identity when you connect."), 7000
+    );
+    m_connectionProbeSocket->disconnectFromHost();
+  });
+  connect(m_connectionProbeSocket, &QTcpSocket::errorOccurred, this, [this](QAbstractSocket::SocketError error) {
+    if (!m_connectionProbeActive)
+      return;
+    m_connectionProbeActive = false;
+    m_connectionProbeTimer->stop();
+    ui->btnTestConnection->setEnabled(true);
+    const auto details = error == QAbstractSocket::ConnectionRefusedError
+                             ? tr("The host responded, but nothing is listening on the configured port.")
+                             : m_connectionProbeSocket->errorString();
+    m_statusBar->showMessage(tr("Connection check failed: %1").arg(details), 10000);
+  });
+  connect(m_connectionProbeTimer, &QTimer::timeout, this, [this] {
+    if (!m_connectionProbeActive)
+      return;
+    m_connectionProbeActive = false;
+    m_connectionProbeSocket->abort();
+    ui->btnTestConnection->setEnabled(true);
+    m_statusBar->showMessage(tr("No TCP response within 3 seconds. Check the address, port, and network."), 10000);
+  });
 
   setWindowIcon(QIcon::fromTheme(kRevFqdnName));
 
@@ -322,6 +360,9 @@ void MainWindow::connectSlots()
 
   connect(ui->lineHostname, &QLineEdit::returnPressed, ui->btnRestartCore, &QPushButton::click);
   connect(ui->lineHostname, &QLineEdit::textChanged, this, &MainWindow::remoteHostChanged);
+  connect(ui->btnTestConnection, &QPushButton::clicked, this, &MainWindow::testServerConnection);
+  connect(ui->btnUseLastServer, &QPushButton::clicked, this, &MainWindow::useLastSuccessfulServer);
+  connect(ui->btnCopyAddress, &QPushButton::clicked, this, &MainWindow::copyServerAddress);
 
   connect(ui->btnSaveServerConfig, &QPushButton::clicked, this, &MainWindow::saveServerConfig);
   connect(ui->btnConfigureServer, &QPushButton::clicked, this, [this] { showConfigureServer(""); });
@@ -563,6 +604,13 @@ void MainWindow::updateModeControls()
   ui->serverOptions->setVisible(isServer);
   ui->clientOptions->setVisible(isClient);
   ui->lblNoMode->setVisible(!isServer && !isClient);
+  ui->btnCopyAddress->setVisible(isServer);
+  ui->btnTestConnection->setVisible(isClient);
+  ui->btnUseLastServer->setVisible(isClient);
+  ui->btnUseLastServer->setEnabled(isClient &&
+                                   !Settings::value(Settings::Client::LastSuccessfulRemoteHost).toString().isEmpty());
+  ui->btnTestConnection->setEnabled(isClient && !ui->lineHostname->text().trimmed().isEmpty() &&
+                                    !m_connectionProbeActive);
   toggleCanRunCore(canRunCore());
 
   ui->lblIpAddresses->setVisible(
@@ -1038,6 +1086,15 @@ void MainWindow::coreConnectionStateChanged(ConnectionState state)
 {
   qDebug() << "core connection state changed:" << static_cast<int>(state);
 
+  if (state == ConnectionState::Connected && m_coreProcess.mode() == CoreMode::Client) {
+    const auto remoteHost = Settings::value(Settings::Client::RemoteHost).toString().trimmed();
+    if (!remoteHost.isEmpty() && !remoteHost.contains(',')) {
+      Settings::setValue(Settings::Client::LastSuccessfulRemoteHost, remoteHost);
+      Settings::save();
+      ui->btnUseLastServer->setEnabled(true);
+    }
+  }
+
   updateStatus();
 
   // always assume connection is not secure when connection changes
@@ -1290,6 +1347,11 @@ void MainWindow::remoteHostChanged(const QString &newRemoteHost)
 {
   m_coreProcess.setAddress(newRemoteHost);
   toggleCanRunCore(!newRemoteHost.isEmpty() && ui->rbModeClient->isChecked());
+  ui->btnTestConnection->setEnabled(!newRemoteHost.trimmed().isEmpty() && !m_connectionProbeActive);
+  ui->btnUseLastServer->setEnabled(
+      ui->rbModeClient->isChecked() &&
+      !Settings::value(Settings::Client::LastSuccessfulRemoteHost).toString().isEmpty()
+  );
   if (newRemoteHost.isEmpty()) {
     Settings::setValue(Settings::Client::RemoteHost);
   } else {
@@ -1309,6 +1371,8 @@ void MainWindow::updateIpLabel(const QStringList &addresses)
   const bool fixedIP = !Settings::value(Settings::Core::Interface).toString().isEmpty();
 
   if (!fixedIP && addresses.isEmpty() && !serverStarted || (serverStarted && m_serverStartSuggestedIP.isEmpty())) {
+    m_currentIpAddress.clear();
+    ui->btnCopyAddress->setEnabled(false);
     ui->lblIpAddresses->setText(colorText.arg(palette().linkVisited().color().name(), tr("No IP Detected")));
     ui->lblIpAddresses->setToolTip(tr("Unable to detect an IP address. Check your network connection is active."));
     return;
@@ -1329,7 +1393,20 @@ void MainWindow::updateIpLabel(const QStringList &addresses)
   if (IPValid) {
     m_currentIpAddress = ipList.first();
     labelText.append(m_currentIpAddress);
+    if (mode == CoreMode::Server && !fixedIP) {
+      const auto candidates = NetworkMonitor::rankedCandidates();
+      const auto candidate = std::ranges::find_if(candidates, [this](const auto &entry) {
+        return entry.address.toString() == m_currentIpAddress;
+      });
+      if (candidate != candidates.cend()) {
+        const auto interfaceName = candidate->interfaceName.toHtmlEscaped();
+        const auto prefix = candidate->prefixLength >= 0 ? QStringLiteral("/%1").arg(candidate->prefixLength)
+                                                          : tr("unknown prefix");
+        labelText.append(tr(" (%1, %2)").arg(interfaceName, prefix));
+      }
+    }
   } else {
+    m_currentIpAddress.clear();
     labelText.append(colorText.arg(palette().linkVisited().color().name(), m_serverStartSuggestedIP));
     toolTipText.append(tr("\nA bound IP is now invalid, you may need to restart the server."));
   }
@@ -1337,11 +1414,68 @@ void MainWindow::updateIpLabel(const QStringList &addresses)
   if (ipList.count() < 2 || fixedIP) {
     toolTipText = toolTipText.arg(tr("the suggested IP."));
   } else {
-    toolTipText = toolTipText.arg(tr("one of the following IPs:<br/>%1").arg(ipList.join("<br/>")));
+    QStringList alternatives;
+    for (const auto &candidate : NetworkMonitor::rankedCandidates()) {
+      const auto address = candidate.address.toString();
+      if (!ipList.contains(address))
+        continue;
+      const auto prefix = candidate.prefixLength >= 0 ? QStringLiteral("/%1").arg(candidate.prefixLength)
+                                                      : tr("unknown prefix");
+      alternatives.append(tr("%1 (%2, %3)").arg(address, candidate.interfaceName.toHtmlEscaped(), prefix));
+    }
+    toolTipText = toolTipText.arg(tr("one of the following IPs:<br/>%1").arg(alternatives.join("<br/>")));
   }
 
   ui->lblIpAddresses->setText(labelText);
-  ui->lblIpAddresses->setToolTip(mode == CoreMode::Server ? toolTipText : QString());
+  ui->lblIpAddresses->setToolTip(
+      mode == CoreMode::Server
+          ? toolTipText +
+                tr("<p>Direct subnet addresses are suggested before single-host routes; other addresses remain listed "
+                   "for VPN or routed connections.</p>")
+          : QString()
+  );
+  ui->btnCopyAddress->setEnabled(mode == CoreMode::Server && !m_currentIpAddress.isEmpty());
+}
+
+void MainWindow::copyServerAddress()
+{
+  if (m_currentIpAddress.isEmpty())
+    return;
+
+  QGuiApplication::clipboard()->setText(m_currentIpAddress);
+  m_statusBar->showMessage(tr("Server address copied: %1").arg(m_currentIpAddress), 7000);
+}
+
+void MainWindow::useLastSuccessfulServer()
+{
+  const auto host = Settings::value(Settings::Client::LastSuccessfulRemoteHost).toString();
+  if (!host.isEmpty())
+    ui->lineHostname->setText(host);
+}
+
+void MainWindow::testServerConnection()
+{
+  if (m_connectionProbeActive)
+    return;
+
+  const auto hosts = ui->lineHostname->text().split(',', Qt::SkipEmptyParts);
+  const auto host = hosts.value(0).trimmed();
+  if (host.isEmpty()) {
+    m_statusBar->showMessage(tr("Enter the server address first."), 5000);
+    return;
+  }
+
+  const int port = Settings::value(Settings::Core::Port).toInt();
+  if (port < 1 || port > 65535) {
+    m_statusBar->showMessage(tr("The configured server port is invalid."), 7000);
+    return;
+  }
+  m_connectionProbeSocket->abort();
+  m_connectionProbeActive = true;
+  ui->btnTestConnection->setEnabled(false);
+  m_statusBar->showMessage(tr("Checking only the first entered endpoint %1:%2…").arg(host).arg(port));
+  m_connectionProbeSocket->connectToHost(host, static_cast<quint16>(port));
+  m_connectionProbeTimer->start(3000);
 }
 
 void MainWindow::updateTimeoutDelay(int newDelay)
