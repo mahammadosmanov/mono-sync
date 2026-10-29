@@ -116,6 +116,46 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake --build build --parallel 8 --target package
 
+      - name: Build standard-user Windows setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) {
+            $candidate = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+            if (Test-Path -LiteralPath $candidate) { $makensis = $candidate }
+          }
+          if (-not $makensis) { throw 'NSIS 3.x was not found on this Windows runner.' }
+          $portable = @(Get-ChildItem -Path build -Filter 'deskflow-*-portable.zip' -File)
+          if ($portable.Count -ne 1) { throw "Expected one portable ZIP, found $($portable.Count)." }
+          python deploy/windows/package-standard-user-setup.py `
+            --portable-zip $portable[0].FullName `
+            --output "$PWD/build/MonoSync-Setup.exe" `
+            --makensis "$makensis"
+
+      - name: Smoke-test install, update, and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $smokeScript = (Resolve-Path ./deploy/windows/smoke-test-standard-user-setup.ps1).Path
+          $setupPath = (Resolve-Path ./build/MonoSync-Setup.exe).Path
+          $reportPath = Join-Path $env:TEMP "mono-sync-setup-smoke-$([guid]::NewGuid()).txt"
+          $child = "& '$smokeScript' -SetupPath '$setupPath' -ReportPath '$reportPath'"
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($child))
+          $runner = Join-Path $env:WINDIR 'System32\runas.exe'
+          $process = Start-Process -FilePath $runner `
+            -ArgumentList @('/trustlevel:0x20000', "powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded") `
+            -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) { throw "runas failed with exit code $($process.ExitCode)." }
+          $deadline = (Get-Date).AddSeconds(45)
+          while (-not (Test-Path -LiteralPath $reportPath) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not (Test-Path -LiteralPath $reportPath)) {
+            throw 'The restricted-token smoke test did not report completion.'
+          }
+          Get-Content -LiteralPath $reportPath
+
       - name: Upload macOS package
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
@@ -125,11 +165,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload Windows portable package
+      - name: Upload Windows setup
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: mono-sync-windows-x64-portable
-          path: build/deskflow-*-portable.zip
+          name: mono-sync-windows-x64-setup
+          path: build/MonoSync-Setup.exe
           if-no-files-found: error
           retention-days: 14

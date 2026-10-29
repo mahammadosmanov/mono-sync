@@ -7,8 +7,7 @@ new input apps at the same time.
 
 ## Set up the pair
 
-1. Extract the Windows portable ZIP into a writable folder under the current
-   user and run `deskflow.exe`. Open the Mac DMG and move Deskflow to Applications.
+1. Run the Windows `MonoSync-Setup.exe` as the current user. Open the Mac DMG and move Deskflow to Applications.
    Confirm both show Deskflow 1.27.0. macOS may require an input-control permission
    for Deskflow; Windows firewall policy may block incoming connections. Do not
    bypass either operating-system control.
