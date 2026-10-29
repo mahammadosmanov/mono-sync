@@ -7,6 +7,7 @@
 #include "IpcServer.h"
 
 #include "base/Log.h"
+#include "common/CoreIpcPath.h"
 #include "common/VersionInfo.h"
 
 #include <QLocalServer>
@@ -14,11 +15,21 @@
 
 namespace deskflow::core::ipc {
 
-IpcServer::IpcServer(QObject *parent, const QString &serverName, const QString &typeName)
+namespace {
+
+bool isSensitiveMessage(const QString &message)
+{
+  return message.startsWith(QStringLiteral("fileTransfer="));
+}
+
+} // namespace
+
+IpcServer::IpcServer(QObject *parent, const QString &serverName, const QString &typeName, bool userOnly)
     : QObject(parent),
       m_server{new QLocalServer(this)}, // NOSONAR - Qt memory
       m_serverName(serverName),
-      m_typeName(typeName.toUtf8())
+      m_typeName(typeName.toUtf8()),
+      m_userOnly(userOnly)
 {
   // do nothing
 }
@@ -30,15 +41,23 @@ IpcServer::~IpcServer()
 
 void IpcServer::listen()
 {
-  // IPC server normally runs as system, but GUI runs as regular user, so we need to allow world access.
-  m_server->setSocketOptions(QLocalServer::WorldAccessOption);
+  if (m_userOnly) {
+    if (!preparePrivateCoreIpcDirectory()) {
+      LOG_ERR("%s ipc server could not prepare a private user directory", m_typeName.constData());
+      return;
+    }
+    m_server->setSocketOptions(QLocalServer::UserAccessOption);
+  } else {
+    // Daemon IPC is separate; retain its existing access behavior.
+    m_server->setSocketOptions(QLocalServer::WorldAccessOption);
+  }
 
   connect(m_server, &QLocalServer::newConnection, this, &IpcServer::handleNewConnection);
   QLocalServer::removeServer(m_serverName);
   if (m_server->listen(m_serverName)) {
-    LOG_DEBUG("%s ipc server listening on: %s", m_typeName.constData(), m_serverName.toUtf8().constData());
+    LOG_DEBUG("%s ipc server listening", m_typeName.constData());
   } else {
-    LOG_ERR("%s ipc server failed to listen on: %s", m_typeName.constData(), m_serverName.toUtf8().constData());
+    LOG_ERR("%s ipc server failed to listen: %s", m_typeName.constData(), qPrintable(m_server->errorString()));
   }
 }
 
@@ -108,10 +127,14 @@ void IpcServer::handleErrorOccurred()
 
 void IpcServer::processMessage(QLocalSocket *clientSocket, const QString &message)
 {
-  LOG_VERBOSE("%s ipc server got message: %s", m_typeName.constData(), message.toUtf8().constData());
+  if (isSensitiveMessage(message)) {
+    LOG_VERBOSE("%s ipc server got file-transfer command", m_typeName.constData());
+  } else {
+    LOG_VERBOSE("%s ipc server got message: %s", m_typeName.constData(), message.toUtf8().constData());
+  }
   const auto parts = message.split('=');
   if (parts.isEmpty()) {
-    LOG_ERR("%s ipc server got invalid message: %s", m_typeName.constData(), message.toUtf8().constData());
+    LOG_ERR("%s ipc server got invalid message", m_typeName.constData());
     writeToClientSocket(clientSocket, QStringLiteral("error"));
     return;
   }
@@ -171,10 +194,14 @@ void IpcServer::broadcastCommand(const QString &command, const QString &args)
     return;
   }
 
-  LOG_VERBOSE(
-      "%s ipc server broadcasting message to %d clients: %s", m_typeName.constData(), m_clients.size(),
-      message.toUtf8().constData()
-  );
+  if (isSensitiveMessage(message)) {
+    LOG_VERBOSE("%s ipc server broadcasting file-transfer command to %d clients", m_typeName.constData(), m_clients.size());
+  } else {
+    LOG_VERBOSE(
+        "%s ipc server broadcasting message to %d clients: %s", m_typeName.constData(), m_clients.size(),
+        message.toUtf8().constData()
+    );
+  }
   for (auto *client : std::as_const(m_clients)) {
     writeToClientSocket(client, message);
     client->flush();
@@ -188,9 +215,13 @@ void IpcServer::writeToClientSocket(QLocalSocket *&clientSocket, const QString &
   if (bytesWritten != messageData.size()) {
     LOG_ERR("%s ipc server failed to write full message to client socket", m_typeName.constData());
   } else {
-    LOG_VERBOSE(
-        "%s ipc server wrote message to client socket: %s", m_typeName.constData(), message.toUtf8().constData()
-    );
+    if (isSensitiveMessage(message)) {
+      LOG_VERBOSE("%s ipc server wrote a file-transfer command", m_typeName.constData());
+    } else {
+      LOG_VERBOSE(
+          "%s ipc server wrote message to client socket: %s", m_typeName.constData(), message.toUtf8().constData()
+      );
+    }
   }
 }
 

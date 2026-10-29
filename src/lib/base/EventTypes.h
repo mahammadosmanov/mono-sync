@@ -158,6 +158,9 @@ enum class EventTypes : uint32_t
   ServerAppForceReconnect,
   ServerAppResetServer,
 
+  /// A validated command from the private GUI-to-core IPC channel.
+  CoreIpcCommand,
+
   /// This event is sent when key is down. Event data is a pointer to KeyInfo (count == 1)
   KeyStateKeyDown,
   /// This event is sent when key is up. Event data is a pointer to KeyInfo (count == 1)

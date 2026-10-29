@@ -102,6 +102,13 @@ public:
   */
   virtual uint32_t getSize() const = 0;
 
+  //! Whether this stream's active peer passed certificate fingerprint verification.
+  //! Stream wrappers should forward this value. Plain or merely encrypted streams return false.
+  virtual bool isPeerAuthenticated() const
+  {
+    return false;
+  }
+
   //@}
 };
 

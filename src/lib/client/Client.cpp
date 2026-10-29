@@ -14,6 +14,7 @@
 #include "client/ServerProxy.h"
 #include "client/ServerProxy1_7.h"
 #include "client/ServerProxy1_8.h"
+#include "client/ServerProxy1_9.h"
 #include "common/NetworkProtocol.h"
 #include "common/Settings.h"
 #include "deskflow/Clipboard.h"
@@ -168,6 +169,7 @@ void Client::refuseConnection(deskflow::core::ConnectionRefusal reason, const ch
 
 void Client::handshakeComplete()
 {
+  m_server->connectionReady();
   m_ready = true;
   m_computer->enable();
   if (m_relativeMouseMoves && !m_hasRelativeRestorePosition) {
@@ -179,6 +181,11 @@ void Client::handshakeComplete()
 bool Client::isConnected() const
 {
   return (m_server != nullptr);
+}
+
+bool Client::handleFileTransferMessage(const QString &message)
+{
+  return m_server != nullptr && m_server->handleFileTransferMessage(message);
 }
 
 bool Client::isConnecting() const
@@ -482,6 +489,9 @@ bool Client::setupComputer(int16_t protocolMinor)
     break;
   case 8:
     m_server = new ServerProxy1_8(this, m_stream, m_events);
+    break;
+  case 9:
+    m_server = new ServerProxy1_9(this, m_stream, m_events);
     break;
   default:
     break;

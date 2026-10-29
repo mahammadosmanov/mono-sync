@@ -22,6 +22,7 @@
 #include "net/TCPSocket.h"
 #include "server/ClientListener.h"
 #include "server/ClientProxy.h"
+#include "server/ClientProxy1_9.h"
 #include "server/ClientProxyUnknown.h"
 #include "server/PrimaryClient.h"
 
@@ -312,6 +313,18 @@ void Server::getClients(std::vector<std::string> &list) const
   for (auto index = m_clients.begin(); index != m_clients.end(); ++index) {
     list.push_back(index->first);
   }
+}
+
+bool Server::handleFileTransferMessage(const QString &peer, const QString &message)
+{
+  const auto name = peer.toStdString();
+  for (const auto &[configuredName, client] : m_clients) {
+    if (configuredName == name || client->getName() == name) {
+      auto *fileTransferClient = dynamic_cast<ClientProxy1_9 *>(client);
+      return fileTransferClient != nullptr && fileTransferClient->handleFileTransferMessage(message);
+    }
+  }
+  return false;
 }
 
 void Server::sendConnectedClientsIpc() const

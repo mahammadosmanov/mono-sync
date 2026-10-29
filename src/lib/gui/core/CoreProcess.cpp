@@ -472,6 +472,7 @@ void CoreProcess::start(std::optional<ProcessMode> processModeOption)
           }
 
           m_coreIpcClient = new ipc::CoreIpcClient(this);
+          m_coreIpcClient->setExpectedServerProcessId(m_process ? m_process->processId() : 0);
 
           // queued so a modal dialog opened by a handler can't block readyRead and strand later messages
           connect(
@@ -676,6 +677,17 @@ void CoreProcess::onCoreIpcMessageReceived(const QString &command, const QString
     Q_EMIT peerFingerprint(args);
   } else if (command == "missingKeyboardLayouts") {
     Q_EMIT missingKeyboardLayouts(args);
+  } else if (command == "fileTransfer") {
+    if (m_coreIpcClient != nullptr && m_coreIpcClient->isServerPeerVerified()) {
+      Q_EMIT fileTransferMessageReceived(args);
+    }
+  }
+}
+
+void CoreProcess::sendFileTransferMessage(const QString &encodedMessage)
+{
+  if (m_coreIpcClient && m_coreIpcClient->isConnected() && m_coreIpcClient->isServerPeerVerified()) {
+    m_coreIpcClient->sendFileTransferMessage(encodedMessage);
   }
 }
 

@@ -34,6 +34,7 @@ public:
   {
     return m_state == State::Connected;
   }
+  bool isServerPeerVerified() const { return m_serverPeerVerified; }
 
 Q_SIGNALS:
   void connected();
@@ -47,6 +48,8 @@ private Q_SLOTS:
   void handleReadyRead();
 
 protected:
+  virtual bool verifyServerPeer() const { return true; }
+  QLocalSocket *socket() const { return m_socket; }
   virtual void processCommand(const QString &command, const QStringList &parts)
   {
     Q_UNUSED(command)
@@ -61,6 +64,7 @@ private:
 
   QLocalSocket *m_socket;
   State m_state{State::Unconnected};
+  bool m_serverPeerVerified = false;
   QString m_socketName;
   QByteArray m_readBuffer;
   int m_retryCount{0};

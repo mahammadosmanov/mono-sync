@@ -48,6 +48,7 @@ public:
   deskflow::Computer *createComputer() override;
   int mainLoop() override;
   void startNode() override;
+  void handleCoreIpcCommand(const QString &command, const QString &payload) override;
 
   //
   // Regular functions

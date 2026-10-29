@@ -104,6 +104,22 @@ bool ProtocolUtil::readf(deskflow::IStream *stream, const char *fmt, ...)
   return result;
 }
 
+std::string ProtocolUtil::readBoundedString(deskflow::IStream *stream, uint32_t maximumLength)
+{
+  assert(stream != nullptr);
+  const uint32_t length = read4BytesInt(stream);
+  if (length > maximumLength) {
+    LOG_ERR("read: length-prefixed payload exceeds its maximum allowed size: %u", length);
+    throw BadClientException("File-transfer message is too large");
+  }
+  if (length == 0) {
+    return {};
+  }
+  std::string result;
+  readBytes(stream, length, &result);
+  return result;
+}
+
 void ProtocolUtil::vwritef(deskflow::IStream *stream, const char *fmt, uint32_t size, va_list args)
 {
   assert(stream != nullptr);

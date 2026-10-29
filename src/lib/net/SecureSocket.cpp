@@ -435,6 +435,7 @@ int SecureSocket::secureAccept(int socket)
       disconnect();
       return -1; // Fail
     }
+    m_peerAuthenticated.store(m_securityLevel == SecurityLevel::PeerAuth, std::memory_order_release);
     m_secureReady = true;
     LOG_INFO("accepted secure socket");
     SslLogger::logSecureCipherInfo(m_ssl->m_ssl);
@@ -494,6 +495,7 @@ int SecureSocket::secureConnect(int socket)
   // No error, set ready, process and return ok
   m_secureReady = true;
   if (verifyCertFingerprint(Settings::tlsTrustedServersDb())) {
+    m_peerAuthenticated.store(m_securityLevel == SecurityLevel::PeerAuth, std::memory_order_release);
     LOG_INFO("connected to secure socket");
     if (!showCertificate()) {
       disconnect();

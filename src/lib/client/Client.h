@@ -141,6 +141,7 @@ public:
   Returns true if the client is successfully connected to the server.
   */
   bool isConnected() const;
+  bool handleFileTransferMessage(const QString &message);
 
   //! Test if connecting
   /*!

@@ -61,6 +61,7 @@ public:
   int runInner(StartupFunc startup) override;
   int start() override;
   void startNode() override;
+  void handleCoreIpcCommand(const QString &command, const QString &payload) override;
 
   //
   // Regular functions

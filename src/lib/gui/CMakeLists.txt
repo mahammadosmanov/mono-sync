@@ -120,6 +120,7 @@ add_library(${target} STATIC
 target_link_libraries(${target}
   PUBLIC
     common
+    app
     platform
     net
     Qt6::Widgets

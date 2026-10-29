@@ -1,12 +1,12 @@
 # Current project state
 
 Updated: 2026-10-29
-Stage: Current macOS Deskflow build installed and GUI verified; physical input acceptance remains pending
+Stage: User-confirmed Windows-to-Mac keyboard/mouse works; implementing one-file transfer and Mono Sync product identity
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
 
-Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow application and OS backends. Deliver Windows x64 host and Apple Silicon macOS client builds. Defer file transfer until actual two-machine input acceptance passes.
+Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow application and OS backends. Deliver Windows x64 host and Apple Silicon macOS client builds. Add explicit, authenticated single-file transfer over the existing peer connection, then finish product-facing Mono Sync branding while retaining all required upstream notices.
 
 ## Source and branch
 
@@ -14,12 +14,11 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 - Branch: `codex/deskflow-rebuild`, based on preserved GitHub branch commit `197aad294cc7bf0efc1ba47d3dc30f6645c67fb4`.
 - Deskflow source: `v1.27.0`, commit `081f6478e654a112168879e67a41ce7d7e4ae3af`; archive SHA-256 is in `docs/UPSTREAM.md`.
 - Former Rust/Tauri/rdev product files are removed from this branch. The previous branch and installed Mono Sync app/config remain available for rollback; do not launch both input apps together.
-- Deskflow retains its native GUI, TLS, input engine, and OS backends. File transfer is not included.
+- Deskflow retains its native TLS, input engine, and OS backends. User confirmed actual Windows-host-to-Mac-client keyboard/mouse input works; this is user-reported manual acceptance, not independently hardware-verified.
 
 ## Build environment and progress
 
-- Local machine has CMake 4.4.3, Apple Clang 21, Xcode Command Line Tools, OpenSSL 4.0.3, and 19 GiB free at last check.
-- Qt 6 remains unavailable locally. Authorized `brew install qt` failed during Homebrew's Ruby bootstrap over HTTP/2; an HTTP/1.1 retry was stopped after 60 seconds at 7%. No package was installed and no full Xcode installation has been attempted.
+- Local machine has CMake 4.4.3, Apple Clang 21, Xcode Command Line Tools, OpenSSL 4.0.3, and about 20 GiB free at last check. Qt 6.11.3 ARM64 was installed into `/Users/rohtolos/Library/Caches/mono-sync-qt/6.11.3/macos` using isolated `aqtinstall`.
 - Pinned source archive downloaded and verified against GitHub tag commit API. Corrected workflow run `40731756390` built and tested the pinned source on macOS ARM64 and Windows x64; package version and basename guards passed before compilation. macOS CTest passed 29/29 and Windows CTest passed 28/28. Archive digests and ZIP CRC checks passed for both downloaded platform artifacts.
 - The first packages were rejected before installation. Git history inherited from Mono Sync caused upstream's Git-derived project version to report `0.1.0.9`, and the Windows package basename appeared as `deskflow-1-win-x64`. These artifacts are preserved under `Documents/MonoSync-Deskflow-deliverables/INVALID-not-for-install-0.1.0.9/`.
 - `DESKFLOW_USE_GIT_VERSION` defaults to `OFF`, preserving the pinned source version `1.27.0.0`; CI explicitly sets the CPack label and verifies version and package basename before compiling. The corrected CI guards passed.
@@ -33,9 +32,19 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 - Corrected macOS artifact came from the same pinned source revision. Its ARM64 app bundle reports `1.27.0.0`. The downloaded CI bundle needed deep signing with the existing Apple Development identity because nested Qt signatures had a Team ID mismatch; deep strict verification then passed. The locally installed `/Applications/Deskflow.app` passes deep strict signature verification; executable SHA-256 is `617de79427203f6e3689bde2f27287d4feb337e6af9cecfe9c87da3ddec234dc`, and `--version` reports `Deskflow: 1.27.0`.
 - Deskflow's main window was visibly confirmed in CUA. System Settings > Device Control and Data Access lists Deskflow with access `off`. The user authorized this exact permission, but macOS requires Touch ID or the account password to apply it; the OS authentication sheet is open for the user. Client mode is selected; the server address is blank and Connect remains disabled. No sharing session or peer trust was configured. Previous Mono Sync app copies were moved recoverably to `~/.Trash`; configuration remains preserved.
 
-## Acceptance gate
+## Input acceptance
 
-On the actual Windows host and Mac client, verify 15-minute stability and 50+ edge crossings; exact mixed 200-character typing plus modifiers/function keys; pointer click/scroll and control hotkey; held-key/button release after network disconnect; and clean reconnect. Record OS versions, monitor layout/scaling, and logs. Build/unit tests cannot replace this gate. Do not start file transfer until the user accepts input behavior.
+The user explicitly confirmed that keyboard and mouse sharing now works between the actual Windows host and Mac client. This manual acceptance is user-reported; no independent 15-minute test or automated hardware injection was performed in this session. File transfer is authorized.
+
+## File transfer implementation checkpoint (uncommitted)
+
+- Added `FileTransferReceiver` as a storage-only vertical slice. It stages one accepted file in a new-only, owner-readable temporary file in the selected directory; enforces a 24 KiB chunk limit and 10 GiB maximum; validates UTF-8 basename / Windows reserved names, exact size, SHA-256, and available space; removes partials on failure/cancel; and uses same-directory exclusive hard-link creation for atomic no-clobber finalization. Destination files appearing during transfer remain intact. Filesystems that do not support hard links fail closed.
+- Added protocol helper `ProtocolUtil::readBoundedString` so untrusted length is checked before payload allocation.
+- Latched successful `PeerAuth` fingerprint verification onto `SecureSocket` and forwarded it through stream filters. File messages require both that per-connection fact and completed protocol handshake.
+- Added v1.9 client/server proxy dispatch; v1.8 peers continue through their existing proxies and receive no file-transfer frames. Added bounded local IPC routing and peer verification: same-user ACL plus expected core PID on Windows; owner-only socket directory plus peer UID on macOS. Daemon IPC is unchanged.
+- Added GUI send/receive flow: incremental file hashing, explicit destination selection, paced chunks, progress/cancel, SHA-256 verification, and no auto-open. This is compiled locally but has not yet had a full two-machine file-transfer run.
+- Focused local CMake build succeeds for `Deskflow`, `deskflow-core`, and transfer test targets using isolated Qt 6.11.3. Latest tests: `FileTransferProtocolTests` 8/8; `FileTransferReceiverTests` 13/13; `ProtocolBoundedStringTests` 5/5; `git diff --check` clean. Windows build/CI and end-to-end peer transfer remain unverified. No installed app or sharing session was launched.
+- Pending: test old/new peer compatibility and an end-to-end transfer on the actual Windows/Mac pair; verify Windows native IPC process-ID path; rebrand app identity/assets while preserving profiles and GPL/OpenSSL notices; run full local/CI checks and native packages.
 
 ## Latest macOS installation
 
@@ -53,7 +62,7 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 - Windows artifact ID `12873447693`; outer artifact SHA-256 `a957b88ebacc45ee13ea6334e5fe83fb1c4a5702834a0de96cc36a6d8906cae6`, exact API digest match. Its one inner portable ZIP passes CRC and has SHA-256 `2ec62211f7f1c5966bfdacc554a48036b51a609c5c1f48bfb5820c6c861b9581`.
 - Deliverable: `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Windows-Portable.zip`. Previous friendly ZIP is preserved at `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/MonoSync-Windows-Portable.previous-036c8f301d9c.zip`.
 - Inspected archive: 88 entries, includes Deskflow GUI/core, Qt/OpenSSL/MSVC runtime DLLs and license files, no daemon executable. Parsed embedded PE manifests: `deskflow.exe` and `deskflow-core.exe` use `asInvoker`, `uiAccess=false`.
-- This confirms build/package policy and automated tests only. It does not confirm physical Windows runtime/input behavior. Windows Firewall or organization policy may still require administrator approval; macOS input-control authorization remains an OS-level gate. Do not start file-transfer work until the user accepts actual input behavior.
+- This confirms build/package policy and automated tests only. It does not confirm physical Windows runtime/input behavior. Windows Firewall or organization policy may still require administrator approval; macOS input-control authorization remains an OS-level gate. The user later confirmed keyboard and mouse work; that user-reported acceptance authorized file-transfer work.
 
 ## Per-user Windows Setup
 
@@ -66,6 +75,15 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 - The smoke ran under the GitHub hosted token, which reported membership in the Administrators group. This is not represented as a standard-user-token test. The setup, app and uninstaller manifests request `asInvoker`; install paths and registry writes are current-user scoped.
 - Firewall/organization policy and SmartScreen remain OS-controlled and may show their own notices. The app does not attempt to bypass them. Physical input acceptance is still pending.
 
+## Connection timeout diagnosis (2026-10-29)
+
+- The installed Mac client log repeatedly reports `failed to connect to server: Timed out` at roughly 3-second intervals. The live UI is in client mode, has one configured Windows endpoint, and shows Connecting.
+- Client UI contains no explicit `:port`, and `~/Library/Deskflow/Deskflow.conf` has no `port` setting. Source uses `core/port` default 24800.
+- The Mac routes the configured Windows endpoint off-subnet through its LAN gateway. A target-only TCP probe to the configured endpoint on port 24800 timed out; `lsof` observed the running client socket in `SYN_SENT`. Target-only ping had 0/3 replies, which is supporting evidence only because ICMP may be filtered. No direct ARP entry is expected for a gateway-routed destination.
+- Windows evidence supplied by the user identified the configured address as a virtual `/32` with no gateway, while Windows also has a LAN address on the same subnet as this Mac. The Windows server reports listening on `0.0.0.0:24800`.
+- Updated the Mac client endpoint through Deskflow UI to the user-confirmed LAN address. A target-only TCP probe to port 24800 succeeded. After restarting, the UI reported connected as client with TLSv1.3. The previous core logged `fingerprint does not match trusted fingerprint` and `failed to verify server certificate fingerprint`. No trust prompt was shown or clicked; the trusted-server record was modified at reconnect and now contains one SHA-256 entry.
+- Disconnected the client after detecting the unverified trust state. UI now reports `Deskflow is not running`. No keyboard or mouse input was injected. Compare the Mac's current trusted-server fingerprint with the Windows server's displayed fingerprint before reconnecting or performing input acceptance. No firewall policy, OS permissions, or source code were changed.
+
 ## Next
 
-Run the actual Windows host/Mac client input acceptance gate. No cross-device input acceptance has been recorded yet.
+Implement user-mediated file transfer over the existing trusted Deskflow peer session. Preserve the confirmed keyboard/mouse path and required upstream licensing notices while rebranding product-facing UI and packages.

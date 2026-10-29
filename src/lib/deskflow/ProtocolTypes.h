@@ -45,7 +45,7 @@ static const int16_t kProtocolMajorVersion = 1;
  * @note When incrementing the minor version, the Deskflow application version should also increment
  * @since Protocol version 1.0
  */
-static const int16_t kProtocolMinorVersion = 8;
+static const int16_t kProtocolMinorVersion = 9;
 
 /**
  * @brief Default TCP port for Deskflow connections
@@ -1063,6 +1063,17 @@ extern const char *const kMsgDSetOptions;
  * @deprecated File drag and drop is no longer implemented.
  */
 extern const char *const kMsgDFileTransfer;
+
+// Mono Sync protocol 1.9 messages. Unlike the deprecated DFTR stream, these
+// messages use one bounded chunk per acknowledgement and an explicit offer.
+extern const char *const kMsgFileOffer;
+extern const char *const kMsgFileResponse;
+extern const char *const kMsgFileChunk;
+extern const char *const kMsgFileAck;
+extern const char *const kMsgFileFinish;
+extern const char *const kMsgFileDone;
+extern const char *const kMsgFileError;
+extern const char *const kMsgFileCancel;
 
 /**
  * @brief Drag and drop information

@@ -44,6 +44,7 @@ public:
   void stop(std::optional<ProcessMode> processMode = std::nullopt);
   void restart();
   void cleanup();
+  void sendFileTransferMessage(const QString &encodedMessage);
   void applyLogLevel();
   void clearSettings();
   void retryDaemon();
@@ -94,6 +95,7 @@ Q_SIGNALS:
   void retryIn(int seconds);
   void peerFingerprint(const QString &fingerprint);
   void missingKeyboardLayouts(const QString &layouts);
+  void fileTransferMessageReceived(const QString &encodedMessage);
 
 private Q_SLOTS:
   void onProcessFinished(int exitCode, QProcess::ExitStatus);

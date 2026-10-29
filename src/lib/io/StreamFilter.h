@@ -44,6 +44,7 @@ public:
   void *getEventTarget() const override;
   bool isReady() const override;
   uint32_t getSize() const override;
+  bool isPeerAuthenticated() const override;
 
   //! Get the stream
   /*!

@@ -76,6 +76,11 @@ uint32_t StreamFilter::getSize() const
   return getStream()->getSize();
 }
 
+bool StreamFilter::isPeerAuthenticated() const
+{
+  return getStream()->isPeerAuthenticated();
+}
+
 deskflow::IStream *StreamFilter::getStream() const
 {
   return m_stream;

@@ -19,7 +19,7 @@ class IpcServer : public QObject
   Q_OBJECT
 
 public:
-  explicit IpcServer(QObject *parent, const QString &serverName, const QString &typeName);
+  explicit IpcServer(QObject *parent, const QString &serverName, const QString &typeName, bool userOnly = false);
   ~IpcServer() override;
 
   void listen();
@@ -54,6 +54,7 @@ private:
   QString m_serverName;
   QStringList m_pendingMessages;
   QByteArray m_typeName;
+  bool m_userOnly = false;
 };
 
 } // namespace deskflow::core::ipc

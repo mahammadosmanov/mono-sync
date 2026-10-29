@@ -14,6 +14,7 @@
 #include "common/ExitCodes.h"
 #include "common/Settings.h"
 #include "deskflow/DeskflowException.h"
+#include "deskflow/ipc/CoreIpc.h"
 #include "mt/ThreadException.h"
 
 #if defined(Q_OS_WIN)
@@ -46,6 +47,12 @@ App::App(IEventQueue *events, const QString &processName)
 {
   assert(s_instance == nullptr);
   s_instance = this;
+  m_events->addHandler(EventTypes::CoreIpcCommand, m_events->getSystemTarget(), [this](const auto &event) {
+    const auto *command = static_cast<const CoreIpcCommand *>(event.getDataObject());
+    if (command != nullptr) {
+      handleCoreIpcCommand(command->command(), command->payload());
+    }
+  });
 #if defined(WINAPI_XWINDOWS) or defined(WINAPI_LIBEI)
   deskflow::platform::setAppId();
 #endif
@@ -53,6 +60,7 @@ App::App(IEventQueue *events, const QString &processName)
 
 App::~App()
 {
+  m_events->removeHandler(EventTypes::CoreIpcCommand, m_events->getSystemTarget());
   s_instance = nullptr;
 }
 

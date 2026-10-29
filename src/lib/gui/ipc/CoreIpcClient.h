@@ -18,14 +18,21 @@ class CoreIpcClient : public IpcClient
 
 public:
   explicit CoreIpcClient(QObject *parent = nullptr);
+  void setExpectedServerProcessId(qint64 processId);
+  void connectToServer();
 
   void sendStop();
+  void sendFileTransferMessage(const QString &encodedMessage);
 
 Q_SIGNALS:
   void commandReceived(const QString &command, const QString &args);
 
 protected:
+  bool verifyServerPeer() const override;
   void processCommand(const QString &command, const QStringList &parts) override;
+
+private:
+  qint64 m_expectedServerProcessId = 0;
 };
 
 } // namespace deskflow::gui::ipc

@@ -42,6 +42,10 @@ add_library(${lib_name} STATIC ${PLATFORM_CODE}
   Computer.h
   DeskflowException.cpp
   DeskflowException.h
+  FileTransferReceiver.cpp
+  FileTransferReceiver.h
+  FileTransferProtocol.cpp
+  FileTransferProtocol.h
   DisplayException.cpp
   DisplayException.h
   DisplayInvalidException.h

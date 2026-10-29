@@ -48,6 +48,13 @@ ClientApp::ClientApp(IEventQueue *events, const QString &processName) : App(even
   // do nothing
 }
 
+void ClientApp::handleCoreIpcCommand(const QString &command, const QString &payload)
+{
+  if (command == QStringLiteral("fileTransfer") && m_client != nullptr) {
+    m_client->handleFileTransferMessage(payload);
+  }
+}
+
 void ClientApp::parseArgs()
 {
   // save server addresses (comma-separated list supported)

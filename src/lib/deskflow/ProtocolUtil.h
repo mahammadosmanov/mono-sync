@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <stdarg.h>
+#include <string>
 #include <vector>
 
 namespace deskflow {
@@ -63,6 +64,9 @@ public:
   - \%s   -- reads bytes;  argument must be a std::string*, \b not a char*
   */
   static bool readf(deskflow::IStream *, const char *fmt, ...);
+
+  //! Read a length-prefixed byte string after validating its length and before allocating it.
+  static std::string readBoundedString(deskflow::IStream *stream, uint32_t maximumLength);
 
 private:
   static void vwritef(deskflow::IStream *, const char *fmt, uint32_t size, va_list);

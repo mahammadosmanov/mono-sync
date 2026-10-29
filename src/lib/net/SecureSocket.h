@@ -10,6 +10,7 @@
 #include "net/SecurityLevel.h"
 #include "net/TCPSocket.h"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 
@@ -59,6 +60,10 @@ public:
     m_fatal = b;
   }
   bool isSecureReady() const;
+  bool isPeerAuthenticated() const override
+  {
+    return m_peerAuthenticated.load(std::memory_order_acquire);
+  }
   void secureConnect();
   void secureAccept();
   int secureRead(void *buffer, int size, int &read);
@@ -94,6 +99,7 @@ private:
 
   std::unique_ptr<Ssl> m_ssl;
   bool m_secureReady = false;
+  std::atomic_bool m_peerAuthenticated{false};
   bool m_fatal = false;
   SecurityLevel m_securityLevel = SecurityLevel::Encrypted;
 

@@ -8,6 +8,10 @@
 
 #include "base/Log.h"
 #include "common/Constants.h"
+#include "common/CoreIpcPath.h"
+#include "base/Event.h"
+#include "base/IEventQueue.h"
+#include "deskflow/ipc/CoreIpc.h"
 
 #include <QLocalSocket>
 
@@ -15,7 +19,9 @@ namespace deskflow::core::ipc {
 
 static CoreIpcServer *s_instance = nullptr;
 
-CoreIpcServer::CoreIpcServer(QObject *parent) : IpcServer(parent, kCoreIpcName, QStringLiteral("core"))
+CoreIpcServer::CoreIpcServer(QObject *parent, IEventQueue *events)
+    : IpcServer(parent, coreIpcServerName(), QStringLiteral("core"), true),
+      m_events(events)
 {
   assert(s_instance == nullptr);
   s_instance = this;
@@ -35,6 +41,18 @@ void CoreIpcServer::processCommand(QLocalSocket *clientSocket, const QString &co
     writeToClientSocket(clientSocket, QStringLiteral("ok"));
     broadcastCommand(QStringLiteral("bye"));
     Q_EMIT stopProcessRequested();
+    return;
+  }
+  if (command == QStringLiteral("fileTransfer")) {
+    if (parts.size() != 2 || parts.at(1).size() > 48 * 1024 || m_events == nullptr) {
+      writeToClientSocket(clientSocket, QStringLiteral("error=invalid file-transfer command"));
+      return;
+    }
+    m_events->addEvent(Event(
+        EventTypes::CoreIpcCommand, m_events->getSystemTarget(),
+        new CoreIpcCommand(command, parts.at(1))
+    ));
+    writeToClientSocket(clientSocket, QStringLiteral("ok"));
     return;
   }
   LOG_WARN("core ipc server got unknown command: %s", command.toUtf8().constData());

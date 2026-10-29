@@ -18,6 +18,7 @@
 #include "deskflow/Computer.h"
 #include "deskflow/DisplayException.h"
 #include "deskflow/ProtocolTypes.h"
+#include "deskflow/FileTransferProtocol.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "net/SocketException.h"
 #include "net/SocketMultiplexer.h"
@@ -59,6 +60,21 @@ ServerApp::ServerApp(IEventQueue *events, const QString &processName) : App(even
 {
   m_name = Settings::value(Settings::Core::ComputerName).toString().toStdString();
   // do nothing
+}
+
+void ServerApp::handleCoreIpcCommand(const QString &command, const QString &payload)
+{
+  if (command != QStringLiteral("fileTransfer") || m_server == nullptr) {
+    return;
+  }
+  QJsonObject message;
+  if (!FileTransferProtocol::decodeMessage(payload, message)) {
+    return;
+  }
+  const auto peer = message.value(QStringLiteral("peer")).toString();
+  if (!peer.isEmpty()) {
+    m_server->handleFileTransferMessage(peer, payload);
+  }
 }
 
 void ServerApp::parseArgs()

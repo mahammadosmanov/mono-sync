@@ -57,6 +57,11 @@ public:
   virtual void parseArgs() = 0;
   virtual void loadConfig() = 0;
   virtual bool loadConfig(const QString &filename) = 0;
+  virtual void handleCoreIpcCommand(const QString &command, const QString &payload)
+  {
+    Q_UNUSED(command)
+    Q_UNUSED(payload)
+  }
 
   void setByeFunc(void (*bye)(int)) override
   {

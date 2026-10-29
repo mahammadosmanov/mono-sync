@@ -12,6 +12,7 @@
 #include <QSet>
 
 class QLocalSocket;
+class IEventQueue;
 
 namespace deskflow::core::ipc {
 
@@ -20,12 +21,14 @@ class CoreIpcServer : public IpcServer
   Q_OBJECT
 
 public:
-  explicit CoreIpcServer(QObject *parent);
+  explicit CoreIpcServer(QObject *parent, IEventQueue *events);
 
   static CoreIpcServer &instance();
 
 private:
   void processCommand(QLocalSocket *clientSocket, const QString &command, const QStringList &parts) override;
+
+  IEventQueue *m_events = nullptr;
 };
 
 } // namespace deskflow::core::ipc

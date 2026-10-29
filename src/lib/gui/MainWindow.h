@@ -10,12 +10,15 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QCryptographicHash>
+#include <QHash>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSystemTrayIcon>
 #include <QUrl>
 
 #include "VersionChecker.h"
+#include "deskflow/FileTransferReceiver.h"
 #include "config/ServerConfig.h"
 #include "gui/core/CoreProcess.h"
 #include "gui/core/NetworkMonitor.h"
@@ -28,6 +31,9 @@
 class QAction;
 class QMenu;
 class QLocalServer;
+class QFile;
+class QProgressDialog;
+class QTimer;
 
 class DeskflowApplication;
 class LogDock;
@@ -144,6 +150,11 @@ private:
   void updateTimeoutDelay(int newDelay);
   void setHelpFilePath();
   void showHelpViewer() const;
+  void sendFile();
+  void hashOutgoingFileStep();
+  void sendOutgoingChunk();
+  void handleFileTransferMessage(const QString &encodedMessage);
+  void clearFileTransfer(const QString &message = QString());
 
   bool canRunCore() const;
 
@@ -202,10 +213,24 @@ private:
   QAction *m_actionRestartCore = nullptr;
   QAction *m_actionStopCore = nullptr;
   QAction *m_actionShowHelp = nullptr;
+  QAction *m_actionSendFile = nullptr;
 
   // Network monitoring
   NetworkMonitor *m_networkMonitor = nullptr;
   QString m_currentIpAddress;
+
+  QHash<QString, bool> m_fileTransferPeers;
+  std::unique_ptr<FileTransferReceiver> m_fileReceiver;
+  std::unique_ptr<QFile> m_outgoingFile;
+  QProgressDialog *m_fileTransferProgress = nullptr;
+  QTimer *m_fileTransferTimer = nullptr;
+  QCryptographicHash m_outgoingHash{QCryptographicHash::Sha256};
+  QString m_outgoingTransferId;
+  QString m_outgoingPeer;
+  QString m_outgoingFileName;
+  quint64 m_outgoingSize = 0;
+  quint64 m_hashedBytes = 0;
+  bool m_hashingOutgoingFile = false;
 
   // Server IP strategy optimization
   QStringList m_serverStartIPs;

@@ -14,6 +14,15 @@
 
 namespace deskflow::gui::ipc {
 
+namespace {
+
+bool isSensitiveMessage(const QString &message)
+{
+  return message.startsWith(QStringLiteral("fileTransfer="));
+}
+
+} // namespace
+
 IpcClient::IpcClient(QObject *parent, const QString &socketName, const QString &typeName)
     : QObject(parent),
       m_socket{new QLocalSocket(this)},
@@ -44,6 +53,7 @@ void IpcClient::connectToServer()
   }
 
   m_retryCount = 0;
+  m_serverPeerVerified = false;
   attemptConnection();
 }
 
@@ -139,10 +149,14 @@ void IpcClient::handleReadyRead()
     const auto message = QString::fromUtf8(data.left(index));
     data.remove(0, index + 1);
 
-    qDebug().noquote() << QStringLiteral("%1 ipc client message: %2").arg(m_typeName, message);
+    if (isSensitiveMessage(message)) {
+      qDebug().noquote() << QStringLiteral("%1 ipc client received file-transfer command").arg(m_typeName);
+    } else {
+      qDebug().noquote() << QStringLiteral("%1 ipc client message: %2").arg(m_typeName, message);
+    }
     const auto parts = message.split('=');
     if (parts.isEmpty()) {
-      qWarning().noquote() << QStringLiteral("%1 ipc client got invalid message: %2").arg(m_typeName, message);
+      qWarning().noquote() << QStringLiteral("%1 ipc client got invalid message").arg(m_typeName);
       continue;
     }
 
@@ -168,6 +182,7 @@ void IpcClient::handleReadyRead()
 
 void IpcClient::handleHandshakeMessage(const QStringList &parts)
 {
+  m_serverPeerVerified = verifyServerPeer();
   if (parts.at(0) == QStringLiteral("error")) {
     const auto detail = parts.size() >= 2 ? parts.at(1) : QStringLiteral("unknown");
     qCritical().noquote() << QStringLiteral("%1 ipc server rejected connection: %2").arg(m_typeName, detail);
@@ -211,7 +226,11 @@ void IpcClient::sendMessage(const QString &message)
   }
 
   m_socket->write(message.toUtf8() + "\n");
-  qDebug().noquote() << QStringLiteral("%1 ipc client sent message: %2").arg(m_typeName, message);
+  if (isSensitiveMessage(message)) {
+    qDebug().noquote() << QStringLiteral("%1 ipc client sent file-transfer command").arg(m_typeName);
+  } else {
+    qDebug().noquote() << QStringLiteral("%1 ipc client sent message: %2").arg(m_typeName, message);
+  }
 }
 
 } // namespace deskflow::gui::ipc

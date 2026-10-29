@@ -50,6 +50,8 @@ public:
   void onInfoChanged();
   bool onGrabClipboard(ClipboardID);
   void onClipboardChanged(ClipboardID, const IClipboard *);
+  virtual void connectionReady() {}
+  virtual bool handleFileTransferMessage(const QString &) { return false; }
 
   //@}
 

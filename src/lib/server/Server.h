@@ -197,6 +197,7 @@ public:
   Set the \c list to the names of the currently connected clients.
   */
   void getClients(std::vector<std::string> &list) const;
+  bool handleFileTransferMessage(const QString &peer, const QString &message);
   void sendConnectedClientsIpc() const;
   size_t getMaximumClipboardSizeBytes() const;
 

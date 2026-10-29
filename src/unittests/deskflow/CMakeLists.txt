@@ -22,6 +22,30 @@ create_test(
 )
 
 create_test(
+  NAME FileTransferReceiverTests
+  DEPENDS app
+  LIBS arch base io
+  SOURCE FileTransferReceiverTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
+)
+
+create_test(
+  NAME ProtocolBoundedStringTests
+  DEPENDS app
+  LIBS arch base io
+  SOURCE ProtocolBoundedStringTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
+)
+
+create_test(
+  NAME FileTransferProtocolTests
+  DEPENDS app
+  LIBS arch base io
+  SOURCE FileTransferProtocolTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
+)
+
+create_test(
   NAME IKeyStateTests
   DEPENDS app
   LIBS arch base ${extra_libs}
