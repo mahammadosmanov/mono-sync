@@ -67,7 +67,13 @@ void SettingsTests::checkValidSettings()
     Settings::setValue(setting, "NEW_VALUE");
     QCOMPARE(spy.count(), 1);
     QCOMPARE(qvariant_cast<QString>(spy.first().at(0)), setting);
-    QCOMPARE(Settings::value(setting).toString(), "NEW_VALUE");
+    auto expectedAfterWrite = QStringLiteral("NEW_VALUE");
+#ifdef Q_OS_WIN
+    if (setting == Settings::Core::ProcessMode || setting == Settings::Daemon::Elevate ||
+        setting == Settings::Gui::AutoUpdateCheck)
+      expectedAfterWrite = Settings::defaultValue(setting).toString();
+#endif
+    QCOMPARE(Settings::value(setting).toString(), expectedAfterWrite);
 
     Settings::setValue(setting);
     QCOMPARE(spy.count(), 2);
@@ -123,6 +129,7 @@ void SettingsTests::windowsModeIgnoresPrivilegedSettings()
       Settings::defaultValue(Settings::Core::ProcessMode).value<Settings::ProcessMode>(), Settings::ProcessMode::Desktop
   );
   QVERIFY(!Settings::defaultValue(Settings::Daemon::Elevate).toBool());
+  QVERIFY(!Settings::defaultValue(Settings::Gui::AutoUpdateCheck).toBool());
 
   Settings::setValue(Settings::Core::ProcessMode, Settings::ProcessMode::Service);
   Settings::setValue(Settings::Daemon::Elevate, true);

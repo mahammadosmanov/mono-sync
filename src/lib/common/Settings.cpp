@@ -316,6 +316,9 @@ QVariant Settings::defaultValue(const QString &key)
 
   if (key == Core::ProcessMode)
     return ProcessMode::Desktop;
+
+  if (key == Gui::AutoUpdateCheck)
+    return false;
 #endif
 
   if (key.startsWith(QStringLiteral("computer_"))) {
