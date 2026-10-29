@@ -365,7 +365,6 @@ void SettingsDialog::updateKeyLengthOnFile(const QString &path)
 void SettingsDialog::updateControls()
 {
   const bool writable = Settings::isWritable();
-  const bool serviceChecked = ui->groupService->isChecked();
   const bool logToFile = ui->groupLogToFile->isChecked();
 
   ui->sbPort->setEnabled(writable);
@@ -380,7 +379,19 @@ void SettingsDialog::updateControls()
   ui->rbAutoHide->setEnabled(writable);
   ui->rbShowOnStart->setEnabled(writable);
   ui->btnClearAllSettings->setEnabled(writable);
-  ui->cbAutoUpdate->setEnabled(writable);
+#ifdef Q_OS_WIN
+  ui->cbAutoUpdate->setEnabled(false);
+  ui->cbAutoUpdate->setToolTip(tr("Windows packages are updated manually with the standard-user portable ZIP."));
+#else
+  if (Settings::isPortableMode()) {
+    ui->cbAutoUpdate->setEnabled(false);
+    ui->cbAutoUpdate->setToolTip(
+        tr("Portable packages do not install updates. Replace this folder with a newer portable ZIP.")
+    );
+  } else {
+    ui->cbAutoUpdate->setEnabled(writable);
+  }
+#endif
   ui->cbPreventSleep->setEnabled(writable);
   ui->lineTlsCertPath->setEnabled(writable);
   ui->comboTlsKeyLength->setEnabled(writable);
@@ -391,14 +402,7 @@ void SettingsDialog::updateControls()
   ui->lineCommandEnter->setEnabled(writable && ui->cbRunEnterCommand->isChecked());
   ui->lineCommandExit->setEnabled(writable && ui->cbRunExitCommand->isChecked());
 
-  // Portable mode only ever applies to Windows.
-  // Daemon options should only be available on Windows when *not* in portable mode.
-  if (!Settings::isPortableMode()) {
-    ui->groupService->setEnabled(writable);
-    ui->cbElevateDaemon->setEnabled(writable && serviceChecked);
-  } else if (ui->groupService->isVisibleTo(ui->tabAdvanced)) {
-    ui->groupService->setVisible(false);
-  }
+  ui->groupService->setVisible(false);
 
   ui->widgetLogFilename->setEnabled(writable && logToFile);
 

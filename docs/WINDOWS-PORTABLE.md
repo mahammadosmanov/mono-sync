@@ -9,6 +9,10 @@ portable ZIP inside those older artifacts.
 2. Open the extracted `deskflow-1.27.0-monosync-win-x64-portable` folder and run `deskflow.exe`.
 3. Keep the folder in place. Deskflow stores its settings, screen layout, and TLS data in its `settings` folder.
 
-This package includes the runtime DLLs and runs as the current user. It does not install the Windows service or add firewall rules. It cannot control UAC prompts or the Windows login screen. If Windows Firewall or an organization policy blocks the private-network connection, an administrator may need to approve a firewall rule. Do not expose Deskflow's port to the public internet.
+Windows builds always run the core in the current user's desktop session. The GUI does not start the background service, request elevation, install startup registry entries, or change firewall rules. Settings and TLS data use the extracted `settings` folder when it exists, or the current user's roaming profile if it does not. Removing the portable marker does not enable service mode or switch to machine-wide settings.
+
+Updates are manual: download a newer portable ZIP, close Deskflow, extract it into a user-writable folder, and use that folder. The updater setting is disabled in Windows builds so the application does not direct users to an administrator-required installer.
+
+Windows or organization firewall policy may still block private-network connections. Deskflow does not change that policy; an administrator may need to approve a firewall rule. Do not expose Deskflow's port to the public internet. Standard-user mode also cannot control UAC secure desktop or the Windows login screen.
 
 The Windows MSI is retained for administrator-managed deployments. It installs a service and firewall exceptions and can prompt for administrator approval, so it is not the standard-user package.

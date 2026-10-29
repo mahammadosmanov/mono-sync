@@ -77,7 +77,11 @@ void DaemonApp::applyWatchdogCommand() const
 
   QSettings config(m_configFile, QSettings::IniFormat);
   const auto coreMode = config.value(Settings::Core::CoreMode).toInt();
+#if defined(Q_OS_WIN)
+  const auto elevate = false;
+#else
   const auto elevate = config.value(Settings::Daemon::Elevate, !Settings::isPortableMode()).toBool();
+#endif
 
   QString modeArg;
   if (coreMode == Settings::CoreMode::Server) {

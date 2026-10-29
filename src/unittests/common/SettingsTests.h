@@ -25,19 +25,14 @@ private Q_SLOTS:
   void checkCleanComputerName();
   void checkCleanComputerName_LongName();
   void checkClearState();
+  void windowsModeIgnoresPrivilegedSettings();
 
 private:
   inline static const QString m_settingsPathTemp = QStringLiteral("tmp/test");
   inline static const QString m_settingsFile = QStringLiteral("%1/Deskflow.conf").arg(m_settingsPathTemp);
   inline static const QString m_stateFile = QStringLiteral("%1/Deskflow.state").arg(m_settingsPathTemp);
 
-// Gotcha: On Windows non-portable mode, additional config files such as TLS config are saved
-// in 'Program Data' and are not stored in the same place as the settings file.
-#ifdef Q_OS_WIN
-  inline static const QString m_settingsPath = Settings::SystemDir;
-#else
   inline static const QString m_settingsPath = m_settingsPathTemp;
-#endif
 
   inline static const QString m_expectedTlsDir = QStringLiteral("%1/tls").arg(m_settingsPath);
   inline static const QString m_expectedTlsServerDB = QStringLiteral("%1/trusted-servers").arg(m_expectedTlsDir);

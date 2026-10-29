@@ -389,7 +389,15 @@ void CoreProcess::start(std::optional<ProcessMode> processModeOption)
   QMutexLocker locker(&m_processMutex);
 
   const auto currentMode = Settings::value(Settings::Core::ProcessMode).value<ProcessMode>();
+#ifdef Q_OS_WIN
+  auto processMode = processModeOption.value_or(currentMode);
+  if (processMode == ProcessMode::Service) {
+    qWarning("Windows standard-user mode cannot use the background service; starting the core in desktop mode");
+    processMode = ProcessMode::Desktop;
+  }
+#else
   const auto processMode = processModeOption.value_or(currentMode);
+#endif
   const auto coreMode = QVariant::fromValue(m_mode).toString().toLower();
 
   qInfo().noquote() << QString("starting %1 process (%2 mode)").arg(coreMode, processModeToString(processMode));
@@ -503,7 +511,13 @@ void CoreProcess::stop(std::optional<ProcessMode> processModeOption)
   QMutexLocker locker(&m_processMutex);
 
   const auto currentMode = Settings::value(Settings::Core::ProcessMode).value<ProcessMode>();
+#ifdef Q_OS_WIN
+  auto processMode = processModeOption.value_or(currentMode);
+  if (processMode == ProcessMode::Service)
+    processMode = ProcessMode::Desktop;
+#else
   const auto processMode = processModeOption.value_or(currentMode);
+#endif
 
   qInfo("stopping core process (%s mode)", qPrintable(processModeToString(processMode)));
 

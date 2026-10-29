@@ -75,16 +75,18 @@ Settings::Settings(QObject *parent) : QObject(parent), m_settingsWatcher{new QFi
   qDebug().noquote() << "checking for portable settings file at:" << portableFile;
   if (QFile(portableFile).exists())
     fileToLoad = portableFile;
+  else
+    fileToLoad = UserSettingFile;
 #else
   if (const auto xdgConfigHome = qEnvironmentVariable("XDG_CONFIG_HOME"); !xdgConfigHome.isEmpty())
     fileToLoad = QStringLiteral("%1/%2/%2.conf").arg(xdgConfigHome, kAppName);
-#endif
   else if (QFile(UserSettingFile).exists())
     fileToLoad = UserSettingFile;
   else if (QFile(SystemSettingFile).exists())
     fileToLoad = SystemSettingFile;
   else
     fileToLoad = UserSettingFile;
+#endif
 
   m_settings = new QSettings(fileToLoad, QSettings::IniFormat, this);
   m_settingsWritable = m_settings->isWritable();
@@ -308,6 +310,14 @@ void Settings::checkIfSettingsWritableChange()
 
 QVariant Settings::defaultValue(const QString &key)
 {
+#ifdef Q_OS_WIN
+  if (key == Daemon::Elevate)
+    return false;
+
+  if (key == Core::ProcessMode)
+    return ProcessMode::Desktop;
+#endif
+
   if (key.startsWith(QStringLiteral("computer_"))) {
     const auto computerKey = key.mid(key.indexOf('/') + 1);
     return computerDefaults(computerKey);
@@ -433,11 +443,6 @@ QString Settings::settingsFile()
 
 QString Settings::settingsPath()
 {
-#ifdef Q_OS_WIN
-  if (!isPortableMode())
-    return SystemDir;
-#endif
-
   return QFileInfo(instance()->m_settings->fileName()).absolutePath();
 }
 
@@ -484,6 +489,20 @@ void Settings::setValue(const QString &key, const QVariant &value)
 
 QVariant Settings::value(const QString &key)
 {
+#ifdef Q_OS_WIN
+  if (key == Core::ProcessMode)
+    return ProcessMode::Desktop;
+  if (key == Daemon::Elevate || key == Gui::AutoUpdateCheck)
+    return false;
+#else
+  if (Settings::isPortableMode()) {
+    if (key == Core::ProcessMode)
+      return ProcessMode::Desktop;
+    if (key == Daemon::Elevate || key == Gui::AutoUpdateCheck)
+      return false;
+  }
+#endif
+
   const bool useState = Settings::m_stateKeys.contains(key) && !instance()->isPortableMode();
   auto settings = useState ? instance()->m_stateSettings : instance()->m_settings;
   return settings->value(key, defaultValue(key));

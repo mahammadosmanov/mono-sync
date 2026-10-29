@@ -1,7 +1,7 @@
 # Current project state
 
 Updated: 2026-10-29
-Stage: Windows portable package prepared; awaiting Windows/Mac physical input acceptance
+Stage: Windows standard-user hardening in progress; physical input acceptance remains pending
 Profile: P2 (cross-device keyboard and mouse sharing)
 
 ## Goal
@@ -29,6 +29,7 @@ Replace the custom Mono Sync keyboard/mouse engine with the real Deskflow applic
 - A concise handoff is at `/Users/rohtolos/Documents/MonoSync-Deskflow-deliverables/Windows/START-HERE.txt`; repo instructions are in `docs/WINDOWS-PORTABLE.md`. Windows network/firewall policy may still require administrator approval.
 - GitHub run: `https://github.com/mahammadosmanov/mono-sync/actions/runs/40731756390`, source revision `485092eaf2a708391425f63fe6cd5b94aeb11e97`. Windows artifact ID `12834854969`; macOS artifact ID `12833919872`; neither was expired at last check. The original Windows CI artifact wraps both the MSI and portable ZIP; the standalone portable deliverable above avoids that ambiguity. Windows archive SHA-256 is `7804532b60db60e47038145d65f4d4e2828abec1a50c8e27ab6fb8ce14fa874d`; macOS archive SHA-256 is `b66afcfaf78029df735f507d63f22d4567abb33aa8e78d15d4d1f2e4b3e737d4`.
 - The workflow now uploads only the macOS DMG and the Windows `*-portable.zip` package. This workflow edit has not run in CI yet; no Windows or macOS source changed, and the portable binary is the one covered by run `40731756390`.
+- Current Windows hardening removes service/elevation/update behavior from the normal Windows app path even if a copied settings file contains stale values or the portable marker is missing. Windows settings and TLS data use the current user's profile instead of ProgramData; tests cover both marker-present and marker-absent settings. These changes are not yet compiled or tested; the Mac checkout has no configured build directory or local Qt. `actionlint`, `git diff --check`, and clang-format checks pass. Next: run the Windows CI build and unit tests, then publish the verified portable ZIP artifact on this branch.
 - Corrected macOS artifact came from the same pinned source revision. Its ARM64 app bundle reports `1.27.0.0`. The downloaded CI bundle needed deep signing with the existing Apple Development identity because nested Qt signatures had a Team ID mismatch; deep strict verification then passed. The locally installed `/Applications/Deskflow.app` passes deep strict signature verification; executable SHA-256 is `617de79427203f6e3689bde2f27287d4feb337e6af9cecfe9c87da3ddec234dc`, and `--version` reports `Deskflow: 1.27.0`.
 - Deskflow's main window was visibly confirmed in CUA. System Settings > Device Control and Data Access lists Deskflow with access `off`. The user authorized this exact permission, but macOS requires Touch ID or the account password to apply it; the OS authentication sheet is open for the user. Client mode is selected; the server address is blank and Connect remains disabled. No sharing session or peer trust was configured. Previous Mono Sync app copies were moved recoverably to `~/.Trash`; configuration remains preserved.
 
@@ -38,4 +39,4 @@ On the actual Windows host and Mac client, verify 15-minute stability and 50+ ed
 
 ## Next
 
-Extract and run the portable ZIP on Windows as a standard user, then complete the manual acceptance gate on the actual Windows host and Mac client. The portable package itself does not request elevation, but Windows firewall policy and macOS input-control authorization remain OS-level gates. Cross-device input behavior remains untested; do not start file-transfer work until the user accepts that input gate.
+Run the Windows CI build and tests for the standard-user hardening. Then extract and run the portable ZIP on Windows as a standard user and complete the manual acceptance gate on the actual Windows host and Mac client. Deskflow does not change Windows firewall policy; organization rules may still require an administrator. macOS input-control authorization remains an OS-level gate. Cross-device input behavior remains untested; do not start file-transfer work until the user accepts that input gate.
