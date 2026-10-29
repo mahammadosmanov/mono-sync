@@ -21,6 +21,8 @@ class OutgoingFileWorkerTests : public QObject
 private Q_SLOTS:
   void senderAndReceiverWorkersRoundTrip_data();
   void senderAndReceiverWorkersRoundTrip();
+  void sourceMutationBetweenOfferAndChunkIsRejected_data();
+  void sourceMutationBetweenOfferAndChunkIsRejected();
 };
 
 void OutgoingFileWorkerTests::senderAndReceiverWorkersRoundTrip_data()
@@ -131,6 +133,75 @@ void OutgoingFileWorkerTests::senderAndReceiverWorkersRoundTrip()
   QFile received(temporary.filePath(QStringLiteral("received/source.bin")));
   QVERIFY(received.open(QIODevice::ReadOnly));
   QCOMPARE(received.readAll(), content);
+}
+
+void OutgoingFileWorkerTests::sourceMutationBetweenOfferAndChunkIsRejected_data()
+{
+  QTest::addColumn<bool>("grow");
+  QTest::newRow("growth") << true;
+  QTest::newRow("shrink") << false;
+}
+
+void OutgoingFileWorkerTests::sourceMutationBetweenOfferAndChunkIsRejected()
+{
+  QFETCH(bool, grow);
+  QTemporaryDir temporary;
+  QVERIFY(temporary.isValid());
+  const QString sourcePath = temporary.filePath(QStringLiteral("source.bin"));
+  QFile source(sourcePath);
+  QVERIFY(source.open(QIODevice::WriteOnly));
+  QCOMPARE(source.write("data"), 4);
+  source.close();
+
+  QThread thread;
+  struct ThreadGuard
+  {
+    QThread &thread;
+    ~ThreadGuard()
+    {
+      thread.quit();
+      thread.wait();
+    }
+  } threadGuard{thread};
+  Q_UNUSED(threadGuard);
+  auto *worker = new OutgoingFileWorker;
+  worker->moveToThread(&thread);
+  connect(&thread, &QThread::finished, worker, &QObject::deleteLater);
+
+  bool failed = false;
+  bool chunkSent = false;
+  QString error;
+  connect(worker, &OutgoingFileWorker::prepared, this,
+          [worker, sourcePath, grow](const QString &, quint64, const QByteArray &) {
+            QFile mutated(sourcePath);
+            if (!mutated.open(QIODevice::WriteOnly | (grow ? QIODevice::Append : QIODevice::Truncate))) {
+              return;
+            }
+            if (grow) {
+              mutated.write("more");
+            }
+            mutated.close();
+            QMetaObject::invokeMethod(worker, [worker] { worker->readNextChunk(); }, Qt::QueuedConnection);
+          });
+  connect(worker, &OutgoingFileWorker::chunkReady, this,
+          [&chunkSent](const QByteArray &, quint64) { chunkSent = true; });
+  connect(worker, &OutgoingFileWorker::failed, this, [&failed, &error](const QString &message) {
+    failed = true;
+    error = message;
+  });
+
+  thread.start();
+  QMetaObject::invokeMethod(worker, [worker, sourcePath] { worker->prepare(sourcePath); }, Qt::QueuedConnection);
+  QElapsedTimer deadline;
+  deadline.start();
+  while (!failed && !chunkSent && deadline.elapsed() < 10000) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    QTest::qWait(5);
+  }
+  thread.quit();
+  QVERIFY(thread.wait(10000));
+  QVERIFY2(failed, "mutated source file was not rejected");
+  QVERIFY2(!chunkSent, qPrintable(error));
 }
 
 QTEST_GUILESS_MAIN(OutgoingFileWorkerTests)

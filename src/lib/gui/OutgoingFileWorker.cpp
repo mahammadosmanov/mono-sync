@@ -12,6 +12,8 @@
 #include <QFileInfo>
 #include <QThread>
 
+#include <algorithm>
+
 OutgoingFileWorker::OutgoingFileWorker(QObject *parent) : QObject(parent), m_file(this)
 {
 }
@@ -53,8 +55,13 @@ void OutgoingFileWorker::prepare(const QString &path)
       }
       break;
     }
+    const auto blockSize = static_cast<quint64>(block.size());
+    if (processed > m_size || blockSize > m_size - processed) {
+      Q_EMIT failed(QStringLiteral("The selected file changed while it was being prepared."));
+      return;
+    }
     hash.addData(block);
-    processed += static_cast<quint64>(block.size());
+    processed += blockSize;
     if (processed - reported >= kProgressInterval || processed == m_size) {
       Q_EMIT hashingProgress(processed, m_size);
       reported = processed;
@@ -63,7 +70,7 @@ void OutgoingFileWorker::prepare(const QString &path)
   if (m_cancelled.load(std::memory_order_acquire)) {
     return;
   }
-  if (processed != m_size || !m_file.seek(0)) {
+  if (processed != m_size || m_file.size() != static_cast<qint64>(m_size) || !m_file.seek(0)) {
     Q_EMIT failed(QStringLiteral("The selected file changed while it was being prepared."));
     return;
   }
@@ -76,9 +83,21 @@ void OutgoingFileWorker::readNextChunk()
   if (m_cancelled.load(std::memory_order_acquire)) {
     return;
   }
-  const QByteArray chunk = m_file.read(FileTransferReceiver::kMaximumChunkSize);
+  const auto position = static_cast<quint64>(m_file.pos());
+  if (position >= m_size || m_file.size() != static_cast<qint64>(m_size)) {
+    Q_EMIT failed(QStringLiteral("The selected file changed during transfer."));
+    return;
+  }
+  const auto remaining = m_size - position;
+  const auto requested = static_cast<qint64>(std::min<quint64>(remaining, FileTransferReceiver::kMaximumChunkSize));
+  const QByteArray chunk = m_file.read(requested);
   if (chunk.isEmpty()) {
     Q_EMIT failed(QStringLiteral("The selected file changed or could not be read during transfer."));
+    return;
+  }
+  if (static_cast<quint64>(chunk.size()) > remaining ||
+      m_file.size() != static_cast<qint64>(m_size)) {
+    Q_EMIT failed(QStringLiteral("The selected file changed during transfer."));
     return;
   }
   Q_EMIT chunkReady(chunk, static_cast<quint64>(m_file.pos()));

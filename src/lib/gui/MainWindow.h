@@ -152,6 +152,7 @@ private:
   void sendFile();
   void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
   void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
+  void clearFileTransferAvailability(const QString &message);
   void receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error);
   void receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes, quint64 received,
                                quint64 total, const QString &error);
@@ -227,6 +228,7 @@ private:
   OutgoingFileWorker *m_fileWorker = nullptr;
   QProgressDialog *m_fileTransferProgress = nullptr;
   bool m_receivingFile = false;
+  bool m_closeAfterFileWorkerStops = false;
   QString m_outgoingTransferId;
   QString m_outgoingPeer;
   QString m_outgoingFileName;

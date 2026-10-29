@@ -482,11 +482,17 @@ void CoreProcess::start(std::optional<ProcessMode> processModeOption)
           connect(m_coreIpcClient, &ipc::CoreIpcClient::connected, this, [] {
             qDebug("connected to core ipc server");
           });
-          connect(m_coreIpcClient, &ipc::CoreIpcClient::connectionFailed, this, [] {
+          connect(m_coreIpcClient, &ipc::CoreIpcClient::connectionFailed, this, [this, client = m_coreIpcClient] {
             qWarning("failed to establish core ipc connection");
+            if (m_coreIpcClient == client) {
+              Q_EMIT fileTransferIpcUnavailable();
+            }
           });
           connect(m_coreIpcClient, &ipc::CoreIpcClient::serverShutdown, this, [this, client = m_coreIpcClient] {
             qDebug("core ipc server shut down cleanly");
+            if (m_coreIpcClient == client) {
+              Q_EMIT fileTransferIpcUnavailable();
+            }
             client->deleteLater();
             if (m_coreIpcClient == client)
               m_coreIpcClient = nullptr;

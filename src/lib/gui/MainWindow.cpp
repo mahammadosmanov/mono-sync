@@ -298,6 +298,8 @@ void MainWindow::connectSlots()
   connect(m_actionShowHelp, &QAction::triggered, this, &MainWindow::showHelpViewer);
   connect(m_actionSendFile, &QAction::triggered, this, &MainWindow::sendFile);
   connect(&m_coreProcess, &CoreProcess::fileTransferMessageReceived, this, &MainWindow::handleFileTransferMessage);
+  connect(&m_coreProcess, &CoreProcess::fileTransferIpcUnavailable, this,
+          [this] { clearFileTransferAvailability(tr("The local core connection closed.")); });
 
   // Mac os tray will only show a menu
   if (!deskflow::platform::isMac())
@@ -937,10 +939,25 @@ bool MainWindow::maybeHideToTray()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-  if (event->spontaneous() && maybeHideToTray()) {
+  if (!m_closeAfterFileWorkerStops && event->spontaneous() && maybeHideToTray()) {
     event->ignore();
     return;
   }
+
+  if (m_fileWorkerThread != nullptr && m_fileWorkerThread->isRunning()) {
+    m_closeAfterFileWorkerStops = true;
+    if (!m_outgoingTransferId.isEmpty()) {
+      const QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
+                               {QStringLiteral("id"), m_outgoingTransferId},
+                               {QStringLiteral("peer"), m_outgoingPeer}};
+      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
+    }
+    clearFileTransfer();
+    statusBar()->showMessage(tr("Stopping file operation before quitting…"));
+    event->ignore();
+    return;
+  }
+  m_closeAfterFileWorkerStops = false;
 
   if (m_saveOnExit) {
     Settings::setValue(Settings::Gui::WindowGeometry, geometry());
@@ -1028,11 +1045,18 @@ void MainWindow::coreConnectionStateChanged(ConnectionState state)
   // when the correct TLS version string is detected.
   if (state != ConnectionState::Connected) {
     secureSocket(false);
-    if (m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
-      clearFileTransfer(tr("File transfer stopped because the peer disconnected."));
-    }
+    clearFileTransferAvailability(tr("File transfer stopped because the peer disconnected."));
   } else if (isVisible()) {
     showFirstConnectedMessage();
+  }
+}
+
+void MainWindow::clearFileTransferAvailability(const QString &message)
+{
+  m_fileTransferPeers.clear();
+  m_actionSendFile->setEnabled(false);
+  if (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
+    clearFileTransfer(message);
   }
 }
 
@@ -1396,6 +1420,12 @@ void MainWindow::startFileWorker()
           });
   connect(worker, &OutgoingFileWorker::failed, this, [this, worker](const QString &error) {
     if (m_fileWorker == worker) {
+      if (!m_outgoingTransferId.isEmpty()) {
+        const QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
+                                 {QStringLiteral("id"), m_outgoingTransferId},
+                                 {QStringLiteral("peer"), m_outgoingPeer}};
+        m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
+      }
       clearFileTransfer(error);
     }
   });
@@ -1406,16 +1436,26 @@ void MainWindow::startFileWorker()
       m_fileWorkerThread = nullptr;
     }
     thread->deleteLater();
+    if (m_closeAfterFileWorkerStops) {
+      close();
+    }
   });
   m_fileWorkerThread->start();
 }
 
 void MainWindow::sendFile()
 {
+  if (m_closeAfterFileWorkerStops) {
+    return;
+  }
   if (m_fileWorkerThread != nullptr) {
     statusBar()->showMessage(tr("Wait for the previous file operation to stop."), 8000);
     return;
   }
+  const auto peerIsReady = [this](const QString &candidate) {
+    return m_fileWorkerThread == nullptr && m_fileWorker == nullptr && m_outgoingTransferId.isEmpty() &&
+           m_fileTransferPeers.value(candidate, false);
+  };
   QStringList peers;
   for (auto iterator = m_fileTransferPeers.cbegin(); iterator != m_fileTransferPeers.cend(); ++iterator) {
     if (iterator.value()) {
@@ -1434,9 +1474,20 @@ void MainWindow::sendFile()
     if (!accepted || peer.isEmpty()) {
       return;
     }
+    if (!peerIsReady(peer)) {
+      statusBar()->showMessage(tr("The selected peer disconnected. Choose a connected peer and try again."), 8000);
+      return;
+    }
+  } else if (!peerIsReady(peer)) {
+    statusBar()->showMessage(tr("The selected peer disconnected. Try again when it reconnects."), 8000);
+    return;
   }
 
   const QString path = QFileDialog::getOpenFileName(this, tr("Choose a file to send"));
+  if (!path.isEmpty() && !peerIsReady(peer)) {
+    statusBar()->showMessage(tr("The selected peer disconnected. Try again when it reconnects."), 8000);
+    return;
+  }
   if (path.isEmpty()) {
     return;
   }
@@ -1509,14 +1560,20 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   const QString peer = message.value(QStringLiteral("peer")).toString();
   const QString id = message.value(QStringLiteral("id")).toString();
   if (action == QStringLiteral("availability")) {
-    m_fileTransferPeers.insert(peer, message.value(QStringLiteral("available")).toBool());
+    const bool available = message.value(QStringLiteral("available")).toBool();
+    m_fileTransferPeers.insert(peer, available);
+    if (!available && peer == m_outgoingPeer &&
+        (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty())) {
+      clearFileTransfer(tr("File transfer stopped because the peer disconnected."));
+    }
     const bool anyAvailable = std::any_of(m_fileTransferPeers.cbegin(), m_fileTransferPeers.cend(),
                                           [](bool available) { return available; });
     m_actionSendFile->setEnabled(anyAvailable);
     return;
   }
   if (action == QStringLiteral("offer")) {
-    if (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
+    if (m_closeAfterFileWorkerStops || m_fileWorkerThread != nullptr || m_fileWorker != nullptr ||
+        !m_outgoingTransferId.isEmpty()) {
       QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
                          {QStringLiteral("peer"), peer},
                          {QStringLiteral("id"), id}};

@@ -96,6 +96,7 @@ Q_SIGNALS:
   void peerFingerprint(const QString &fingerprint);
   void missingKeyboardLayouts(const QString &layouts);
   void fileTransferMessageReceived(const QString &encodedMessage);
+  void fileTransferIpcUnavailable();
 
 private Q_SLOTS:
   void onProcessFinished(int exitCode, QProcess::ExitStatus);
