@@ -22,7 +22,7 @@ path = [
  , "deploy/linux/dev.monosync.app.metainfo.xml"
  , "deploy/windows/wix-patch.xml.in"
  , "src/apps/deskflow-client/deskflow-client.exe.manifest"
- , "src/apps/deskflow-core/deskflow-core.exe.manifest"
+ , "src/apps/deskflow-core/mono-sync-core.exe.manifest"
  , "src/apps/deskflow-server/deskflow-server.exe.manifest"
  , "src/apps/res/manpage.txt"
  , "src/apps/res/deskflow.plist.in"

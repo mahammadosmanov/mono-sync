@@ -14,7 +14,29 @@ $profileFile = Join-Path $profileDir 'Mono Sync.conf'
 $profileSentinel = Join-Path $profileDir "MonoSync-Setup-Smoke-$([guid]::NewGuid()).txt"
 $customFile = Join-Path $installDir 'user-owned-smoke-test.txt'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Mono Sync'
+$userShortcut = Join-Path $startMenu 'user-owned-smoke-test.lnk'
+$deskflowStartMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Deskflow'
 $uninstallKey = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync'
+$legacyInstallFiles = @(
+  'deskflow.exe',
+  'deskflow-core.exe',
+  'deskflow-daemon.exe',
+  'deskflow-client.exe',
+  'deskflow-server.exe',
+  'translations\deskflow_en.qm',
+  'translations\deskflow_es.qm',
+  'translations\deskflow_it.qm',
+  'translations\deskflow_ja.qm',
+  'translations\deskflow_ko.qm',
+  'translations\deskflow_ru.qm',
+  'translations\deskflow_zh_CN.qm'
+) | ForEach-Object { Join-Path $installDir $_ }
+$legacyShortcuts = @(
+  (Join-Path $startMenu 'Deskflow.lnk'),
+  (Join-Path $startMenu 'Uninstall Deskflow.lnk'),
+  (Join-Path $deskflowStartMenu 'Deskflow.lnk'),
+  (Join-Path $deskflowStartMenu 'Uninstall Deskflow.lnk')
+)
 $sentinel = 'setup-smoke-test-user-profile-preserved'
 $createdProfile = -not (Test-Path -LiteralPath $profileDir)
 $createdProfileFile = -not (Test-Path -LiteralPath $profileFile)
@@ -26,11 +48,23 @@ if (Test-Path -LiteralPath $installDir) {
 if (Test-Path -LiteralPath $uninstallKey) {
   throw "Refusing to overwrite a pre-existing uninstall registration: $uninstallKey"
 }
-if (Test-Path -LiteralPath $startMenu) {
-  throw "Refusing to overwrite a pre-existing Start menu folder: $startMenu"
+if ((Test-Path -LiteralPath $startMenu) -or (Test-Path -LiteralPath $deskflowStartMenu)) {
+  throw 'Refusing to overwrite a pre-existing Start menu folder.'
 }
 
 try {
+  New-Item -ItemType Directory -Path (Join-Path $installDir 'translations') -Force | Out-Null
+  foreach ($path in $legacyInstallFiles) {
+    New-Item -ItemType File -Path $path -Force | Out-Null
+  }
+  New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
+  New-Item -ItemType Directory -Path $deskflowStartMenu -Force | Out-Null
+  foreach ($path in $legacyShortcuts) {
+    Set-Content -LiteralPath $path -Value 'legacy Deskflow shortcut' -NoNewline
+  }
+  Set-Content -LiteralPath $userShortcut -Value 'keep user shortcut' -NoNewline
+  Set-Content -LiteralPath $customFile -Value $sentinel -NoNewline
+
   New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
   if ($createdProfileFile) {
     Set-Content -LiteralPath $profileFile -Value $sentinel -NoNewline
@@ -53,7 +87,15 @@ try {
   if (-not (Test-Path -LiteralPath $uninstallKey)) {
     throw 'Setup did not create its current-user uninstall registration.'
   }
-  Set-Content -LiteralPath $customFile -Value $sentinel -NoNewline
+  foreach ($path in $legacyInstallFiles + $legacyShortcuts) {
+    if (Test-Path -LiteralPath $path) { throw "Setup left a legacy Deskflow item behind: $path" }
+  }
+  if (-not (Test-Path -LiteralPath $userShortcut)) {
+    throw 'Setup removed an unrecognized user shortcut.'
+  }
+  if ((Get-Content -LiteralPath $customFile -Raw) -ne $sentinel) {
+    throw 'Setup changed an unrecognized file in the install folder.'
+  }
 
   $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
   if ($setupProcess.ExitCode -ne 0) { throw "Setup update failed with exit code $($setupProcess.ExitCode)" }
@@ -87,7 +129,15 @@ try {
   if ((Get-Content -LiteralPath $customFile -Raw) -ne $sentinel) {
     throw 'Uninstaller removed or changed a user-owned install-folder file.'
   }
-  if (Test-Path -LiteralPath $startMenu) { throw 'Uninstaller left its Start menu folder behind.' }
+  foreach ($shortcut in @(
+    (Join-Path $startMenu 'Mono Sync.lnk'),
+    (Join-Path $startMenu 'Uninstall Mono Sync.lnk')
+  )) {
+    if (Test-Path -LiteralPath $shortcut) { throw "Uninstaller left its shortcut behind: $shortcut" }
+  }
+  if (-not (Test-Path -LiteralPath $userShortcut)) {
+    throw 'Uninstaller removed an unrecognized user shortcut.'
+  }
   if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller left its current-user registry entry.' }
   if (Test-Path -LiteralPath $profileFile) {
     if ($createdProfileFile) {
@@ -101,7 +151,7 @@ try {
   if ((Get-Content -LiteralPath $profileSentinel -Raw) -ne $sentinel) {
     throw 'Uninstaller changed or removed an unrecognized per-user profile file.'
   }
-  Write-Output 'Setup, update, and uninstall passed; existing profile, test sentinel, and unrecognized install file were preserved.'
+  Write-Output 'Setup, legacy cleanup, update, and uninstall passed; user profile and unrecognized files/shortcuts were preserved.'
 }
 finally {
   if (Test-Path -LiteralPath (Join-Path $installDir 'Uninstall Mono Sync.exe')) {
@@ -110,6 +160,9 @@ finally {
     if ($uninstallProcess.ExitCode -ne 0) {
       Write-Warning "Cleanup uninstaller exited with code $($uninstallProcess.ExitCode)."
     }
+  }
+  foreach ($path in $legacyInstallFiles + $legacyShortcuts + @($userShortcut, $customFile)) {
+    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
   }
   if ($createdProfileFile -and (Test-Path -LiteralPath $profileFile)) {
     Remove-Item -LiteralPath $profileFile -Force
@@ -125,5 +178,11 @@ finally {
   if (Test-Path -LiteralPath $installDir) {
     $remaining = @(Get-ChildItem -LiteralPath $installDir -Force)
     if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $installDir -Force }
+  }
+  foreach ($folder in @($startMenu, $deskflowStartMenu)) {
+    if (Test-Path -LiteralPath $folder) {
+      $remaining = @(Get-ChildItem -LiteralPath $folder -Force)
+      if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $folder -Force }
+    }
   }
 }

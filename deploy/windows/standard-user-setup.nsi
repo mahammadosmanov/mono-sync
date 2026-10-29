@@ -31,6 +31,41 @@ VIAddVersionKey "LegalCopyright" "Mono Sync contributors"
 Section "Install"
   SetShellVarContext current
   SetOverwrite on
+  SetOutPath "$TEMP"
+  Push "$INSTDIR\deskflow.exe"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\deskflow-core.exe"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\deskflow-daemon.exe"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\deskflow-client.exe"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\deskflow-server.exe"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_en.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_es.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_it.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_ja.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_ko.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_ru.qm"
+  Call RemoveLegacyFile
+  Push "$INSTDIR\translations\deskflow_zh_CN.qm"
+  Call RemoveLegacyFile
+  Push "$SMPROGRAMS\Mono Sync\Deskflow.lnk"
+  Call RemoveLegacyFile
+  Push "$SMPROGRAMS\Mono Sync\Uninstall Deskflow.lnk"
+  Call RemoveLegacyFile
+  Push "$SMPROGRAMS\Deskflow\Deskflow.lnk"
+  Call RemoveLegacyFile
+  Push "$SMPROGRAMS\Deskflow\Uninstall Deskflow.lnk"
+  Call RemoveLegacyFile
+  RMDir "$INSTDIR\translations"
+  RMDir "$SMPROGRAMS\Deskflow"
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD_DIR}\*.*"
   WriteUninstaller "$INSTDIR\${UNINSTALLER}"
@@ -48,6 +83,22 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 SectionEnd
+
+Function RemoveLegacyFile
+  Exch $0
+  IfFileExists "$0" remove_legacy_file
+  Goto remove_legacy_done
+remove_legacy_file:
+  ClearErrors
+  Delete "$0"
+  IfErrors remove_legacy_failed
+  Goto remove_legacy_done
+remove_legacy_failed:
+  MessageBox MB_ICONSTOP|MB_OK "Close any running Deskflow or Mono Sync windows, then run setup again. No administrator access is needed."
+  Abort
+remove_legacy_done:
+  Pop $0
+FunctionEnd
 
 Section "Uninstall"
   SetShellVarContext current

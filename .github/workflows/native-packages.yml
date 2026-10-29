@@ -142,7 +142,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: mono-sync-${{ matrix.target.name }}
+          name: mono-sync-${{ matrix.target.name }}-ad-hoc
           path: build/mono-sync-*.dmg
           if-no-files-found: error
           retention-days: 14

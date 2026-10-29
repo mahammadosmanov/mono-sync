@@ -77,6 +77,8 @@ For development codesign:
 7. Configure and build
 8. To verify, run: `codesign -d -r- build/bin/MonoSync.app`
 
+GitHub Actions does not use a developer signing identity. Its macOS artifact is ad-hoc signed for build validation, not ready to install: the app and bundled Qt frameworks do not share a signing team, so hardened-runtime library validation prevents launch. The workflow labels this artifact `ad-hoc`. Do not use `APPLE_CODESIGN_DEV` for a distributed package because it adds development entitlements.
+
 ## Build
 
 After configuring you should be able to run make to build all targets.
