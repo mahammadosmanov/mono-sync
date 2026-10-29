@@ -39,8 +39,8 @@ try {
   }
   Set-Content -LiteralPath $profileSentinel -Value $sentinel -NoNewline
 
-  & $SetupPath /S
-  if ($LASTEXITCODE -ne 0) { throw "Setup failed with exit code $LASTEXITCODE" }
+  $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
+  if ($setupProcess.ExitCode -ne 0) { throw "Setup failed with exit code $($setupProcess.ExitCode)" }
   foreach ($path in @(
     (Join-Path $installDir 'deskflow.exe'),
     (Join-Path $installDir 'deskflow-core.exe'),
@@ -55,8 +55,8 @@ try {
   }
   Set-Content -LiteralPath $customFile -Value $sentinel -NoNewline
 
-  & $SetupPath /S
-  if ($LASTEXITCODE -ne 0) { throw "Setup update failed with exit code $LASTEXITCODE" }
+  $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
+  if ($setupProcess.ExitCode -ne 0) { throw "Setup update failed with exit code $($setupProcess.ExitCode)" }
   if (Test-Path -LiteralPath $profileFile) {
     if ($createdProfileFile) {
       if ((Get-Content -LiteralPath $profileFile -Raw) -ne $sentinel) {
@@ -74,8 +74,8 @@ try {
   }
 
   $uninstaller = Join-Path $installDir 'Uninstall Mono Sync.exe'
-  & $uninstaller /S
-  if ($LASTEXITCODE -ne 0) { throw "Uninstall failed with exit code $LASTEXITCODE" }
+  $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+  if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstall failed with exit code $($uninstallProcess.ExitCode)" }
   $deadline = (Get-Date).AddSeconds(15)
   while ((Test-Path -LiteralPath $uninstaller) -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 250
@@ -106,7 +106,10 @@ try {
 finally {
   if (Test-Path -LiteralPath (Join-Path $installDir 'Uninstall Mono Sync.exe')) {
     $uninstaller = Join-Path $installDir 'Uninstall Mono Sync.exe'
-    & $uninstaller /S
+    $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+    if ($uninstallProcess.ExitCode -ne 0) {
+      Write-Warning "Cleanup uninstaller exited with code $($uninstallProcess.ExitCode)."
+    }
   }
   if ($createdProfileFile -and (Test-Path -LiteralPath $profileFile)) {
     Remove-Item -LiteralPath $profileFile -Force
