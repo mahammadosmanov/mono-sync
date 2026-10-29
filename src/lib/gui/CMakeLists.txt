@@ -25,6 +25,8 @@ add_library(${target} STATIC
   Logger.h
   MainWindow.cpp
   MainWindow.h
+  OutgoingFileWorker.cpp
+  OutgoingFileWorker.h
   MainWindow.ui
   Messages.cpp
   Messages.h

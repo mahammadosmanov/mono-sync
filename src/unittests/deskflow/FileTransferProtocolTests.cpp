@@ -11,10 +11,13 @@
 #include "io/IStream.h"
 
 #include <QJsonObject>
+#include <QCryptographicHash>
 #include <QTest>
 
 #include <algorithm>
 #include <cstring>
+
+#include <memory>
 
 namespace {
 
@@ -54,6 +57,50 @@ private:
   bool m_closed = false;
 };
 
+struct DuplexState
+{
+  std::string input[2];
+};
+
+class DuplexStream : public deskflow::IStream
+{
+public:
+  DuplexStream(std::shared_ptr<DuplexState> state, int side) : m_state(std::move(state)), m_side(side) {}
+  void close() override { m_closed = true; }
+  uint32_t read(void *buffer, uint32_t count) override
+  {
+    if (m_closed || count == 0 || m_state->input[m_side].empty()) {
+      return 0;
+    }
+    const auto amount = std::min(count, static_cast<uint32_t>(m_state->input[m_side].size()));
+    std::memcpy(buffer, m_state->input[m_side].data(), amount);
+    m_state->input[m_side].erase(0, amount);
+    return amount;
+  }
+  void write(const void *buffer, uint32_t count) override
+  {
+    m_state->input[1 - m_side].append(static_cast<const char *>(buffer), count);
+  }
+  void flush() override {}
+  void shutdownInput() override { close(); }
+  void shutdownOutput() override {}
+  void *getEventTarget() const override { return const_cast<DuplexStream *>(this); }
+  bool isReady() const override { return !m_closed && !m_state->input[m_side].empty(); }
+  uint32_t getSize() const override { return static_cast<uint32_t>(m_state->input[m_side].size()); }
+
+private:
+  std::shared_ptr<DuplexState> m_state;
+  int m_side;
+  bool m_closed = false;
+};
+
+bool deliverMessage(FileTransferProtocol &protocol, deskflow::IStream &stream)
+{
+  uint8_t code[4];
+  return stream.read(code, sizeof(code)) == sizeof(code) &&
+         protocol.parseMessage(code) == FileTransferProtocol::ParseResult::Handled;
+}
+
 void append32(std::string &bytes, uint32_t value)
 {
   bytes.push_back(static_cast<char>((value >> 24) & 0xff));
@@ -92,6 +139,7 @@ private Q_SLOTS:
   void maximumChunkFitsLocalIpcLimit();
   void lateCancelAfterRejectIsIgnored();
   void fileMessagesAreRejectedBeforeHandshakeCompletion();
+  void singleFileMessageRoundTripUsesExistingPeerStream();
 
 private:
   Log m_log;
@@ -187,6 +235,78 @@ void FileTransferProtocolTests::fileMessagesAreRejectedBeforeHandshakeCompletion
   FileTransferProtocol protocol(&stream, true, QStringLiteral("peer"), {});
   const uint8_t offerCode[] = {'M', 'S', 'O', 'F'};
   QVERIFY_THROWS_EXCEPTION(BadClientException, protocol.parseMessage(offerCode));
+}
+
+void FileTransferProtocolTests::singleFileMessageRoundTripUsesExistingPeerStream()
+{
+  auto state = std::make_shared<DuplexState>();
+  DuplexStream senderStream(state, 0);
+  DuplexStream receiverStream(state, 1);
+  QString senderNotice;
+  QString receiverNotice;
+  FileTransferProtocol sender(&senderStream, true, QStringLiteral("peer"), [&](const QString &message) {
+    senderNotice = message;
+  });
+  FileTransferProtocol receiver(&receiverStream, true, QStringLiteral("peer"), [&](const QString &message) {
+    receiverNotice = message;
+  });
+  sender.setConnected(true);
+  receiver.setConnected(true);
+
+  const QByteArray content("abc");
+  const auto digest = QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex();
+  const QString id = QStringLiteral("12345678-1234-1234-1234-123456789abc");
+  QJsonObject offer{{QStringLiteral("action"), QStringLiteral("sendOffer")},
+                    {QStringLiteral("id"), id},
+                    {QStringLiteral("name"), QStringLiteral("sample.txt")},
+                    {QStringLiteral("size"), QStringLiteral("3")},
+                    {QStringLiteral("sha256"), QString::fromLatin1(digest)}};
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage(offer)));
+  QVERIFY(deliverMessage(receiver, receiverStream));
+
+  QJsonObject remoteOffer;
+  QVERIFY(FileTransferProtocol::decodeMessage(receiverNotice, remoteOffer));
+  QCOMPARE(remoteOffer.value(QStringLiteral("action")).toString(), QStringLiteral("offer"));
+  QJsonObject accept{{QStringLiteral("action"), QStringLiteral("accept")}, {QStringLiteral("id"), id}};
+  QVERIFY(receiver.handleLocalMessage(FileTransferProtocol::encodeMessage(accept)));
+  QVERIFY(deliverMessage(sender, senderStream));
+
+  QJsonObject chunk{{QStringLiteral("action"), QStringLiteral("sendChunk")},
+                    {QStringLiteral("id"), id},
+                    {QStringLiteral("data"), QStringLiteral("YWJj")}};
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage(chunk)));
+  QVERIFY(deliverMessage(receiver, receiverStream));
+  QJsonObject receivedChunk;
+  QVERIFY(FileTransferProtocol::decodeMessage(receiverNotice, receivedChunk));
+  QCOMPARE(receivedChunk.value(QStringLiteral("action")).toString(), QStringLiteral("receiveChunk"));
+  QCOMPARE(QByteArray::fromBase64(receivedChunk.value(QStringLiteral("data")).toString().toLatin1(),
+                                  QByteArray::Base64UrlEncoding),
+           content);
+
+  QJsonObject saved{{QStringLiteral("action"), QStringLiteral("chunkSaved")},
+                    {QStringLiteral("id"), id},
+                    {QStringLiteral("bytes"), QStringLiteral("3")}};
+  QVERIFY(receiver.handleLocalMessage(FileTransferProtocol::encodeMessage(saved)));
+  QVERIFY(deliverMessage(sender, senderStream));
+  QJsonObject ready;
+  QVERIFY(FileTransferProtocol::decodeMessage(senderNotice, ready));
+  QCOMPARE(ready.value(QStringLiteral("action")).toString(), QStringLiteral("sendReadyToFinish"));
+
+  QJsonObject finish{{QStringLiteral("action"), QStringLiteral("sendFinish")}, {QStringLiteral("id"), id}};
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage(finish)));
+  QVERIFY(deliverMessage(receiver, receiverStream));
+  QJsonObject finishNotice;
+  QVERIFY(FileTransferProtocol::decodeMessage(receiverNotice, finishNotice));
+  QCOMPARE(finishNotice.value(QStringLiteral("action")).toString(), QStringLiteral("finishReceive"));
+
+  QJsonObject result{{QStringLiteral("action"), QStringLiteral("receiveResult")},
+                     {QStringLiteral("id"), id},
+                     {QStringLiteral("success"), true}};
+  QVERIFY(receiver.handleLocalMessage(FileTransferProtocol::encodeMessage(result)));
+  QVERIFY(deliverMessage(sender, senderStream));
+  QJsonObject complete;
+  QVERIFY(FileTransferProtocol::decodeMessage(senderNotice, complete));
+  QCOMPARE(complete.value(QStringLiteral("action")).toString(), QStringLiteral("completed"));
 }
 
 QTEST_APPLESS_MAIN(FileTransferProtocolTests)

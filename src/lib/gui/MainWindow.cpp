@@ -11,6 +11,7 @@
 #include "ui_MainWindow.h"
 
 #include "Diagnostic.h"
+#include "OutgoingFileWorker.h"
 #include "StyleUtils.h"
 
 #include "dialogs/AboutDialog.h"
@@ -25,7 +26,6 @@
 #include "common/UrlConstants.h"
 #include "common/VersionInfo.h"
 #include "deskflow/FileTransferProtocol.h"
-#include "deskflow/FileTransferReceiver.h"
 #include "gui/Messages.h"
 #include "gui/TlsUtility.h"
 #include "gui/core/CoreProcess.h"
@@ -55,6 +55,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QTimer>
+#include <QThread>
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QDir>
@@ -95,16 +96,6 @@ MainWindow::MainWindow()
       m_networkMonitor{new NetworkMonitor(this)}
 {
   ui->setupUi(this);
-
-  m_fileTransferTimer = new QTimer(this);
-  m_fileTransferTimer->setInterval(0);
-  connect(m_fileTransferTimer, &QTimer::timeout, this, [this] {
-    if (m_hashingOutgoingFile) {
-      hashOutgoingFileStep();
-    } else {
-      sendOutgoingChunk();
-    }
-  });
 
   setWindowIcon(QIcon::fromTheme(kRevFqdnName));
 
@@ -188,6 +179,21 @@ MainWindow::MainWindow()
 }
 MainWindow::~MainWindow()
 {
+  if (m_fileWorker != nullptr) {
+    m_fileWorker->requestCancel();
+  }
+  if (m_fileWorkerThread != nullptr) {
+    auto *thread = m_fileWorkerThread;
+    if (thread->isRunning()) {
+      thread->setParent(nullptr);
+      connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+      thread->quit();
+    } else {
+      delete thread;
+    }
+    m_fileWorkerThread = nullptr;
+    m_fileWorker = nullptr;
+  }
   // Stop network monitoring
   if (m_networkMonitor) {
     m_networkMonitor->stopMonitoring();
@@ -1022,6 +1028,9 @@ void MainWindow::coreConnectionStateChanged(ConnectionState state)
   // when the correct TLS version string is detected.
   if (state != ConnectionState::Connected) {
     secureSocket(false);
+    if (m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
+      clearFileTransfer(tr("File transfer stopped because the peer disconnected."));
+    }
   } else if (isVisible()) {
     showFirstConnectedMessage();
   }
@@ -1349,8 +1358,64 @@ void MainWindow::showHelpViewer() const
   }
 }
 
+void MainWindow::startFileWorker()
+{
+  if (m_fileWorker != nullptr) {
+    return;
+  }
+  m_fileWorkerThread = new QThread(this);
+  m_fileWorker = new OutgoingFileWorker;
+  auto *worker = m_fileWorker;
+  m_fileWorker->moveToThread(m_fileWorkerThread);
+
+  connect(worker, &OutgoingFileWorker::hashingProgress, this, [this, worker](quint64 processed, quint64 total) {
+    if (m_fileWorker == worker && m_fileTransferProgress && total > 0) {
+      m_fileTransferProgress->setValue(static_cast<int>(processed * 400 / total));
+    }
+  });
+  connect(worker, &OutgoingFileWorker::prepared, this, [this, worker](const QString &name, quint64 size,
+                                                                      const QByteArray &sha256) {
+    if (m_fileWorker == worker) {
+      prepareOutgoingFile(name, size, sha256);
+    }
+  });
+  connect(worker, &OutgoingFileWorker::chunkReady, this, [this, worker](const QByteArray &chunk, quint64 position) {
+    if (m_fileWorker == worker) {
+      sendOutgoingChunk(chunk, position);
+    }
+  });
+  connect(worker, &OutgoingFileWorker::receiverReady, this,
+          [this, worker](bool success, const QString &error) { receiveWorkerReady(worker, success, error); });
+  connect(worker, &OutgoingFileWorker::receiveChunkSaved, this,
+          [this, worker](bool success, quint64 bytes, quint64 received, quint64 total, const QString &error) {
+            receiveWorkerChunkSaved(worker, success, bytes, received, total, error);
+          });
+  connect(worker, &OutgoingFileWorker::receiveFinished, this,
+          [this, worker](bool success, const QString &path, const QString &error) {
+            receiveWorkerFinished(worker, success, path, error);
+          });
+  connect(worker, &OutgoingFileWorker::failed, this, [this, worker](const QString &error) {
+    if (m_fileWorker == worker) {
+      clearFileTransfer(error);
+    }
+  });
+  connect(m_fileWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
+  auto *thread = m_fileWorkerThread;
+  connect(thread, &QThread::finished, this, [this, thread] {
+    if (m_fileWorkerThread == thread) {
+      m_fileWorkerThread = nullptr;
+    }
+    thread->deleteLater();
+  });
+  m_fileWorkerThread->start();
+}
+
 void MainWindow::sendFile()
 {
+  if (m_fileWorkerThread != nullptr) {
+    statusBar()->showMessage(tr("Wait for the previous file operation to stop."), 8000);
+    return;
+  }
   QStringList peers;
   for (auto iterator = m_fileTransferPeers.cbegin(); iterator != m_fileTransferPeers.cend(); ++iterator) {
     if (iterator.value()) {
@@ -1375,24 +1440,7 @@ void MainWindow::sendFile()
   if (path.isEmpty()) {
     return;
   }
-  const QFileInfo info(path);
-  if (!info.isFile() || info.size() < 0 || static_cast<quint64>(info.size()) > FileTransferReceiver::kMaximumFileSize) {
-    QMessageBox::warning(this, kAppName, tr("The selected file is unavailable or exceeds the 10 GiB transfer limit."));
-    return;
-  }
-
-  m_outgoingFile = std::make_unique<QFile>(path);
-  if (!m_outgoingFile->open(QIODevice::ReadOnly)) {
-    m_outgoingFile.reset();
-    QMessageBox::warning(this, kAppName, tr("The selected file could not be opened."));
-    return;
-  }
   m_outgoingPeer = peer;
-  m_outgoingFileName = info.fileName();
-  m_outgoingSize = static_cast<quint64>(info.size());
-  m_hashedBytes = 0;
-  m_outgoingHash.reset();
-  m_hashingOutgoingFile = true;
   m_fileTransferProgress = new QProgressDialog(tr("Preparing file…"), tr("Cancel transfer"), 0, 1000, this);
   m_fileTransferProgress->setWindowModality(Qt::WindowModal);
   m_fileTransferProgress->setAutoClose(false);
@@ -1406,60 +1454,37 @@ void MainWindow::sendFile()
     }
     clearFileTransfer(tr("File transfer canceled."));
   });
+
+  startFileWorker();
   m_fileTransferProgress->show();
-  m_fileTransferTimer->start();
+  auto *worker = m_fileWorker;
+  QMetaObject::invokeMethod(worker, [worker, path] { worker->prepare(path); }, Qt::QueuedConnection);
 }
 
-void MainWindow::hashOutgoingFileStep()
+void MainWindow::prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256)
 {
-  if (!m_outgoingFile) {
+  if (m_fileWorker == nullptr || m_outgoingPeer.isEmpty()) {
     clearFileTransfer();
     return;
   }
-  constexpr qint64 kReadBlock = 256 * 1024;
-  const QByteArray block = m_outgoingFile->read(kReadBlock);
-  if (block.isEmpty() && !m_outgoingFile->atEnd()) {
-    clearFileTransfer(tr("The selected file could not be read."));
-    return;
-  }
-  m_outgoingHash.addData(block);
-  m_hashedBytes += static_cast<quint64>(block.size());
-  if (m_fileTransferProgress && m_outgoingSize > 0) {
-    m_fileTransferProgress->setValue(static_cast<int>(m_hashedBytes * 400 / m_outgoingSize));
-  }
-  if (!m_outgoingFile->atEnd()) {
-    return;
-  }
-  if (m_hashedBytes != m_outgoingSize) {
-    clearFileTransfer(tr("The selected file changed while it was being prepared."));
-    return;
-  }
-
-  m_hashingOutgoingFile = false;
+  m_outgoingFileName = fileName;
+  m_outgoingSize = size;
   m_outgoingTransferId = QUuid::createUuid().toString(QUuid::WithoutBraces);
   QJsonObject offer{{QStringLiteral("action"), QStringLiteral("sendOffer")},
                     {QStringLiteral("id"), m_outgoingTransferId},
                     {QStringLiteral("peer"), m_outgoingPeer},
                     {QStringLiteral("name"), m_outgoingFileName},
                     {QStringLiteral("size"), QString::number(m_outgoingSize)},
-                    {QStringLiteral("sha256"), QString::fromLatin1(m_outgoingHash.result().toHex())}};
+                    {QStringLiteral("sha256"), QString::fromLatin1(sha256.toHex())}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(offer));
-  m_outgoingFile->seek(0);
   if (m_fileTransferProgress) {
     m_fileTransferProgress->setLabelText(tr("Waiting for the receiving peer to accept…"));
   }
-  m_fileTransferTimer->stop();
 }
 
-void MainWindow::sendOutgoingChunk()
+void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
 {
-  if (!m_outgoingFile || m_outgoingTransferId.isEmpty()) {
-    m_fileTransferTimer->stop();
-    return;
-  }
-  const QByteArray chunk = m_outgoingFile->read(FileTransferReceiver::kMaximumChunkSize);
-  if (chunk.isEmpty()) {
-    clearFileTransfer(tr("The file changed or could not be read during transfer."));
+  if (m_fileWorker == nullptr || m_outgoingTransferId.isEmpty() || chunk.isEmpty()) {
     return;
   }
   QJsonObject message{{QStringLiteral("action"), QStringLiteral("sendChunk")},
@@ -1470,9 +1495,8 @@ void MainWindow::sendOutgoingChunk()
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(message));
   if (m_fileTransferProgress && m_outgoingSize > 0) {
     m_fileTransferProgress->setLabelText(tr("Sending file…"));
-    m_fileTransferProgress->setValue(400 + static_cast<int>(m_outgoingFile->pos() * 600 / m_outgoingSize));
+    m_fileTransferProgress->setValue(400 + static_cast<int>(position * 600 / m_outgoingSize));
   }
-  m_fileTransferTimer->stop();
 }
 
 void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
@@ -1492,7 +1516,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     return;
   }
   if (action == QStringLiteral("offer")) {
-    if (m_fileReceiver || m_outgoingFile) {
+    if (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
       QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
                          {QStringLiteral("peer"), peer},
                          {QStringLiteral("id"), id}};
@@ -1502,29 +1526,23 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     const QString name = message.value(QStringLiteral("name")).toString();
     const quint64 size = message.value(QStringLiteral("size")).toString().toULongLong();
     const QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    m_outgoingPeer = peer;
+    m_outgoingTransferId = id;
+    m_receivingFile = true;
     const QString destination = QFileDialog::getSaveFileName(
         this, tr("Save file from %1").arg(peer), QDir::home().filePath(name));
+    if (m_outgoingTransferId != id || m_outgoingPeer != peer) {
+      return;
+    }
     if (destination.isEmpty()) {
       QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
                          {QStringLiteral("peer"), peer},
                          {QStringLiteral("id"), id}};
       m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
+      clearFileTransfer();
       return;
     }
-    const QFileInfo target(destination);
-    m_fileReceiver = std::make_unique<FileTransferReceiver>(target.absolutePath(), target.fileName(), size, hash);
-    QString error;
-    if (!m_fileReceiver->begin(&error)) {
-      m_fileReceiver.reset();
-      QMessageBox::warning(this, kAppName, error);
-      QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
-                         {QStringLiteral("peer"), peer},
-                         {QStringLiteral("id"), id}};
-      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
-      return;
-    }
-    m_outgoingPeer = peer;
-    m_outgoingTransferId = id;
+    m_outgoingSize = size;
     m_fileTransferProgress = new QProgressDialog(tr("Receiving file…"), tr("Cancel transfer"), 0, 1000, this);
     m_fileTransferProgress->setWindowModality(Qt::WindowModal);
     m_fileTransferProgress->setAutoClose(false);
@@ -1537,10 +1555,12 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
       clearFileTransfer(tr("File transfer canceled."));
     });
     m_fileTransferProgress->show();
-    QJsonObject accept{{QStringLiteral("action"), QStringLiteral("accept")},
-                       {QStringLiteral("peer"), peer},
-                       {QStringLiteral("id"), id}};
-    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(accept));
+    startFileWorker();
+    auto *worker = m_fileWorker;
+    QMetaObject::invokeMethod(worker, [worker, destination, name, size, hash] {
+      const QFileInfo target(destination);
+      worker->beginReceive(target.absolutePath(), target.fileName(), size, hash);
+    }, Qt::QueuedConnection);
     return;
   }
   if (action == QStringLiteral("accepted") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
@@ -1550,12 +1570,16 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
                          {QStringLiteral("id"), id}};
       m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(finish));
     } else {
-      m_fileTransferTimer->start();
+      if (m_fileWorker != nullptr) {
+        QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
+      }
     }
     return;
   }
   if (action == QStringLiteral("sendNextChunk") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    m_fileTransferTimer->start();
+    if (m_fileWorker != nullptr) {
+      QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
+    }
     return;
   }
   if (action == QStringLiteral("sendReadyToFinish") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
@@ -1566,47 +1590,26 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     return;
   }
   if (action == QStringLiteral("receiveChunk") && id == m_outgoingTransferId && peer == m_outgoingPeer &&
-      m_fileReceiver) {
+      m_receivingFile && m_fileWorker != nullptr) {
     const QByteArray chunk = QByteArray::fromBase64(
         message.value(QStringLiteral("data")).toString().toLatin1(),
         QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
-    QString error;
-    if (chunk.isEmpty() || !m_fileReceiver->appendChunk(chunk, &error)) {
+    if (chunk.isEmpty()) {
       QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
                          {QStringLiteral("peer"), peer},
                          {QStringLiteral("id"), id}};
       m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
-      clearFileTransfer(error.isEmpty() ? tr("Received an invalid file chunk.") : error);
+      clearFileTransfer(tr("Received an invalid file chunk."));
       return;
     }
-    if (m_fileTransferProgress && m_fileReceiver->expectedBytes() > 0) {
-      m_fileTransferProgress->setValue(static_cast<int>(m_fileReceiver->receivedBytes() * 1000 /
-                                                        m_fileReceiver->expectedBytes()));
-    }
-    QJsonObject saved{{QStringLiteral("action"), QStringLiteral("chunkSaved")},
-                      {QStringLiteral("peer"), peer},
-                      {QStringLiteral("id"), id},
-                      {QStringLiteral("bytes"), QString::number(chunk.size())}};
-    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(saved));
+    auto *worker = m_fileWorker;
+    QMetaObject::invokeMethod(worker, [worker, chunk] { worker->appendReceivedChunk(chunk); }, Qt::QueuedConnection);
     return;
   }
   if (action == QStringLiteral("finishReceive") && id == m_outgoingTransferId && peer == m_outgoingPeer &&
-      m_fileReceiver) {
-    QString error;
-    const bool success = m_fileReceiver->finish(&error);
-    const QString path = m_fileReceiver->destinationPath();
-    QJsonObject result{{QStringLiteral("action"), QStringLiteral("receiveResult")},
-                       {QStringLiteral("peer"), peer},
-                       {QStringLiteral("id"), id},
-                       {QStringLiteral("success"), success}};
-    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(result));
-    m_fileReceiver.reset();
-    clearFileTransfer();
-    if (success) {
-      QMessageBox::information(this, kAppName, tr("File received and verified:\n%1").arg(path));
-    } else {
-      QMessageBox::warning(this, kAppName, error);
-    }
+      m_receivingFile && m_fileWorker != nullptr) {
+    auto *worker = m_fileWorker;
+    QMetaObject::invokeMethod(worker, [worker] { worker->finishReceive(); }, Qt::QueuedConnection);
     return;
   }
   if (action == QStringLiteral("completed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
@@ -1617,23 +1620,83 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   }
 }
 
+void MainWindow::receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error)
+{
+  if (m_fileWorker != worker || !m_receivingFile || m_outgoingTransferId.isEmpty()) {
+    return;
+  }
+  if (!success) {
+    const QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
+                             {QStringLiteral("peer"), m_outgoingPeer},
+                             {QStringLiteral("id"), m_outgoingTransferId}};
+    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
+    QMessageBox::warning(this, kAppName, error);
+    clearFileTransfer();
+    return;
+  }
+  const QJsonObject accept{{QStringLiteral("action"), QStringLiteral("accept")},
+                           {QStringLiteral("peer"), m_outgoingPeer},
+                           {QStringLiteral("id"), m_outgoingTransferId}};
+  m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(accept));
+}
+
+void MainWindow::receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes,
+                                         quint64 received, quint64 total, const QString &error)
+{
+  if (m_fileWorker != worker || !m_receivingFile || m_outgoingTransferId.isEmpty()) {
+    return;
+  }
+  if (!success) {
+    const QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
+                             {QStringLiteral("peer"), m_outgoingPeer},
+                             {QStringLiteral("id"), m_outgoingTransferId}};
+    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
+    clearFileTransfer(error.isEmpty() ? tr("Could not save the received file.") : error);
+    return;
+  }
+  if (m_fileTransferProgress && total > 0) {
+    m_fileTransferProgress->setValue(static_cast<int>(received * 1000 / total));
+  }
+  const QJsonObject saved{{QStringLiteral("action"), QStringLiteral("chunkSaved")},
+                          {QStringLiteral("peer"), m_outgoingPeer},
+                          {QStringLiteral("id"), m_outgoingTransferId},
+                          {QStringLiteral("bytes"), QString::number(bytes)}};
+  m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(saved));
+}
+
+void MainWindow::receiveWorkerFinished(OutgoingFileWorker *worker, bool success, const QString &path,
+                                       const QString &error)
+{
+  if (m_fileWorker != worker || !m_receivingFile || m_outgoingTransferId.isEmpty()) {
+    return;
+  }
+  const QJsonObject result{{QStringLiteral("action"), QStringLiteral("receiveResult")},
+                           {QStringLiteral("peer"), m_outgoingPeer},
+                           {QStringLiteral("id"), m_outgoingTransferId},
+                           {QStringLiteral("success"), success}};
+  m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(result));
+  clearFileTransfer();
+  if (success) {
+    QMessageBox::information(this, kAppName, tr("File received and verified:\n%1").arg(path));
+  } else {
+    QMessageBox::warning(this, kAppName, error);
+  }
+}
+
 void MainWindow::clearFileTransfer(const QString &message)
 {
-  m_fileTransferTimer->stop();
-  m_hashingOutgoingFile = false;
-  if (m_fileReceiver) {
-    m_fileReceiver->cancel();
-    m_fileReceiver.reset();
+  if (m_fileWorker != nullptr) {
+    m_fileWorker->requestCancel();
+    m_fileWorker = nullptr;
   }
-  if (m_outgoingFile) {
-    m_outgoingFile->close();
-    m_outgoingFile.reset();
+  if (m_fileWorkerThread != nullptr) {
+    m_fileWorkerThread->quit();
   }
+  m_receivingFile = false;
   m_outgoingTransferId.clear();
   m_outgoingPeer.clear();
   m_outgoingFileName.clear();
   m_outgoingSize = 0;
-  m_hashedBytes = 0;
   if (m_fileTransferProgress) {
     m_fileTransferProgress->disconnect(this);
     m_fileTransferProgress->close();

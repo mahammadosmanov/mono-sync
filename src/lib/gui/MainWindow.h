@@ -10,7 +10,6 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QCryptographicHash>
 #include <QHash>
 #include <QProcess>
 #include <QRegularExpression>
@@ -18,7 +17,6 @@
 #include <QUrl>
 
 #include "VersionChecker.h"
-#include "deskflow/FileTransferReceiver.h"
 #include "config/ServerConfig.h"
 #include "gui/core/CoreProcess.h"
 #include "gui/core/NetworkMonitor.h"
@@ -31,9 +29,9 @@
 class QAction;
 class QMenu;
 class QLocalServer;
-class QFile;
 class QProgressDialog;
-class QTimer;
+class QThread;
+class OutgoingFileWorker;
 
 class DeskflowApplication;
 class LogDock;
@@ -150,9 +148,14 @@ private:
   void updateTimeoutDelay(int newDelay);
   void setHelpFilePath();
   void showHelpViewer() const;
+  void startFileWorker();
   void sendFile();
-  void hashOutgoingFileStep();
-  void sendOutgoingChunk();
+  void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
+  void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
+  void receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error);
+  void receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes, quint64 received,
+                               quint64 total, const QString &error);
+  void receiveWorkerFinished(OutgoingFileWorker *worker, bool success, const QString &path, const QString &error);
   void handleFileTransferMessage(const QString &encodedMessage);
   void clearFileTransfer(const QString &message = QString());
 
@@ -220,17 +223,14 @@ private:
   QString m_currentIpAddress;
 
   QHash<QString, bool> m_fileTransferPeers;
-  std::unique_ptr<FileTransferReceiver> m_fileReceiver;
-  std::unique_ptr<QFile> m_outgoingFile;
+  QThread *m_fileWorkerThread = nullptr;
+  OutgoingFileWorker *m_fileWorker = nullptr;
   QProgressDialog *m_fileTransferProgress = nullptr;
-  QTimer *m_fileTransferTimer = nullptr;
-  QCryptographicHash m_outgoingHash{QCryptographicHash::Sha256};
+  bool m_receivingFile = false;
   QString m_outgoingTransferId;
   QString m_outgoingPeer;
   QString m_outgoingFileName;
   quint64 m_outgoingSize = 0;
-  quint64 m_hashedBytes = 0;
-  bool m_hashingOutgoingFile = false;
 
   // Server IP strategy optimization
   QStringList m_serverStartIPs;
