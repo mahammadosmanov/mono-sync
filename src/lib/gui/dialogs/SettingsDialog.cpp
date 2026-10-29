@@ -383,14 +383,7 @@ void SettingsDialog::updateControls()
   ui->cbAutoUpdate->setEnabled(false);
   ui->cbAutoUpdate->setToolTip(tr("Windows packages are updated manually with the standard-user portable ZIP."));
 #else
-  if (Settings::isPortableMode()) {
-    ui->cbAutoUpdate->setEnabled(false);
-    ui->cbAutoUpdate->setToolTip(
-        tr("Portable packages do not install updates. Replace this folder with a newer portable ZIP.")
-    );
-  } else {
-    ui->cbAutoUpdate->setEnabled(writable);
-  }
+  ui->cbAutoUpdate->setEnabled(writable);
 #endif
   ui->cbPreventSleep->setEnabled(writable);
   ui->lineTlsCertPath->setEnabled(writable);

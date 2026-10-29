@@ -494,13 +494,6 @@ QVariant Settings::value(const QString &key)
     return ProcessMode::Desktop;
   if (key == Daemon::Elevate || key == Gui::AutoUpdateCheck)
     return false;
-#else
-  if (Settings::isPortableMode()) {
-    if (key == Core::ProcessMode)
-      return ProcessMode::Desktop;
-    if (key == Daemon::Elevate || key == Gui::AutoUpdateCheck)
-      return false;
-  }
 #endif
 
   const bool useState = Settings::m_stateKeys.contains(key) && !instance()->isPortableMode();
