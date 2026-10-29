@@ -83,6 +83,17 @@ jobs:
       - name: Run upstream unit tests
         run: ctest --test-dir build/src/unittests --output-on-failure --timeout 120
 
+      - name: Show CTest details after failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $testLog = 'build/src/unittests/Testing/Temporary/LastTest.log'
+          if (Test-Path -LiteralPath $testLog) {
+            Get-Content -LiteralPath $testLog
+          } else {
+            Write-Error "CTest log was not found: $testLog"
+          }
+
       - name: Package macOS with transient DMG retry
         if: runner.os == 'macOS'
         shell: bash
