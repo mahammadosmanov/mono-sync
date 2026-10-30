@@ -41,6 +41,8 @@ public:
 
   static QString encodeMessage(const QJsonObject &message);
   static bool decodeMessage(const QString &encoded, QJsonObject &message);
+  static QString availabilityRefreshRequest();
+  static bool isPeerlessAvailabilityRefresh(const QString &encodedMessage);
 
 private:
   enum class State

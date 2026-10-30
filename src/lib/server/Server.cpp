@@ -327,6 +327,16 @@ bool Server::handleFileTransferMessage(const QString &peer, const QString &messa
   return false;
 }
 
+void Server::refreshFileTransferAvailability()
+{
+  const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+  for (const auto &[_, client] : m_clients) {
+    if (auto *fileTransferClient = dynamic_cast<ClientProxy1_9 *>(client)) {
+      fileTransferClient->handleFileTransferMessage(refresh);
+    }
+  }
+}
+
 void Server::sendConnectedClientsIpc() const
 {
   const auto primaryName = getName(m_primaryClient);

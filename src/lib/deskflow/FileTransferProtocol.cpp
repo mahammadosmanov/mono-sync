@@ -442,6 +442,18 @@ bool FileTransferProtocol::decodeMessage(const QString &encoded, QJsonObject &me
   return true;
 }
 
+QString FileTransferProtocol::availabilityRefreshRequest()
+{
+  return encodeMessage({{QStringLiteral("action"), QStringLiteral("refresh")}});
+}
+
+bool FileTransferProtocol::isPeerlessAvailabilityRefresh(const QString &encodedMessage)
+{
+  QJsonObject message;
+  return decodeMessage(encodedMessage, message) && message.value(QStringLiteral("action")).toString() == "refresh" &&
+         message.value(QStringLiteral("peer")).toString().isEmpty();
+}
+
 void FileTransferProtocol::notify(QJsonObject message) const
 {
   if (!m_notify) {

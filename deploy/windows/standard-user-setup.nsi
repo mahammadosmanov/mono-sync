@@ -9,11 +9,11 @@ InstallDir "$LOCALAPPDATA\Programs\Mono Sync"
 SetCompressor /SOLID lzma
 CRCCheck force
 
-VIProductVersion "0.2.0.0"
+VIProductVersion "0.2.1.0"
 VIAddVersionKey "ProductName" "Mono Sync"
 VIAddVersionKey "FileDescription" "Mono Sync per-user setup"
-VIAddVersionKey "ProductVersion" "0.2.0"
-VIAddVersionKey "FileVersion" "0.2.0"
+VIAddVersionKey "ProductVersion" "0.2.1"
+VIAddVersionKey "FileVersion" "0.2.1"
 VIAddVersionKey "LegalCopyright" "Mono Sync contributors"
 
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync"
@@ -75,7 +75,7 @@ Section "Install"
   CreateShortcut "$SMPROGRAMS\Mono Sync\Uninstall Mono Sync.lnk" "$INSTDIR\${UNINSTALLER}"
 
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "Mono Sync"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "0.2.0"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "0.2.1"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "Mono Sync"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\monosync.exe"

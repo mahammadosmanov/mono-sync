@@ -40,7 +40,7 @@ def checked_extract(archive: Path, destination: Path) -> Path:
                 roots.add(name.parts[0])
         if len(roots) != 1:
             raise ValueError(f"expected one top-level folder, found {sorted(roots)}")
-        expected_root = "mono-sync-0.2.0-win-x64-portable"
+        expected_root = "mono-sync-0.2.1-win-x64-portable"
         if roots != {expected_root}:
             raise ValueError(f"expected pinned package folder {expected_root!r}, got {sorted(roots)}")
         package.extractall(destination)

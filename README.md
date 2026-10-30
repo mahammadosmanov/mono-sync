@@ -6,7 +6,7 @@ The Windows x64 host and Apple Silicon Mac client use the same TLS-protected Des
 
 ## Build
 
-Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.0`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.
+Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.1`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.
 
 For Windows, use the [per-user setup instructions](docs/WINDOWS-PORTABLE.md). The setup, app, and uninstaller run as the current user. They do not install a service or change firewall rules. Windows or organization firewall policy may still block connections. macOS may request its input-control permission; Mono Sync cannot bypass operating-system permission prompts.
 

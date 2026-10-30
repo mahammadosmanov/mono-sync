@@ -139,6 +139,9 @@ private Q_SLOTS:
   void maximumChunkFitsLocalIpcLimit();
   void lateCancelAfterRejectIsIgnored();
   void fileMessagesAreRejectedBeforeHandshakeCompletion();
+  void refreshReplaysAuthenticatedAvailability();
+  void refreshReportsUnauthenticatedPeerAsUnavailable();
+  void peerlessRefreshSelectsServerFanoutOnly();
   void singleFileMessageRoundTripUsesExistingPeerStream();
 
 private:
@@ -235,6 +238,64 @@ void FileTransferProtocolTests::fileMessagesAreRejectedBeforeHandshakeCompletion
   FileTransferProtocol protocol(&stream, true, QStringLiteral("peer"), {});
   const uint8_t offerCode[] = {'M', 'S', 'O', 'F'};
   QVERIFY_THROWS_EXCEPTION(BadClientException, protocol.parseMessage(offerCode));
+}
+
+void FileTransferProtocolTests::refreshReplaysAuthenticatedAvailability()
+{
+  MemoryStream stream;
+  QList<QJsonObject> notifications;
+  FileTransferProtocol protocol(&stream, true, QStringLiteral("peer"), [&](const QString &encoded) {
+    QJsonObject message;
+    if (FileTransferProtocol::decodeMessage(encoded, message)) {
+      notifications.append(message);
+    }
+  });
+  protocol.setConnected(true);
+  notifications.clear(); // Simulate GUI IPC attaching after the initial peer-ready event.
+
+  const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+  QVERIFY(protocol.handleLocalMessage(refresh));
+  QCOMPARE(notifications.size(), 1);
+  QCOMPARE(notifications.first().value(QStringLiteral("action")).toString(), QStringLiteral("availability"));
+  QVERIFY(notifications.first().value(QStringLiteral("available")).toBool());
+  QCOMPARE(notifications.first().value(QStringLiteral("peer")).toString(), QStringLiteral("peer"));
+}
+
+void FileTransferProtocolTests::refreshReportsUnauthenticatedPeerAsUnavailable()
+{
+  MemoryStream stream;
+  QList<QJsonObject> notifications;
+  FileTransferProtocol protocol(&stream, false, QStringLiteral("peer"), [&](const QString &encoded) {
+    QJsonObject message;
+    if (FileTransferProtocol::decodeMessage(encoded, message)) {
+      notifications.append(message);
+    }
+  });
+  protocol.setConnected(true);
+  QVERIFY(notifications.isEmpty());
+
+  const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+  QVERIFY(protocol.handleLocalMessage(refresh));
+  QCOMPARE(notifications.size(), 1);
+  QCOMPARE(notifications.first().value(QStringLiteral("action")).toString(), QStringLiteral("availability"));
+  QVERIFY(!notifications.first().value(QStringLiteral("available")).toBool());
+}
+
+void FileTransferProtocolTests::peerlessRefreshSelectsServerFanoutOnly()
+{
+  const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+  QVERIFY(FileTransferProtocol::isPeerlessAvailabilityRefresh(refresh));
+
+  const auto peerRefresh = FileTransferProtocol::encodeMessage(
+      {{QStringLiteral("action"), QStringLiteral("refresh")}, {QStringLiteral("peer"), QStringLiteral("client")}}
+  );
+  QVERIFY(!FileTransferProtocol::isPeerlessAvailabilityRefresh(peerRefresh));
+
+  const auto offer = FileTransferProtocol::encodeMessage(
+      {{QStringLiteral("action"), QStringLiteral("sendOffer")}, {QStringLiteral("peer"), QStringLiteral("client")}}
+  );
+  QVERIFY(!FileTransferProtocol::isPeerlessAvailabilityRefresh(offer));
+  QVERIFY(!FileTransferProtocol::isPeerlessAvailabilityRefresh(QStringLiteral("not-json")));
 }
 
 void FileTransferProtocolTests::singleFileMessageRoundTripUsesExistingPeerStream()

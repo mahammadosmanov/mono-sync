@@ -72,9 +72,13 @@ void ServerApp::handleCoreIpcCommand(const QString &command, const QString &payl
     return;
   }
   const auto peer = message.value(QStringLiteral("peer")).toString();
-  if (!peer.isEmpty()) {
-    m_server->handleFileTransferMessage(peer, payload);
+  if (peer.isEmpty()) {
+    if (FileTransferProtocol::isPeerlessAvailabilityRefresh(payload)) {
+      m_server->refreshFileTransferAvailability();
+    }
+    return;
   }
+  m_server->handleFileTransferMessage(peer, payload);
 }
 
 void ServerApp::parseArgs()

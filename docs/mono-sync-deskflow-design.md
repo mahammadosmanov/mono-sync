@@ -10,7 +10,7 @@ The app offers one-file transfer over the already authenticated and connected pe
 
 ## Identity and data
 
-- Product version: `0.2.0`; upstream source version: `1.27.0.0`.
+- Product version: `0.2.1`; upstream source version: `1.27.0.0`.
 - Product application ID: `dev.monosync.app`.
 - Preserve required Deskflow, Synergy, GPL-2.0-only, OpenSSL-exception, and third-party notices. See [UPSTREAM.md](UPSTREAM.md), `LICENSE`, and `LICENSES/`.
 - On first launch only, import allowlisted Deskflow settings, certificate, and trust files if the Mono Sync profile does not exist. Preserve source files, exact certificate/trust bytes, and any existing Mono Sync profile. Never interpret the former Rust app's JSON settings as Qt settings.

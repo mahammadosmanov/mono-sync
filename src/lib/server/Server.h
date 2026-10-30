@@ -198,6 +198,7 @@ public:
   */
   void getClients(std::vector<std::string> &list) const;
   bool handleFileTransferMessage(const QString &peer, const QString &message);
+  void refreshFileTransferAvailability();
   void sendConnectedClientsIpc() const;
   size_t getMaximumClipboardSizeBytes() const;
 

@@ -70,7 +70,7 @@ jobs:
           ${{ matrix.target.generator-args }}
           -DSKIP_BUILD_TESTS=ON
           -DDESKFLOW_USE_GIT_VERSION=OFF
-          "-DPACKAGE_VERSION_LABEL=0.2.0"
+          "-DPACKAGE_VERSION_LABEL=0.2.1"
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 

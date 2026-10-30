@@ -42,6 +42,7 @@ class IpcClientFramingTests : public QObject
 private Q_SLOTS:
   void keepsLargeLineUntilNewlineArrives();
   void sendsFileTransferMessageAsBoundedLocalIpcFrame();
+  void delayedGuiAttachmentRequestsCurrentAvailability();
 };
 
 void IpcClientFramingTests::keepsLargeLineUntilNewlineArrives()
@@ -120,6 +121,56 @@ void IpcClientFramingTests::sendsFileTransferMessageAsBoundedLocalIpcFrame()
   QCOMPARE(decoded.value(QStringLiteral("id")).toString(), offer.value(QStringLiteral("id")).toString());
 
   peer->deleteLater();
+  server.close();
+}
+
+void IpcClientFramingTests::delayedGuiAttachmentRequestsCurrentAvailability()
+{
+  const QString socketName = QStringLiteral("msc-%1").arg(QUuid::createUuid().toString(QUuid::Id128));
+  QLocalServer server;
+  QVERIFY(server.listen(socketName));
+
+  TestIpcClient client(socketName);
+  connect(&client, &deskflow::gui::ipc::IpcClient::connected, &client, [&client] {
+    client.sendFileTransferMessage(FileTransferProtocol::availabilityRefreshRequest());
+  });
+  client.connectToServer();
+  QTRY_VERIFY(server.hasPendingConnections());
+  auto *core = server.nextPendingConnection();
+  QVERIFY(core != nullptr);
+  QTRY_VERIFY(core->canReadLine());
+  core->readLine();
+
+  // The peer-ready availability event happened before this GUI IPC client attached.
+  const QString versionId = QStringLiteral("%1+%2").arg(kVersion, kVersionGitSha);
+  const auto hello = QStringLiteral("hello=%1\n").arg(versionId).toUtf8();
+  QCOMPARE(core->write(hello), static_cast<qint64>(hello.size()));
+  core->flush();
+  QTRY_VERIFY(client.isConnected());
+  QTRY_VERIFY(core->canReadLine());
+
+  const auto requestParts = QString::fromUtf8(core->readLine()).trimmed().split('=');
+  QCOMPARE(requestParts.size(), 2);
+  QCOMPARE(requestParts.first(), QStringLiteral("fileTransfer"));
+  QVERIFY(FileTransferProtocol::isPeerlessAvailabilityRefresh(requestParts.at(1)));
+
+  const auto availability = FileTransferProtocol::encodeMessage(
+      {{QStringLiteral("action"), QStringLiteral("availability")},
+       {QStringLiteral("available"), true},
+       {QStringLiteral("peer"), QStringLiteral("windows-host")}}
+  );
+  const auto response = QStringLiteral("fileTransfer=%1\n").arg(availability).toUtf8();
+  QCOMPARE(core->write(response), static_cast<qint64>(response.size()));
+  core->flush();
+  QTRY_COMPARE(client.commands.size(), 1);
+  QCOMPARE(client.commands.first(), QStringLiteral("fileTransfer"));
+  QJsonObject decoded;
+  QVERIFY(FileTransferProtocol::decodeMessage(client.arguments.first(), decoded));
+  QCOMPARE(decoded.value(QStringLiteral("action")).toString(), QStringLiteral("availability"));
+  QVERIFY(decoded.value(QStringLiteral("available")).toBool());
+  QCOMPARE(decoded.value(QStringLiteral("peer")).toString(), QStringLiteral("windows-host"));
+
+  core->deleteLater();
   server.close();
 }
 

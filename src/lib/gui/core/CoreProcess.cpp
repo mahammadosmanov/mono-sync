@@ -8,6 +8,7 @@
 #include "CoreProcess.h"
 
 #include "common/ExitCodes.h"
+#include "deskflow/FileTransferProtocol.h"
 #include "gui/ipc/CoreIpcClient.h"
 #include "gui/ipc/DaemonIpcClient.h"
 
@@ -479,8 +480,10 @@ void CoreProcess::start(std::optional<ProcessMode> processModeOption)
               m_coreIpcClient, &ipc::CoreIpcClient::commandReceived, this, &CoreProcess::onCoreIpcMessageReceived,
               Qt::QueuedConnection
           );
-          connect(m_coreIpcClient, &ipc::CoreIpcClient::connected, this, [] {
+          connect(m_coreIpcClient, &ipc::CoreIpcClient::connected, this, [this] {
             qDebug("connected to core ipc server");
+            const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+            sendFileTransferMessage(refresh);
           });
           connect(m_coreIpcClient, &ipc::CoreIpcClient::connectionFailed, this, [this, client = m_coreIpcClient] {
             qWarning("failed to establish core ipc connection");
