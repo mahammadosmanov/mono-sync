@@ -97,6 +97,41 @@ try {
     throw 'Setup changed an unrecognized file in the install folder.'
   }
 
+  $managedFileHashes = @{}
+  Get-ChildItem -LiteralPath $installDir -File -Recurse | ForEach-Object {
+    $relativePath = $_.FullName.Substring($installDir.Length + 1)
+    $managedFileHashes[$relativePath] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+  }
+  $lockedPayload = Join-Path $installDir 'Qt6Core.dll'
+  if (-not (Test-Path -LiteralPath $lockedPayload)) { throw "Expected locked-file fixture is missing: $lockedPayload" }
+  $lockedFileHandle = [IO.File]::Open(
+    $lockedPayload,
+    [IO.FileMode]::Open,
+    [IO.FileAccess]::Read,
+    [IO.FileShare]::Read
+  )
+  try {
+    $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
+    if ($setupProcess.ExitCode -eq 0) { throw 'Setup updated files while Qt6Core.dll was locked.' }
+
+    $afterBlockedUpdate = @{}
+    Get-ChildItem -LiteralPath $installDir -File -Recurse | ForEach-Object {
+      $relativePath = $_.FullName.Substring($installDir.Length + 1)
+      $afterBlockedUpdate[$relativePath] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    }
+    if ($managedFileHashes.Count -ne $afterBlockedUpdate.Count) {
+      throw 'Setup changed the installed file set before rejecting a locked payload.'
+    }
+    foreach ($relativePath in $managedFileHashes.Keys) {
+      if ($afterBlockedUpdate[$relativePath] -ne $managedFileHashes[$relativePath]) {
+        throw "Setup changed $relativePath before rejecting a locked payload."
+      }
+    }
+  }
+  finally {
+    $lockedFileHandle.Dispose()
+  }
+
   $setupProcess = Start-Process -FilePath $SetupPath -ArgumentList '/S' -Wait -PassThru
   if ($setupProcess.ExitCode -ne 0) { throw "Setup update failed with exit code $($setupProcess.ExitCode)" }
   if (Test-Path -LiteralPath $profileFile) {
@@ -151,7 +186,7 @@ try {
   if ((Get-Content -LiteralPath $profileSentinel -Raw) -ne $sentinel) {
     throw 'Uninstaller changed or removed an unrecognized per-user profile file.'
   }
-  Write-Output 'Setup, legacy cleanup, update, and uninstall passed; user profile and unrecognized files/shortcuts were preserved.'
+  Write-Output 'Setup, locked-file preflight, legacy cleanup, update, and uninstall passed; user profile and unrecognized files/shortcuts were preserved.'
 }
 finally {
   if (Test-Path -LiteralPath (Join-Path $installDir 'Uninstall Mono Sync.exe')) {

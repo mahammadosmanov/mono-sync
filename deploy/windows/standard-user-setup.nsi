@@ -1,19 +1,22 @@
 !include "MUI2.nsh"
+!include "Util.nsh"
 
 Unicode true
 RequestExecutionLevel user
 ManifestDPIAware true
+AllowSkipFiles off
+FileErrorText "Mono Sync could not replace an installed file. Close Mono Sync and retry, or cancel setup." "Mono Sync could not safely replace an installed file. Close Mono Sync and retry, or cancel setup."
 Name "Mono Sync"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Mono Sync"
 SetCompressor /SOLID lzma
 CRCCheck force
 
-VIProductVersion "0.2.1.0"
+VIProductVersion "0.2.2.0"
 VIAddVersionKey "ProductName" "Mono Sync"
 VIAddVersionKey "FileDescription" "Mono Sync per-user setup"
-VIAddVersionKey "ProductVersion" "0.2.1"
-VIAddVersionKey "FileVersion" "0.2.1"
+VIAddVersionKey "ProductVersion" "0.2.2"
+VIAddVersionKey "FileVersion" "0.2.2"
 VIAddVersionKey "LegalCopyright" "Mono Sync contributors"
 
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync"
@@ -28,42 +31,41 @@ VIAddVersionKey "LegalCopyright" "Mono Sync contributors"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
+Var PreflightBlocked
+Var PreflightFailure
+
+!macro ProbeInstalledFile PATH
+  Push "${PATH}"
+  Call ProbeInstalledFile
+!macroend
+
 Section "Install"
   SetShellVarContext current
+preflight_retry:
+  StrCpy $PreflightBlocked ""
+  StrCpy $PreflightFailure ""
+  !include "${PREFLIGHT_FILE_LIST}"
+  StrCmp $PreflightFailure "" preflight_check_lock
+  IfSilent preflight_silent_failure
+  MessageBox MB_ICONSTOP|MB_OK "Setup could not safely inspect $PreflightFailure. No installed files were changed. Check the file and run setup again."
+  SetErrorLevel 11
+  Abort
+preflight_silent_failure:
+  SetErrorLevel 11
+  Abort
+preflight_check_lock:
+  StrCmp $PreflightBlocked "" preflight_done
+  IfSilent preflight_silent_locked
+  MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Close Mono Sync, then choose Retry. Setup has not changed any installed files. The locked file is:$\r$\n$PreflightBlocked" IDRETRY preflight_retry
+  SetErrorLevel 10
+  Abort
+preflight_silent_locked:
+  SetErrorLevel 10
+  Abort
+preflight_done:
   SetOverwrite on
   SetOutPath "$TEMP"
-  Push "$INSTDIR\deskflow.exe"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\deskflow-core.exe"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\deskflow-daemon.exe"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\deskflow-client.exe"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\deskflow-server.exe"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_en.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_es.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_it.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_ja.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_ko.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_ru.qm"
-  Call RemoveLegacyFile
-  Push "$INSTDIR\translations\deskflow_zh_CN.qm"
-  Call RemoveLegacyFile
-  Push "$SMPROGRAMS\Mono Sync\Deskflow.lnk"
-  Call RemoveLegacyFile
-  Push "$SMPROGRAMS\Mono Sync\Uninstall Deskflow.lnk"
-  Call RemoveLegacyFile
-  Push "$SMPROGRAMS\Deskflow\Deskflow.lnk"
-  Call RemoveLegacyFile
-  Push "$SMPROGRAMS\Deskflow\Uninstall Deskflow.lnk"
-  Call RemoveLegacyFile
+  !include "${LEGACY_FILE_LIST}"
   RMDir "$INSTDIR\translations"
   RMDir "$SMPROGRAMS\Deskflow"
   SetOutPath "$INSTDIR"
@@ -75,7 +77,7 @@ Section "Install"
   CreateShortcut "$SMPROGRAMS\Mono Sync\Uninstall Mono Sync.lnk" "$INSTDIR\${UNINSTALLER}"
 
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "Mono Sync"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "0.2.1"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "0.2.2"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "Mono Sync"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\monosync.exe"
@@ -97,6 +99,35 @@ remove_legacy_failed:
   MessageBox MB_ICONSTOP|MB_OK "Close any running Deskflow or Mono Sync windows, then run setup again. No administrator access is needed."
   Abort
 remove_legacy_done:
+  Pop $0
+FunctionEnd
+
+Function ProbeInstalledFile
+  Exch $0
+  Push $1
+  Push $2
+  Push $3
+  StrCmp $PreflightBlocked "" 0 probe_installed_done
+  StrCmp $PreflightFailure "" 0 probe_installed_done
+  StrCpy $3 "$0"
+  IfFileExists "$3" 0 probe_installed_done
+  System::Call 'kernel32::CreateFileW(w "$3", i 0x40000000, i 0, p 0, i 3, i 0x80, p 0) p.r1 ?e'
+  Pop $2
+  IntPtrCmp $1 -1 probe_installed_open_failed probe_installed_open probe_installed_open
+probe_installed_open:
+  System::Call 'kernel32::CloseHandle(p r1)'
+  Goto probe_installed_done
+probe_installed_open_failed:
+  StrCmp $2 "32" probe_installed_locked
+  StrCmp $2 "33" probe_installed_locked
+  StrCpy $PreflightFailure "$3 (Windows error $2)"
+  Goto probe_installed_done
+probe_installed_locked:
+  StrCpy $PreflightBlocked "$3"
+probe_installed_done:
+  Pop $3
+  Pop $2
+  Pop $1
   Pop $0
 FunctionEnd
 

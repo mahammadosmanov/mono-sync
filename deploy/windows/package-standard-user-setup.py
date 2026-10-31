@@ -12,6 +12,27 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
+LEGACY_INSTALL_FILES = (
+    "deskflow.exe",
+    "deskflow-core.exe",
+    "deskflow-daemon.exe",
+    "deskflow-client.exe",
+    "deskflow-server.exe",
+    "translations/deskflow_en.qm",
+    "translations/deskflow_es.qm",
+    "translations/deskflow_it.qm",
+    "translations/deskflow_ja.qm",
+    "translations/deskflow_ko.qm",
+    "translations/deskflow_ru.qm",
+    "translations/deskflow_zh_CN.qm",
+)
+LEGACY_SHORTCUTS = (
+    "$SMPROGRAMS\\Mono Sync\\Deskflow.lnk",
+    "$SMPROGRAMS\\Mono Sync\\Uninstall Deskflow.lnk",
+    "$SMPROGRAMS\\Deskflow\\Deskflow.lnk",
+    "$SMPROGRAMS\\Deskflow\\Uninstall Deskflow.lnk",
+)
+
 
 def checked_extract(archive: Path, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
@@ -93,6 +114,36 @@ def nsis_uninstall_include(payload: Path, path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
+def nsis_upgrade_includes(payload: Path, preflight_path: Path, legacy_path: Path) -> None:
+    managed = sorted(
+        p.relative_to(payload).as_posix()
+        for p in payload.rglob("*")
+        if p.is_file()
+    )
+    managed.extend(LEGACY_INSTALL_FILES)
+    managed.append("Uninstall Mono Sync.exe")
+    for relative in managed:
+        if not re.fullmatch(r"[A-Za-z0-9._ /+-]+", relative):
+            raise ValueError(f"path cannot be represented safely in NSIS: {relative!r}")
+    preflight_lines = [
+        f'!insertmacro ProbeInstalledFile "$INSTDIR\\{relative.replace("/", chr(92))}"'
+        for relative in sorted(set(managed), key=str.casefold)
+    ]
+    preflight_lines.extend(
+        f'!insertmacro ProbeInstalledFile "{shortcut}"' for shortcut in LEGACY_SHORTCUTS
+    )
+    preflight_path.write_text("\n".join(preflight_lines) + "\n", encoding="ascii")
+
+    legacy_lines = [
+        f'Push "$INSTDIR\\{relative.replace("/", chr(92))}"\nCall RemoveLegacyFile'
+        for relative in LEGACY_INSTALL_FILES
+    ]
+    legacy_lines.extend(
+        f'Push "{shortcut}"\nCall RemoveLegacyFile' for shortcut in LEGACY_SHORTCUTS
+    )
+    legacy_path.write_text("\n".join(legacy_lines) + "\n", encoding="ascii")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--portable-zip", type=Path, required=True)
@@ -113,6 +164,9 @@ def main() -> int:
         payload = checked_extract(archive, temporary_path / "expanded")
         uninstall_include = temporary_path / "uninstall-files.nsh"
         nsis_uninstall_include(payload, uninstall_include)
+        preflight_include = temporary_path / "preflight-files.nsh"
+        legacy_include = temporary_path / "legacy-files.nsh"
+        nsis_upgrade_includes(payload, preflight_include, legacy_include)
 
         command = [
             compiler,
@@ -120,6 +174,8 @@ def main() -> int:
             f"-DPAYLOAD_DIR={payload}",
             f"-DOUTPUT_FILE={output}",
             f"-DUNINSTALL_FILE_LIST={uninstall_include}",
+            f"-DPREFLIGHT_FILE_LIST={preflight_include}",
+            f"-DLEGACY_FILE_LIST={legacy_include}",
             str(script),
         ]
         result = subprocess.run(command, check=False)
