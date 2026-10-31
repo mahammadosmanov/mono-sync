@@ -18,6 +18,7 @@ private Q_SLOTS:
   void initTestCase();
   void keyDown_data();
   void keyDown();
+  void protocol1_9FileTransferActivationDoesNotReplaceHandshakeHandler();
   void keyRepeat_data();
   void keyRepeat();
   void keyUp_data();

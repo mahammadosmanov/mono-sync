@@ -16,10 +16,10 @@ class ClientProxy1_9 : public ClientProxy1_8
 public:
   ClientProxy1_9(const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events);
   ~ClientProxy1_9() override;
+  void setFileTransferConnected(bool connected);
   bool parseMessage(const uint8_t *code) override;
   bool handleFileTransferMessage(const QString &message);
 
 private:
-  IEventQueue *m_events;
   FileTransferProtocol m_fileTransfer;
 };

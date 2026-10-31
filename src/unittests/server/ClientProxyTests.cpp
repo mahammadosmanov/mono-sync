@@ -7,19 +7,26 @@
 #include "ClientProxyTests.h"
 
 #include "../deskflow/MockEventQueue.h"
+#include "base/Event.h"
+#include "deskflow/FileTransferProtocol.h"
 #include "deskflow/AppUtil.h"
+#include "deskflow/ipc/CoreIpcServer.h"
 #include "io/IStream.h"
 #include "server/ClientProxy1_0.h"
 #include "server/ClientProxy1_1.h"
 #include "server/ClientProxy1_6.h"
 #include "server/ClientProxy1_7.h"
 #include "server/ClientProxy1_8.h"
+#include "server/ClientProxy1_9.h"
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QUuid>
 #include <QTest>
 
 namespace {
@@ -46,6 +53,8 @@ public:
 class CapturingStream : public deskflow::IStream
 {
 public:
+  explicit CapturingStream(bool peerAuthenticated = false) : m_peerAuthenticated(peerAuthenticated) {}
+
   QByteArray take()
   {
     auto bytes = m_buffer;
@@ -93,9 +102,40 @@ public:
   {
     return 0;
   }
+  bool isPeerAuthenticated() const override { return m_peerAuthenticated; }
 
 private:
   QByteArray m_buffer;
+  bool m_peerAuthenticated;
+};
+
+class TrackingEventQueue : public MockEventQueue
+{
+public:
+  void addHandler(EventTypes type, void *target, const EventHandler &handler) override
+  {
+    m_handlers[{type, target}] = handler;
+  }
+
+  void removeHandler(EventTypes type, void *target) override
+  {
+    m_handlers.erase({type, target});
+  }
+
+  bool hasHandler(EventTypes type, void *target) const
+  {
+    return m_handlers.contains({type, target});
+  }
+
+  void dispatch(EventTypes type, void *target)
+  {
+    if (const auto handler = m_handlers.find({type, target}); handler != m_handlers.end()) {
+      handler->second(Event(type, target));
+    }
+  }
+
+private:
+  std::map<std::pair<EventTypes, void *>, EventHandler> m_handlers;
 };
 
 std::unique_ptr<ClientProxy> makeProxy(int minor, deskflow::IStream *stream, IEventQueue *events)
@@ -151,6 +191,40 @@ void ClientProxyTests::initTestCase()
 {
   // the 1.8 constructor reads the keyboard layouts through AppUtil::instance()
   static TestAppUtil appUtil;
+}
+
+void ClientProxyTests::protocol1_9FileTransferActivationDoesNotReplaceHandshakeHandler()
+{
+  TrackingEventQueue events;
+  const auto ipcName = QStringLiteral("MonoSyncProxyTest-%1").arg(QUuid::createUuid().toString(QUuid::Id128));
+  deskflow::core::ipc::CoreIpcServer ipcServer(nullptr, &events, ipcName);
+  auto *stream = new CapturingStream(true);
+  auto *server = reinterpret_cast<Server *>(0x1);
+  ClientProxy1_9 proxy("client", stream, server, &events);
+  stream->take();
+  const auto target = proxy.getEventTarget();
+
+  // ClientProxyUnknown must retain the shared readiness event to complete its handshake.
+  QVERIFY(!events.hasHandler(EventTypes::ClientProxyReady, target));
+  bool handshakeReady = false;
+  events.addHandler(EventTypes::ClientProxyReady, target, [&](const auto &) { handshakeReady = true; });
+  events.dispatch(EventTypes::ClientProxyReady, target);
+  QVERIFY(handshakeReady);
+
+  const auto sendOffer = FileTransferProtocol::encodeMessage(
+      {{QStringLiteral("action"), QStringLiteral("sendOffer")},
+       {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+       {QStringLiteral("name"), QStringLiteral("sample.txt")},
+       {QStringLiteral("size"), QStringLiteral("1")},
+       {QStringLiteral("sha256"), QString(64, QLatin1Char('a'))}}
+  );
+  QVERIFY(!proxy.handleFileTransferMessage(sendOffer));
+
+  // Server::adoptClient activates transfers only after the peer passes admission checks.
+  proxy.setFileTransferConnected(true);
+  QVERIFY(proxy.handleFileTransferMessage(sendOffer));
+  QVERIFY(stream->take().startsWith("MSOF"));
+  QCoreApplication::processEvents();
 }
 
 // These formats are frozen because shipped third-party clients parse them byte

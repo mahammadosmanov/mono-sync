@@ -17,22 +17,20 @@ ClientProxy1_9::ClientProxy1_9(
     const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events
 )
     : ClientProxy1_8(name, stream, server, events),
-      m_events(events),
       m_fileTransfer(stream, stream->isPeerAuthenticated(), QString::fromStdString(name), [](const QString &message) {
         ipcSendToClient(QStringLiteral("fileTransfer"), message);
       })
 {
-  m_events->addHandler(EventTypes::ClientProxyReady, this, [this](const auto &) { m_fileTransfer.setConnected(true); });
-  m_events->addHandler(EventTypes::ClientProxyDisconnected, this, [this](const auto &) {
-    m_fileTransfer.setConnected(false);
-  });
 }
 
 ClientProxy1_9::~ClientProxy1_9()
 {
   m_fileTransfer.setConnected(false);
-  m_events->removeHandler(EventTypes::ClientProxyReady, this);
-  m_events->removeHandler(EventTypes::ClientProxyDisconnected, this);
+}
+
+void ClientProxy1_9::setFileTransferConnected(bool connected)
+{
+  m_fileTransfer.setConnected(connected);
 }
 
 bool ClientProxy1_9::parseMessage(const uint8_t *code)

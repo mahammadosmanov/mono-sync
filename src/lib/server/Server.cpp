@@ -267,6 +267,9 @@ void Server::adoptClient(BaseClientProxy *client)
     closeClient(client, kMsgEBusy);
     return;
   }
+  if (auto *fileTransferClient = dynamic_cast<ClientProxy1_9 *>(client)) {
+    fileTransferClient->setFileTransferConnected(true);
+  }
   LOG_DEBUG("client \"%s\" has connected", getName(client).c_str());
   ipcSendConnectionState(deskflow::core::ConnectionState::Connected);
   sendConnectedClientsIpc();
