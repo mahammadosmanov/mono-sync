@@ -6,6 +6,7 @@
 
 #include "FileTransferProtocol.h"
 
+#include "base/Log.h"
 #include "DeskflowException.h"
 #include "FileTransferReceiver.h"
 #include "ProtocolTypes.h"
@@ -401,6 +402,13 @@ void FileTransferProtocol::setConnected(bool connected)
     return;
   }
   m_connected = connected;
+  if (connected) {
+    if (m_peerAuthenticated) {
+      LOG_INFO("file transfer peer is authenticated and available");
+    } else {
+      LOG_INFO("file transfer is unavailable because this TLS connection has no authenticated peer identity");
+    }
+  }
   if (m_peerAuthenticated) {
     notify({
         {QStringLiteral("action"), actionName("availability")},

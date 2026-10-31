@@ -42,7 +42,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Mono Sync product version; the upstream source version is recorded separately.
 set(DESKFLOW_VERSION_MAJOR 0)
 set(DESKFLOW_VERSION_MINOR 2)
-set(DESKFLOW_VERSION_PATCH 1)
+set(DESKFLOW_VERSION_PATCH 3)
 set(DESKFLOW_VERSION_TWEAK 0)
 option(DESKFLOW_USE_GIT_VERSION "Derive the project version from Git tags" OFF)
 

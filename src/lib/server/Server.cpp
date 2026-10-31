@@ -330,11 +330,14 @@ bool Server::handleFileTransferMessage(const QString &peer, const QString &messa
 void Server::refreshFileTransferAvailability()
 {
   const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
+  int fileTransferPeerCount = 0;
   for (const auto &[_, client] : m_clients) {
     if (auto *fileTransferClient = dynamic_cast<ClientProxy1_9 *>(client)) {
       fileTransferClient->handleFileTransferMessage(refresh);
+      ++fileTransferPeerCount;
     }
   }
+  LOG_INFO("refreshed file-transfer status for %d connected protocol 1.9 client(s)", fileTransferPeerCount);
 }
 
 void Server::sendConnectedClientsIpc() const

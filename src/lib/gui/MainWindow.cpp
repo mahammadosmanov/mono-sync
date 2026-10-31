@@ -1102,6 +1102,11 @@ void MainWindow::coreConnectionStateChanged(ConnectionState state)
   // when the correct TLS version string is detected.
   if (state != ConnectionState::Connected) {
     secureSocket(false);
+    if (!m_fileTransferPeers.isEmpty()) {
+      const auto stateName = QMetaEnum::fromType<ConnectionState>().valueToKey(static_cast<int>(state));
+      handleLogLine(QStringLiteral("Cleared file-transfer availability after core state changed to %1.")
+                        .arg(QString::fromLatin1(stateName)));
+    }
     clearFileTransferAvailability(tr("File transfer stopped because the peer disconnected."));
   } else if (isVisible()) {
     showFirstConnectedMessage();
@@ -1695,6 +1700,8 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   const QString id = message.value(QStringLiteral("id")).toString();
   if (action == QStringLiteral("availability")) {
     const bool available = message.value(QStringLiteral("available")).toBool();
+    handleLogLine(QStringLiteral("File-transfer availability received: %1.")
+                      .arg(available ? QStringLiteral("available") : QStringLiteral("unavailable")));
     m_fileTransferPeers.insert(peer, available);
     if (!available && peer == m_outgoingPeer &&
         (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty())) {

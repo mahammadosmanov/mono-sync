@@ -74,6 +74,7 @@ void ServerApp::handleCoreIpcCommand(const QString &command, const QString &payl
   const auto peer = message.value(QStringLiteral("peer")).toString();
   if (peer.isEmpty()) {
     if (FileTransferProtocol::isPeerlessAvailabilityRefresh(payload)) {
+      LOG_INFO("received local file-transfer availability refresh");
       m_server->refreshFileTransferAvailability();
     }
     return;

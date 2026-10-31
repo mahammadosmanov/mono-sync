@@ -20,7 +20,12 @@ namespace deskflow::core::ipc {
 static CoreIpcServer *s_instance = nullptr;
 
 CoreIpcServer::CoreIpcServer(QObject *parent, IEventQueue *events)
-    : IpcServer(parent, coreIpcServerName(), QStringLiteral("core"), true),
+    : CoreIpcServer(parent, events, coreIpcServerName())
+{
+}
+
+CoreIpcServer::CoreIpcServer(QObject *parent, IEventQueue *events, const QString &serverName)
+    : IpcServer(parent, serverName, QStringLiteral("core"), true),
       m_events(events)
 {
   assert(s_instance == nullptr);

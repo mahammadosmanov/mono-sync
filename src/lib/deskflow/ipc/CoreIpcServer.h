@@ -22,6 +22,7 @@ class CoreIpcServer : public IpcServer
 
 public:
   explicit CoreIpcServer(QObject *parent, IEventQueue *events);
+  CoreIpcServer(QObject *parent, IEventQueue *events, const QString &serverName);
 
   static CoreIpcServer &instance();
 

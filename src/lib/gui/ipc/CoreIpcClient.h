@@ -9,6 +9,7 @@
 #include "IpcClient.h"
 
 #include <QObject>
+#include <QString>
 
 namespace deskflow::gui::ipc {
 
@@ -18,8 +19,13 @@ class CoreIpcClient : public IpcClient
 
 public:
   explicit CoreIpcClient(QObject *parent = nullptr);
+  CoreIpcClient(QObject *parent, const QString &socketName);
   void setExpectedServerProcessId(qint64 processId);
   void connectToServer();
+  QString serverPeerVerificationFailureReason() const
+  {
+    return m_serverPeerVerificationFailureReason;
+  }
 
   void sendStop();
   void sendFileTransferMessage(const QString &encodedMessage);
@@ -33,6 +39,7 @@ protected:
 
 private:
   qint64 m_expectedServerProcessId = 0;
+  mutable QString m_serverPeerVerificationFailureReason;
 };
 
 } // namespace deskflow::gui::ipc

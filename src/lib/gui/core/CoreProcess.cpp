@@ -481,7 +481,18 @@ void CoreProcess::start(std::optional<ProcessMode> processModeOption)
               Qt::QueuedConnection
           );
           connect(m_coreIpcClient, &ipc::CoreIpcClient::connected, this, [this] {
-            qDebug("connected to core ipc server");
+            if (!m_coreIpcClient->isServerPeerVerified()) {
+              const auto message = QStringLiteral(
+                  "File transfer unavailable: the local core IPC server could not be verified: %1."
+              );
+              const auto reason = m_coreIpcClient->serverPeerVerificationFailureReason();
+              qWarning().noquote() << message.arg(reason);
+              Q_EMIT logLine(message.arg(reason));
+              Q_EMIT fileTransferIpcUnavailable();
+              return;
+            }
+            qDebug("connected to verified core ipc server");
+            Q_EMIT logLine(QStringLiteral("Verified the local core IPC server; requesting file-transfer status."));
             const auto refresh = FileTransferProtocol::availabilityRefreshRequest();
             sendFileTransferMessage(refresh);
           });
@@ -688,7 +699,16 @@ void CoreProcess::onCoreIpcMessageReceived(const QString &command, const QString
     Q_EMIT missingKeyboardLayouts(args);
   } else if (command == "fileTransfer") {
     if (m_coreIpcClient != nullptr && m_coreIpcClient->isServerPeerVerified()) {
+      QJsonObject message;
+      if (FileTransferProtocol::decodeMessage(args, message) &&
+          message.value(QStringLiteral("action")).toString() == QStringLiteral("availability")) {
+        const auto available = message.value(QStringLiteral("available")).toBool();
+        Q_EMIT logLine(QStringLiteral("Core reported file-transfer availability: %1.")
+                           .arg(available ? QStringLiteral("available") : QStringLiteral("unavailable")));
+      }
       Q_EMIT fileTransferMessageReceived(args);
+    } else {
+      Q_EMIT logLine(QStringLiteral("Ignored a file-transfer message from an unverified local core process."));
     }
   }
 }

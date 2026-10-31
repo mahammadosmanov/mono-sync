@@ -19,6 +19,13 @@ create_test(
 )
 
 create_test(
+  NAME CoreIpcDeliveryTests
+  DEPENDS gui
+  SOURCE CoreIpcDeliveryTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
+)
+
+create_test(
   NAME OutgoingFileWorkerTests
   DEPENDS gui
   SOURCE OutgoingFileWorkerTests.cpp

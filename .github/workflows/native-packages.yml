@@ -70,7 +70,7 @@ jobs:
           ${{ matrix.target.generator-args }}
           -DSKIP_BUILD_TESTS=ON
           -DDESKFLOW_USE_GIT_VERSION=OFF
-          "-DPACKAGE_VERSION_LABEL=0.2.1"
+          "-DPACKAGE_VERSION_LABEL=0.2.3"
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
@@ -130,18 +130,18 @@ jobs:
           if ($portable.Count -ne 1) { throw "Expected one portable ZIP, found $($portable.Count)." }
           python deploy/windows/package-standard-user-setup.py `
             --portable-zip $portable[0].FullName `
-            --output "$PWD/build/MonoSync-Setup-0.2.2.exe" `
+            --output "$PWD/build/MonoSync-Setup-0.2.3.exe" `
             --makensis "$makensis"
 
       - name: Smoke-test setup install, update, and uninstall
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./deploy/windows/smoke-test-setup-lifecycle.ps1 -SetupPath "$PWD/build/MonoSync-Setup-0.2.2.exe"
+        run: ./deploy/windows/smoke-test-setup-lifecycle.ps1 -SetupPath "$PWD/build/MonoSync-Setup-0.2.3.exe"
 
       - name: Publish the default Setup filename
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Copy-Item -LiteralPath build/MonoSync-Setup-0.2.2.exe -Destination build/MonoSync-Setup.exe
+        run: Copy-Item -LiteralPath build/MonoSync-Setup-0.2.3.exe -Destination build/MonoSync-Setup.exe
 
       - name: Upload macOS package
         if: runner.os == 'macOS'
@@ -158,7 +158,7 @@ jobs:
         with:
           name: mono-sync-windows-x64-setup
           path: |
-            build/MonoSync-Setup-0.2.2.exe
+            build/MonoSync-Setup-0.2.3.exe
             build/MonoSync-Setup.exe
           if-no-files-found: error
           retention-days: 14
