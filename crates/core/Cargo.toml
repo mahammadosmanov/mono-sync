@@ -12,7 +12,7 @@ mono-input = { path = "../input", version = "0.1.0" }
 mono-clip = { path = "../clip", version = "0.1.0" }
 anyhow = "1"
 dirs = "7"
-getrandom = "0.3"
+getrandom = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
