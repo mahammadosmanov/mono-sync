@@ -1684,7 +1684,7 @@ void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(message));
   if (m_fileTransferProgress && m_outgoingSize > 0) {
-    m_fileTransferProgress->setLabelText(tr("Sending file…"));
+    m_fileTransferProgress->setLabelText(tr("Sending \"%1\"…").arg(m_outgoingFileName));
     m_fileTransferProgress->setValue(400 + static_cast<int>(position * 600 / m_outgoingSize));
   }
 }
@@ -1727,10 +1727,21 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     m_outgoingPeer = peer;
     m_outgoingTransferId = id;
     m_receivingFile = true;
-    const QString destination = QFileDialog::getSaveFileName(
-        this, tr("Save file from %1").arg(peer), QDir::home().filePath(name));
+    QMessageBox prompt(QMessageBox::Question, kAppName,
+                       tr("%1 wants to send you \"%2\" (%3).")
+                           .arg(peer, name, QLocale().formattedDataSize(static_cast<qint64>(size))),
+                       QMessageBox::NoButton, this);
+    prompt.setTextFormat(Qt::PlainText);
+    const auto *save = prompt.addButton(tr("Choose location…"), QMessageBox::AcceptRole);
+    prompt.addButton(tr("Decline"), QMessageBox::RejectRole);
+    prompt.exec();
+    const bool accepted = prompt.clickedButton() == save;
     if (m_outgoingTransferId != id || m_outgoingPeer != peer) {
       return;
+    }
+    QString destination;
+    if (accepted) {
+      destination = QFileDialog::getSaveFileName(this, tr("Save file from %1").arg(peer), QDir::home().filePath(name));
     }
     if (destination.isEmpty()) {
       QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
@@ -1741,7 +1752,8 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
       return;
     }
     m_outgoingSize = size;
-    m_fileTransferProgress = new QProgressDialog(tr("Receiving file…"), tr("Cancel transfer"), 0, 1000, this);
+    m_fileTransferProgress =
+        new QProgressDialog(tr("Receiving \"%1\"…").arg(name), tr("Cancel transfer"), 0, 1000, this);
     m_fileTransferProgress->setWindowModality(Qt::WindowModal);
     m_fileTransferProgress->setAutoClose(false);
     m_fileTransferProgress->setAutoReset(false);
@@ -1811,10 +1823,17 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     return;
   }
   if (action == QStringLiteral("completed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    clearFileTransfer(tr("File sent and verified by the receiving peer."));
-  } else if ((action == QStringLiteral("failed") || action == QStringLiteral("rejected") ||
-              action == QStringLiteral("cancelled")) && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    clearFileTransfer(tr("File transfer ended before completion."));
+    const QString name = m_outgoingFileName;
+    clearFileTransfer();
+    QMessageBox::information(this, kAppName, tr("File sent and verified by the receiving peer:\n%1").arg(name));
+  } else if (action == QStringLiteral("rejected") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
+    clearFileTransfer();
+    QMessageBox::warning(this, kAppName, tr("The receiving peer declined the file."));
+  } else if (action == QStringLiteral("failed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
+    clearFileTransfer();
+    QMessageBox::warning(this, kAppName, tr("The receiving peer could not complete the transfer."));
+  } else if (action == QStringLiteral("cancelled") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
+    clearFileTransfer(tr("The receiving peer cancelled the transfer."));
   }
 }
 
