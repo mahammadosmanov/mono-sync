@@ -16,6 +16,7 @@
 #include <QSystemTrayIcon>
 #include <QUrl>
 
+#include "UpdateDownloader.h"
 #include "VersionChecker.h"
 #include "common/Constants.h"
 #include "config/ServerConfig.h"
@@ -103,7 +104,14 @@ private:
 
   void clearSettings();
   void openAboutDialog();
-  void openGetNewVersionUrl() const;
+  void openGetNewVersionUrl();
+  void checkForUpdates();
+  void onUpdateFound(const QString &version);
+  void onUpToDate();
+  void onUpdateCheckFailed(const QString &error);
+  void onUpdateDownloaded(const QString &path);
+  void onUpdateDownloadFailed(const QString &error);
+  void closeUpdateProgress();
   void openSettings();
   void startCore();
   void stopCore();
@@ -188,6 +196,9 @@ private:
   inline static const auto m_nameRegEx = QRegularExpression(QStringLiteral("^[\\w\\-_\\.]{0,255}$"));
 
   VersionChecker m_versionChecker;
+  UpdateDownloader m_updateDownloader;
+  QProgressDialog *m_updateProgress = nullptr;
+  bool m_manualUpdateCheck = false;
   bool m_secureSocket = false;
   bool m_saveOnExit = true;
   bool m_clientErrorVisible = false;
@@ -223,6 +234,7 @@ private:
   QAction *m_actionRestartCore = nullptr;
   QAction *m_actionStopCore = nullptr;
   QAction *m_actionShowHelp = nullptr;
+  QAction *m_actionCheckUpdates = nullptr;
   QAction *m_actionSendFile = nullptr;
 
   // Network monitoring

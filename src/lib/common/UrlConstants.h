@@ -16,9 +16,10 @@ const auto kOrgDomain = QStringLiteral("monosync.app");
 const auto kUrlSourceQuery = QStringLiteral("source=gui");
 const auto kUrlApp = QStringLiteral("https://github.com/mahammadosmanov/mono-sync");
 const auto kUrlHelp = QStringLiteral("%1/tree/codex/deskflow-rebuild/docs").arg(kUrlApp);
-const auto kUrlDownload = QStringLiteral("%1/actions").arg(kUrlApp);
+const auto kUrlDownload = QStringLiteral("%1/releases").arg(kUrlApp);
 const auto kUrlWiki = kUrlApp;
-const auto kUrlUpdateCheck = QString();
+// Newest release, including pre-releases. GitHub's /releases/latest skips pre-releases.
+const auto kUrlUpdateCheck = QStringLiteral("https://api.github.com/repos/mahammadosmanov/mono-sync/releases?per_page=1");
 
 #if defined(Q_OS_LINUX)
 const auto kUrlGnomeTrayFix = QStringLiteral("https://extensions.gnome.org/extension/615/appindicator-support/");

@@ -96,6 +96,7 @@ MainWindow::MainWindow()
       m_actionRestartCore{new QAction(this)},
       m_actionStopCore{new QAction(this)},
       m_actionShowHelp{new QAction(this)},
+      m_actionCheckUpdates{new QAction(this)},
       m_actionSendFile{new QAction(this)},
       m_networkMonitor{new NetworkMonitor(this)}
 {
@@ -174,6 +175,9 @@ MainWindow::MainWindow()
   m_actionShowHelp->setIcon(QIcon::fromTheme(QStringLiteral("question")));
   m_actionShowHelp->setMenuRole(QAction::NoRole);
   m_actionShowHelp->setShortcut(QKeySequence::HelpContents);
+
+  m_actionCheckUpdates->setIcon(QIcon::fromTheme(QStringLiteral("software-updates-release")));
+  m_actionCheckUpdates->setMenuRole(QAction::NoRole);
 
   // Setup the Instance Checking
   // In case of a previous crash remove first
@@ -334,6 +338,7 @@ void MainWindow::connectSlots()
   connect(m_actionRestartCore, &QAction::triggered, this, &MainWindow::resetCore);
   connect(m_actionStopCore, &QAction::triggered, this, &MainWindow::stopCore);
   connect(m_actionShowHelp, &QAction::triggered, this, &MainWindow::showHelpViewer);
+  connect(m_actionCheckUpdates, &QAction::triggered, this, &MainWindow::checkForUpdates);
   connect(m_actionSendFile, &QAction::triggered, this, &MainWindow::sendFile);
   connect(&m_coreProcess, &CoreProcess::fileTransferMessageReceived, this, &MainWindow::handleFileTransferMessage);
   connect(&m_coreProcess, &CoreProcess::fileTransferIpcUnavailable, this,
@@ -376,7 +381,16 @@ void MainWindow::connectSlots()
 
   connect(m_statusBar, &StatusBar::requestShowMyFingerprints, this, &MainWindow::showMyFingerprint);
   connect(m_statusBar, &StatusBar::requestUpdateVersion, this, &MainWindow::openGetNewVersionUrl);
-  connect(&m_versionChecker, &VersionChecker::updateFound, m_statusBar, &StatusBar::updateFound);
+  connect(&m_versionChecker, &VersionChecker::updateFound, this, &MainWindow::onUpdateFound);
+  connect(&m_versionChecker, &VersionChecker::upToDate, this, &MainWindow::onUpToDate);
+  connect(&m_versionChecker, &VersionChecker::checkFailed, this, &MainWindow::onUpdateCheckFailed);
+  connect(&m_updateDownloader, &UpdateDownloader::progress, this, [this](qint64 received, qint64 total) {
+    if (m_updateProgress && total > 0) {
+      m_updateProgress->setValue(static_cast<int>(received * 100 / total));
+    }
+  });
+  connect(&m_updateDownloader, &UpdateDownloader::finished, this, &MainWindow::onUpdateDownloaded);
+  connect(&m_updateDownloader, &UpdateDownloader::failed, this, &MainWindow::onUpdateDownloadFailed);
 
   connect(m_guiDupeChecker, &QLocalServer::newConnection, this, &MainWindow::showAndActivate);
 
@@ -535,9 +549,74 @@ void MainWindow::openAboutDialog()
   about.exec();
 }
 
-void MainWindow::openGetNewVersionUrl() const
+void MainWindow::openGetNewVersionUrl()
 {
-  QDesktopServices::openUrl(QUrl(kUrlDownload));
+  const auto &latest = m_versionChecker.latest();
+  if (latest.sha256.isEmpty()) {
+    QDesktopServices::openUrl(latest.url.isValid() ? latest.url : QUrl(kUrlDownload));
+    return;
+  }
+
+  m_updateProgress =
+      new QProgressDialog(tr("Downloading %1 %2…").arg(kAppName, latest.version), tr("Cancel"), 0, 100, this);
+  m_updateProgress->setWindowModality(Qt::WindowModal);
+  m_updateProgress->setAutoClose(false);
+  m_updateProgress->setAutoReset(false);
+  connect(m_updateProgress, &QProgressDialog::canceled, this, &MainWindow::closeUpdateProgress);
+  m_updateProgress->show();
+  m_updateDownloader.start(latest.url, latest.fileName, latest.sha256);
+}
+
+void MainWindow::checkForUpdates()
+{
+  m_manualUpdateCheck = true;
+  m_versionChecker.checkLatest();
+}
+
+void MainWindow::onUpdateFound(const QString &version)
+{
+  m_manualUpdateCheck = false;
+  m_statusBar->updateFound(version);
+}
+
+void MainWindow::onUpToDate()
+{
+  if (m_manualUpdateCheck) {
+    m_manualUpdateCheck = false;
+    statusBar()->showMessage(tr("%1 is up to date.").arg(kAppName), 8000);
+  }
+}
+
+void MainWindow::onUpdateCheckFailed(const QString &error)
+{
+  if (m_manualUpdateCheck) {
+    m_manualUpdateCheck = false;
+    QMessageBox::warning(this, kAppName, tr("Could not check for updates:\n%1").arg(error));
+  }
+}
+
+void MainWindow::onUpdateDownloaded(const QString &path)
+{
+  closeUpdateProgress();
+  statusBar()->showMessage(tr("Update saved to %1. Run it to install.").arg(path), 8000);
+  QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+void MainWindow::onUpdateDownloadFailed(const QString &error)
+{
+  closeUpdateProgress();
+  QMessageBox::warning(this, kAppName, tr("Could not download the update:\n%1").arg(error));
+}
+
+void MainWindow::closeUpdateProgress()
+{
+  m_updateDownloader.cancel();
+  if (m_updateProgress) {
+    m_updateProgress->disconnect(this);
+    m_updateProgress->close();
+    m_updateProgress->deleteLater();
+    m_updateProgress = nullptr;
+  }
 }
 
 void MainWindow::openSettings()
@@ -721,7 +800,7 @@ void MainWindow::open()
   const auto kCriticalDialogDelay = 100;
   QTimer::singleShot(kCriticalDialogDelay, this, &messages::raiseCriticalDialog);
 
-  if (!Settings::value(Settings::Gui::AutoUpdateCheck).isValid()) {
+  if (!Settings::isSet(Settings::Gui::AutoUpdateCheck)) {
     Settings::setValue(Settings::Gui::AutoUpdateCheck, messages::showUpdateCheckOption(this));
   }
 
@@ -753,6 +832,7 @@ void MainWindow::createMenuBar()
   m_menuView->addAction(m_logDock->toggleViewAction());
 
   m_menuHelp->addAction(m_actionAbout);
+  m_menuHelp->addAction(m_actionCheckUpdates);
   m_menuHelp->addAction(m_actionShowHelp);
 
   auto menuBar = new QMenuBar(this);
@@ -1189,6 +1269,7 @@ void MainWindow::updateText()
   m_actionAbout->setText(tr("About %1...").arg(kAppName));
 
   m_actionShowHelp->setText(tr("View &Help"));
+  m_actionCheckUpdates->setText(tr("Check for &Updates…"));
   m_actionSendFile->setText(tr("Send a file…"));
   m_actionSendFile->setEnabled(false);
 

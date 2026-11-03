@@ -197,6 +197,8 @@ public:
   static void clearState();
   static void setValue(const QString &key = QString(), const QVariant &value = QVariant());
   static QVariant value(const QString &key = QString());
+  // True only when the user has stored a value, not when the default applies.
+  static bool isSet(const QString &key);
   static void restoreDefaultSettings();
   static QVariant defaultValue(const QString &key);
   static bool isServerConfigFileReadable();

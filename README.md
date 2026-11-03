@@ -10,7 +10,7 @@ Build requirements and platform options are in [the upstream-derived developer g
 
 For Windows, use the [per-user setup instructions](docs/WINDOWS-PORTABLE.md). The setup, app, and uninstaller run as the current user. They do not install a service or change firewall rules. Windows or organization firewall policy may still block connections. macOS may request its input-control permission; Mono Sync cannot bypass operating-system permission prompts.
 
-Update checks are disabled until Mono Sync has its own update feed. Install a newer Windows setup or macOS DMG manually from a verified project build.
+Mono Sync asks once whether to check for updates. Checks read the project's GitHub releases. When a newer build is found, the status bar offers to download it. The download is saved to your Downloads folder and must match the SHA-256 digest GitHub publishes for it before it opens. Help > Check for Updates runs a check on demand. Mono Sync does not install updates silently.
 
 ## Verification
 

@@ -93,7 +93,7 @@ This section contains options used by the GUI it will begin with `[gui]`
 |Option                          | Valid Values      |Description|
 |:-------------------------------|:-----------------:|:-----------|
 | autoHide                       | `true` or `false` | When true the app will hide itself on start up [default: false] |
-| enableUpdateCheck              | `true` or `false` | Legacy setting; automatic update checks are disabled in Mono Sync |
+| enableUpdateCheck              | `true` or `false` | Check GitHub releases for a newer build at startup. Asked once on first run [default: false] |
 | closeReminder                  | `true` or `false` | Used to track if we have shown the reminder that when you close the app it remain running in the background  [default: true]|
 | closeToTray                    | `true` or `false` | When `true` the gui will run in the systemTray when its closed [default: true] |
 | logExpanded                    | `true` or `false` | Should the log section of the GUI be opened [default: false] |
@@ -103,7 +103,7 @@ This section contains options used by the GUI it will begin with `[gui]`
 | shownServerFirstStartMessage   | `true` or `false` | When `true` GUI has shown the user the Deskflow server is now running message [default: false] |
 | shownVerionInTitle             | `true` or `false` | When `true` GUI will include the version in the window title [default: false] |
 | startCoreWithGui               | `true` or `false` | When true the Core will be started with the GUI. It is set to the Core's state on exit. |
-| updateCheckUrl                 | URL               | Legacy setting; ignored by Mono Sync |
+| updateCheckUrl                 | URL               | GitHub releases API endpoint used for update checks [default: the Mono Sync releases API] |
 
 ### Log
 

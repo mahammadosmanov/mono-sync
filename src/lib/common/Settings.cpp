@@ -621,11 +621,13 @@ void Settings::setValue(const QString &key, const QVariant &value)
   Q_EMIT instance()->settingsChanged(key);
 }
 
+bool Settings::isSet(const QString &key)
+{
+  return instance()->m_settings->contains(key);
+}
+
 QVariant Settings::value(const QString &key)
 {
-  if (key == Gui::AutoUpdateCheck)
-    return false;
-
 #ifdef Q_OS_WIN
   if (key == Core::ProcessMode)
     return ProcessMode::Desktop;

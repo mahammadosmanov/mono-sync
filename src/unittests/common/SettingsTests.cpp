@@ -156,11 +156,8 @@ void SettingsTests::checkValidSettings()
     QCOMPARE(spy.count(), 1);
     QCOMPARE(qvariant_cast<QString>(spy.first().at(0)), setting);
     auto expectedAfterWrite = QStringLiteral("NEW_VALUE");
-    if (setting == Settings::Gui::AutoUpdateCheck)
-      expectedAfterWrite = Settings::defaultValue(setting).toString();
 #ifdef Q_OS_WIN
-    if (setting == Settings::Core::ProcessMode || setting == Settings::Daemon::Elevate ||
-        setting == Settings::Gui::AutoUpdateCheck)
+    if (setting == Settings::Core::ProcessMode || setting == Settings::Daemon::Elevate)
       expectedAfterWrite = Settings::defaultValue(setting).toString();
 #endif
     QCOMPARE(Settings::value(setting).toString(), expectedAfterWrite);
@@ -223,13 +220,10 @@ void SettingsTests::windowsModeIgnoresPrivilegedSettings()
 
   Settings::setValue(Settings::Core::ProcessMode, Settings::ProcessMode::Service);
   Settings::setValue(Settings::Daemon::Elevate, true);
-  Settings::setValue(Settings::Gui::AutoUpdateCheck, true);
 
   const bool usesDesktopModeWithoutPortableMarker =
       Settings::value(Settings::Core::ProcessMode).value<Settings::ProcessMode>() == Settings::ProcessMode::Desktop;
   const bool doesNotElevateDaemonWithoutPortableMarker = !Settings::value(Settings::Daemon::Elevate).toBool();
-  const bool doesNotCheckInstallerUpdatesWithoutPortableMarker =
-      !Settings::value(Settings::Gui::AutoUpdateCheck).toBool();
 
   const auto portableFileName = Settings::portableSettingsFile();
   const auto portableDirectory = QFileInfo(portableFileName).absolutePath();
@@ -242,20 +236,16 @@ void SettingsTests::windowsModeIgnoresPrivilegedSettings()
   const bool usesDesktopModeWithPortableMarker =
       Settings::value(Settings::Core::ProcessMode).value<Settings::ProcessMode>() == Settings::ProcessMode::Desktop;
   const bool doesNotElevateDaemonWithPortableMarker = !Settings::value(Settings::Daemon::Elevate).toBool();
-  const bool doesNotCheckInstallerUpdatesWithPortableMarker = !Settings::value(Settings::Gui::AutoUpdateCheck).toBool();
 
   Settings::setValue(Settings::Core::ProcessMode, Settings::ProcessMode::Desktop);
   Settings::setValue(Settings::Daemon::Elevate, false);
-  Settings::setValue(Settings::Gui::AutoUpdateCheck, false);
   const bool removedPortableMarker = portableSettingsFile.remove();
   QDir().rmdir(portableDirectory);
 
   QVERIFY(usesDesktopModeWithoutPortableMarker);
   QVERIFY(doesNotElevateDaemonWithoutPortableMarker);
-  QVERIFY(doesNotCheckInstallerUpdatesWithoutPortableMarker);
   QVERIFY(usesDesktopModeWithPortableMarker);
   QVERIFY(doesNotElevateDaemonWithPortableMarker);
-  QVERIFY(doesNotCheckInstallerUpdatesWithPortableMarker);
   QVERIFY(removedPortableMarker);
 #endif
 }

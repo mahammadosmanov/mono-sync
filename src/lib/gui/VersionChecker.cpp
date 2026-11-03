@@ -9,6 +9,9 @@
 #include "common/Settings.h"
 #include "common/VersionInfo.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocale>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -34,33 +37,81 @@ void VersionChecker::checkLatest() const
   m_network->get(request);
 }
 
+bool VersionChecker::parseRelease(const QByteArray &json, Release &release)
+{
+#if defined(Q_OS_WIN)
+  const auto installerSuffix = QStringLiteral(".exe");
+#elif defined(Q_OS_MACOS)
+  const auto installerSuffix = QStringLiteral(".dmg");
+#else
+  const auto installerSuffix = QStringLiteral("");
+#endif
+
+  const auto releases = QJsonDocument::fromJson(json).array();
+  if (releases.isEmpty()) {
+    return false;
+  }
+
+  const auto newest = releases.first().toObject();
+  auto version = newest.value(QStringLiteral("tag_name")).toString();
+  if (version.startsWith(QLatin1Char('v'))) {
+    version.remove(0, 1);
+  }
+  // compareVersions() indexes three numeric parts, so reject anything else before comparing.
+  static const QRegularExpression versionPattern(QStringLiteral(R"(^\d+\.\d+\.\d+(\.\d+)?(-[\w.]+)?$)"));
+  if (!versionPattern.match(version).hasMatch()) {
+    return false;
+  }
+
+  release.version = version;
+  release.url = QUrl(newest.value(QStringLiteral("html_url")).toString());
+  release.fileName.clear();
+  release.sha256.clear();
+
+  for (const auto &entry : newest.value(QStringLiteral("assets")).toArray()) {
+    const auto asset = entry.toObject();
+    const auto name = asset.value(QStringLiteral("name")).toString();
+    const auto digest = asset.value(QStringLiteral("digest")).toString();
+    const QUrl url(asset.value(QStringLiteral("browser_download_url")).toString());
+    const bool trusted = url.scheme() == QLatin1String("https") && url.host() == QLatin1String("github.com");
+    if (!installerSuffix.isEmpty() && name.endsWith(installerSuffix) && digest.startsWith(QStringLiteral("sha256:")) &&
+        trusted) {
+      release.url = url;
+      release.fileName = name;
+      release.sha256 = digest.mid(QStringLiteral("sha256:").size());
+      break;
+    }
+  }
+  return true;
+}
+
 void VersionChecker::replyFinished(QNetworkReply *reply)
 {
+  reply->deleteLater();
   const auto httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
   if (reply->error() != QNetworkReply::NoError) {
-    qWarning("version check server error: %s", qPrintable(reply->errorString()));
-    qWarning("version check server response: %s", qPrintable(QString(reply->readAll())));
-    qWarning("error checking for updates, http status: %d", httpStatus);
+    qWarning("error checking for updates, http status: %d, error: %s", httpStatus, qPrintable(reply->errorString()));
+    Q_EMIT checkFailed(reply->errorString());
     return;
   }
 
   qDebug("version check server success, http status: %d", httpStatus);
 
-  const auto newestVersion = QString(reply->readAll());
-  reply->deleteLater();
-  qDebug("version check response: %s", qPrintable(newestVersion));
-
-  if (newestVersion.isEmpty()) {
-    qWarning() << "version check is response is empty";
+  Release release;
+  if (!parseRelease(reply->readAll(), release)) {
+    qWarning("version check response could not be read");
+    Q_EMIT checkFailed(tr("The update server sent an unreadable response."));
     return;
   }
 
-  if (compareVersions(kVersion, newestVersion) > 0) {
+  if (compareVersions(kVersion, release.version) > 0) {
     qWarning().noquote() //
-        << QStringLiteral("current version %1 out of date, update available: %2").arg(kVersion, newestVersion);
-    Q_EMIT updateFound(newestVersion);
+        << QStringLiteral("current version %1 out of date, update available: %2").arg(kVersion, release.version);
+    m_latest = release;
+    Q_EMIT updateFound(release.version);
   } else {
     qDebug().noquote() << QStringLiteral("current version %1 is upto date").arg(kVersion);
+    Q_EMIT upToDate();
   }
 }
 
