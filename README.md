@@ -2,7 +2,7 @@
 
 Mono Sync is a Windows and macOS app for sharing one keyboard and mouse across computers, with explicit one-file transfers over the existing authenticated peer connection. Its input engine and native platform backends come from Deskflow `v1.27.0` at commit `081f6478e654a112168879e67a41ce7d7e4ae3af`; Mono Sync-specific changes include product identity, safe profile migration, standard-user Windows packaging, and file transfer.
 
-The Windows x64 host and Apple Silicon Mac client use the same TLS-protected Deskflow peer connection. A receiving user chooses the destination; Mono Sync verifies size and SHA-256, writes to a private temporary file, and refuses to overwrite a file that appears at the destination. Folders, resume, and automatic file opening are not supported.
+The Windows x64 host and Apple Silicon Mac client use the same TLS-protected Deskflow peer connection. Receivers either accept each file into a default folder, choose a location, or turn on automatic acceptance. Senders can drag files onto the window. Mono Sync verifies size and SHA-256, writes to a private temporary file, and never overwrites an existing file; a name clash gets a `(2)`, `(3)`, … suffix. Folders, resume, and automatic file opening are not supported.
 
 ## Build
 

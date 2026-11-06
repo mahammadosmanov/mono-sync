@@ -79,6 +79,8 @@ public:
     inline static const auto AutoStartCore = QStringLiteral("gui/startCoreWithGui");
     inline static const auto AutoUpdateCheck = QStringLiteral("gui/enableUpdateCheck");
     inline static const auto UpdateCheckUrl = QStringLiteral("gui/updateCheckUrl");
+    inline static const auto FileReceiveDirectory = QStringLiteral("gui/fileReceiveDirectory");
+    inline static const auto FileAutoAccept = QStringLiteral("gui/fileAutoAccept");
     inline static const auto CloseReminder = QStringLiteral("gui/closeReminder");
     inline static const auto CloseToTray = QStringLiteral("gui/closeToTray");
     inline static const auto LogExpanded = QStringLiteral("gui/logExpanded");
@@ -312,6 +314,8 @@ private:
     , Gui::AutoStartCore
     , Gui::AutoUpdateCheck
     , Gui::UpdateCheckUrl
+    , Gui::FileReceiveDirectory
+    , Gui::FileAutoAccept
     , Gui::CloseReminder
     , Gui::CloseToTray
     , Gui::LogExpanded

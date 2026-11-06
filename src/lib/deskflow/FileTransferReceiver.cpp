@@ -208,6 +208,17 @@ bool FileTransferReceiver::fail(const QString &message, QString *error)
   return false;
 }
 
+QString FileTransferReceiver::uniqueFilePath(const QString &path)
+{
+  const QFileInfo info(path);
+  QString candidate = path;
+  const auto suffix = info.suffix().isEmpty() ? QString() : QStringLiteral(".%1").arg(info.suffix());
+  for (int n = 2; QFileInfo::exists(candidate); ++n) {
+    candidate = info.dir().filePath(QStringLiteral("%1 (%2)%3").arg(info.completeBaseName()).arg(n).arg(suffix));
+  }
+  return candidate;
+}
+
 bool FileTransferReceiver::isSafeFileName(const QString &fileName)
 {
   if (fileName.isEmpty() || fileName == QStringLiteral(".") || fileName == QStringLiteral("..") ||

@@ -440,8 +440,11 @@ QVariant Settings::defaultValue(const QString &key)
   if (key == Client::LastSuccessfulRemoteHost)
     return QString();
 
-  if (key == Gui::AutoUpdateCheck)
+  if (key == Gui::AutoUpdateCheck || key == Gui::FileAutoAccept)
     return false;
+
+  if (key == Gui::FileReceiveDirectory)
+    return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
 
 #ifdef Q_OS_WIN
   if (key == Daemon::Elevate)

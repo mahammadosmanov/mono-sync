@@ -23,6 +23,6 @@ The user has reported that Windows-to-Mac keyboard and mouse input works. This d
 3. Repeat from Mac to Windows. If a file with the same name already exists, confirm Mono Sync leaves it untouched and reports the transfer failure.
 4. Cancel one transfer and disconnect during another. Confirm partial files are removed and keyboard/mouse sharing remains usable or reconnects normally.
 
-The receiver must explicitly choose where to save each file. Mono Sync transfers individual files up to 10 GiB, does not open received files, and does not overwrite existing files. Filesystems without exclusive same-directory hard-link support fail closed.
+By default the receiver confirms each file and picks Save (default folder) or Choose location. With Accept files automatically enabled, files from connected peers are saved to the receive folder without a prompt. Mono Sync transfers individual files up to 10 GiB, does not open received files, and does not overwrite existing files. Filesystems without exclusive same-directory hard-link support fail closed.
 
 Record OS versions, screen names/layout, result, and relevant logs. Do not include private keys or pairing secrets.

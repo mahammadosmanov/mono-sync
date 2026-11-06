@@ -26,7 +26,26 @@ private Q_SLOTS:
   void rejectsWrongSizeAndRemovesPartial();
   void cancellationRemovesPartial();
   void preservesDestinationCreatedDuringTransfer();
+  void uniqueFilePathAddsCounterBeforeExtension();
 };
+
+void FileTransferReceiverTests::uniqueFilePathAddsCounterBeforeExtension()
+{
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path = directory.filePath(QStringLiteral("report.pdf"));
+  QCOMPARE(FileTransferReceiver::uniqueFilePath(path), path);
+
+  QFile first(path);
+  QVERIFY(first.open(QIODevice::WriteOnly));
+  first.close();
+  QCOMPARE(FileTransferReceiver::uniqueFilePath(path), directory.filePath(QStringLiteral("report (2).pdf")));
+
+  QFile second(directory.filePath(QStringLiteral("report (2).pdf")));
+  QVERIFY(second.open(QIODevice::WriteOnly));
+  second.close();
+  QCOMPARE(FileTransferReceiver::uniqueFilePath(path), directory.filePath(QStringLiteral("report (3).pdf")));
+}
 
 void FileTransferReceiverTests::receivesAndFinalizesVerifiedFile()
 {

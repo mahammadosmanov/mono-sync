@@ -29,6 +29,8 @@
 #endif
 
 class QAction;
+class QDragEnterEvent;
+class QDropEvent;
 class QMenu;
 class QLocalServer;
 class QProgressDialog;
@@ -136,6 +138,8 @@ private:
   void handlePeerFingerprint(const QString &fingerprint);
   void handleMissingKeyboardLayouts(const QString &layouts);
   void closeEvent(QCloseEvent *event) override;
+  void dragEnterEvent(QDragEnterEvent *event) override;
+  void dropEvent(QDropEvent *event) override;
   bool maybeHideToTray();
   void secureSocket(bool secureSocket);
   void connectSlots();
@@ -164,6 +168,13 @@ private:
   void showHelpViewer() const;
   void startFileWorker();
   void sendFile();
+  QString pickSendPeer();
+  bool isPeerReadyForFile(const QString &peer) const;
+  void queueFilesToSend(const QStringList &paths);
+  void sendNextQueuedFile();
+  void startSending(const QString &peer, const QString &path);
+  void chooseReceiveFolder();
+  void setAutoAcceptFiles(bool enabled);
   void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
   void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
   void clearFileTransferAvailability(const QString &message);
@@ -236,6 +247,8 @@ private:
   QAction *m_actionShowHelp = nullptr;
   QAction *m_actionCheckUpdates = nullptr;
   QAction *m_actionSendFile = nullptr;
+  QAction *m_actionReceiveFolder = nullptr;
+  QAction *m_actionAutoAccept = nullptr;
 
   // Network monitoring
   NetworkMonitor *m_networkMonitor = nullptr;
@@ -254,6 +267,10 @@ private:
   QString m_outgoingPeer;
   QString m_outgoingFileName;
   quint64 m_outgoingSize = 0;
+  QStringList m_sendQueue;
+  QString m_sendQueuePeer;
+  bool m_continueSendQueue = false;
+  bool m_transferAutoAccepted = false;
 
   // Server IP strategy optimization
   QStringList m_serverStartIPs;

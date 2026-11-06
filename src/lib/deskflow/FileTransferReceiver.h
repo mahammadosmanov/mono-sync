@@ -42,6 +42,8 @@ public:
   bool isActive() const;
   bool isComplete() const;
   static bool isSafeFileName(const QString &fileName);
+  // Returns path, or "name (2).ext", "name (3).ext", ... when path already exists.
+  static QString uniqueFilePath(const QString &path);
 
 private:
   bool fail(const QString &message, QString *error);

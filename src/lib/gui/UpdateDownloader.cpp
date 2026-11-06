@@ -14,19 +14,7 @@
 #include <QNetworkRequest>
 #include <QStandardPaths>
 
-namespace {
-
-QString uniquePath(const QString &path)
-{
-  const QFileInfo info(path);
-  QString candidate = path;
-  for (int n = 2; QFileInfo::exists(candidate); ++n) {
-    candidate = info.dir().filePath(QStringLiteral("%1 (%2).%3").arg(info.completeBaseName()).arg(n).arg(info.suffix()));
-  }
-  return candidate;
-}
-
-} // namespace
+#include "deskflow/FileTransferReceiver.h"
 
 UpdateDownloader::UpdateDownloader(QObject *parent) : QObject(parent), m_network{new QNetworkAccessManager(this)}
 {
@@ -46,7 +34,7 @@ void UpdateDownloader::start(const QUrl &url, const QString &fileName, const QSt
     return;
   }
 
-  m_finalPath = uniquePath(QDir(downloads).filePath(fileName));
+  m_finalPath = FileTransferReceiver::uniqueFilePath(QDir(downloads).filePath(fileName));
   m_partPath = m_finalPath + QStringLiteral(".part");
   m_sha256 = sha256.toLower();
   m_file.setFileName(m_partPath);
@@ -102,7 +90,7 @@ void UpdateDownloader::onFinished()
     return;
   }
 
-  const auto target = uniquePath(m_finalPath);
+  const auto target = FileTransferReceiver::uniqueFilePath(m_finalPath);
   if (!m_file.rename(target)) {
     m_file.remove();
     Q_EMIT failed(tr("Could not save the update to %1.").arg(target));
