@@ -584,6 +584,22 @@ Do you want to connect to the server?
         <translation>&lt;p&gt;Error al conectar con el servidor &apos;%1&apos;.&lt;/p&gt;&lt;p&gt;A Client with your name is already connected to the server.&lt;/p&gt;Please ensure that you&apos;re using a unique name and that only a single instance of the client process is running.&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>TCP connection reached the server. Mono Sync will verify TLS identity when you connect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The host responded, but nothing is listening on the configured port.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection check failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No TCP response within 3 seconds. Check the address, port, and network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Your current TLS key is smaller than the minimum allowed size, A new key 2048-bit key will be generated.</source>
         <translation type="unfinished">Su clave TLS actual es más pequeña que el tamaño mínimo permitido. Se generará una nueva clave de 2048 bits.</translation>
     </message>
@@ -612,6 +628,42 @@ Do you want to connect to the server?
         <translation type="unfinished">No se pudo guardar la configuración del servidor en el archivo.</translation>
     </message>
     <message>
+        <source>Downloading %1 %2…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose where received files are saved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Accept files automatically?
+
+Any connected Mono Sync peer can then save files into %1 without asking. Existing files are never replaced.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is up to date.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check for updates:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update saved to %1. Run it to install.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not download the update:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Start</source>
         <translation type="unfinished">Comenzar</translation>
     </message>
@@ -637,6 +689,18 @@ Do you want to connect to the server?
     </message>
     <message>
         <source>File transfer stopped because the peer disconnected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check for &amp;Updates…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receive folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Accept files automatically</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -672,12 +736,44 @@ Do you want to connect to the server?
         <translation type="unfinished">&lt;p&gt;Si falla la conexión a través del nombre de host, intente %1&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>unknown prefix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (%1, %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>the suggested IP.</source>
         <translation type="unfinished">la IP sugerida.</translation>
     </message>
     <message>
+        <source>%1 (%2, %3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>one of the following IPs:&lt;br/&gt;%1</source>
         <translation type="unfinished">una de las siguientes IP:&lt;br/&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Direct subnet addresses are suggested before single-host routes; other addresses remain listed for VPN or routed connections.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server address copied: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter the server address first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The configured server port is invalid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking only the first entered endpoint %1:%2…</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Wait for the previous file operation to stop.</source>
@@ -696,15 +792,23 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The selected peer disconnected. Choose a connected peer and try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The selected peer disconnected. Try again when it reconnects.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Choose a file to send</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wait for the current file operation to finish.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Queued %1 file(s) to send.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Queued files were not sent because the peer disconnected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -724,7 +828,56 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sending file…</source>
+        <source>Sending &quot;%1&quot;…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiving &quot;%1&quot; from %2…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 wants to send you &quot;%2&quot; (%3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save folder: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose location…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiving &quot;%1&quot;…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sent &quot;%1&quot;. %2 more queued.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File sent and verified by the receiving peer:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer declined the file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer could not complete the transfer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer cancelled the transfer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -732,23 +885,15 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Receiving file…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Received an invalid file chunk.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>File sent and verified by the receiving peer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File transfer ended before completion.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Could not save the received file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Received and verified: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -847,6 +992,30 @@ Además, verifique que puede %1 el archivo de configuración del servidor: %2</t
     </message>
     <message>
         <source>&lt;p&gt;Keyboard layout support requires matching layouts on all computers. The following layouts from the other computer are not installed on this computer:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Please install them to enable support for these layouts.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the suggested server IP address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy server address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the last server this client successfully connected to.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use last server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check TCP reachability only. This does not connect Mono Sync or verify the server identity.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Test connection</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1504,6 +1673,36 @@ Al habilitar esta opción, se deshabilitará la interfaz gráfica de usuario (GU
     <message>
         <source>Encryption Disabled</source>
         <translation type="unfinished">Cifrado deshabilitado</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateDownloader</name>
+    <message>
+        <source>The update package is missing a trusted download address or checksum.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create the Downloads folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open %1 for writing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The downloaded update did not match its published checksum and was discarded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the update to %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VersionChecker</name>
+    <message>
+        <source>The update server sent an unreadable response.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
