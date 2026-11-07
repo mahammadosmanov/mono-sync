@@ -572,6 +572,42 @@ Do you want to connect to the server?
         <translation>サーバー設定をファイルに保存できませんでした。</translation>
     </message>
     <message>
+        <source>Downloading %1 %2…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose where received files are saved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Accept files automatically?
+
+Any connected Mono Sync peer can then save files into %1 without asking. Existing files are never replaced.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is up to date.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check for updates:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update saved to %1. Run it to install.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not download the update:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Start</source>
         <translation>起動</translation>
     </message>
@@ -604,6 +640,18 @@ Do you want to connect to the server?
         <translation>ヘルプを表示(&amp;H)</translation>
     </message>
     <message>
+        <source>Check for &amp;Updates…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receive folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Accept files automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Send a file…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -632,12 +680,44 @@ Do you want to connect to the server?
         <translation>&lt;p&gt;ホスト名での接続が失敗する場合は %1 を試してください。&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>unknown prefix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (%1, %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>the suggested IP.</source>
         <translation>推奨するIPアドレス。</translation>
     </message>
     <message>
+        <source>%1 (%2, %3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>one of the following IPs:&lt;br/&gt;%1</source>
         <translation>以下のIPアドレスのいずれか:&lt;br/&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Direct subnet addresses are suggested before single-host routes; other addresses remain listed for VPN or routed connections.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server address copied: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter the server address first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The configured server port is invalid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking only the first entered endpoint %1:%2…</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Wait for the previous file operation to stop.</source>
@@ -656,15 +736,23 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The selected peer disconnected. Choose a connected peer and try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The selected peer disconnected. Try again when it reconnects.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Choose a file to send</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wait for the current file operation to finish.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Queued %1 file(s) to send.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Queued files were not sent because the peer disconnected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -684,7 +772,56 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sending file…</source>
+        <source>Sending &quot;%1&quot;…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiving &quot;%1&quot; from %2…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 wants to send you &quot;%2&quot; (%3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save folder: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose location…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiving &quot;%1&quot;…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sent &quot;%1&quot;. %2 more queued.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File sent and verified by the receiving peer:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer declined the file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer could not complete the transfer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The receiving peer cancelled the transfer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -692,23 +829,15 @@ Do you want to connect to the server?
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Receiving file…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Received an invalid file chunk.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>File sent and verified by the receiving peer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File transfer ended before completion.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Could not save the received file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Received and verified: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -721,6 +850,22 @@ Do you want to connect to the server?
 A bound IP is now invalid, you may need to restart the server.</source>
         <translation>
 割り当て済みのIPアドレスが無効になりました。サーバーを再起動する必要があるかもしれません。</translation>
+    </message>
+    <message>
+        <source>TCP connection reached the server. Mono Sync will verify TLS identity when you connect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The host responded, but nothing is listening on the configured port.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection check failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No TCP response within 3 seconds. Check the address, port, and network.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -848,6 +993,30 @@ Additionally, check you are able to %1 the server config file: %2</source>
     <message>
         <source>&lt;p&gt;Keyboard layout support requires matching layouts on all computers. The following layouts from the other computer are not installed on this computer:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Please install them to enable support for these layouts.&lt;/p&gt;</source>
         <translation>&lt;p&gt;キーボードレイアウトのサポートには対応するレイアウトが全てのコンピューターに必要です。別のコンピューターで使用されている以下のレイアウトがこのコンピューターにインストールされていません:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;サポートを有効にするには、これらのレイアウトをインストールしてください。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Copy the suggested server IP address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy server address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the last server this client successfully connected to.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use last server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check TCP reachability only. This does not connect Mono Sync or verify the server identity.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Test connection</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1505,6 +1674,36 @@ Enabling this setting will disable the server config GUI.</source>
     <message>
         <source>Encryption Disabled</source>
         <translation>暗号化無効</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateDownloader</name>
+    <message>
+        <source>The update package is missing a trusted download address or checksum.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create the Downloads folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open %1 for writing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The downloaded update did not match its published checksum and was discarded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the update to %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VersionChecker</name>
+    <message>
+        <source>The update server sent an unreadable response.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
