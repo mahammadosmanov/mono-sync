@@ -1,0 +1,164 @@
+name: Native packages
+
+on:
+  push:
+    branches:
+      - codex/deskflow-rebuild
+    paths-ignore:
+      - docs/**
+      - .rps/**
+      - README.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.target.name }}
+    runs-on: ${{ matrix.target.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: windows-x64
+            os: windows-2022
+            arch: amd64
+            qt-version: 6.11.3
+            vcpkg-triplet: x64-windows-release
+            generator-args: '-G Ninja -DCMAKE_BUILD_TYPE=Release'
+            config-args: ''
+          - name: macos-arm64
+            os: macos-15
+            qt-version: 6.11.3
+            generator-args: '-DCMAKE_BUILD_TYPE=Release'
+            config-args: '-DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=14'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: ${{ matrix.target.arch }}
+          spectre: true
+
+      - name: Install Ninja for single-config test paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install ninja --version=1.13.2 --yes --no-progress
+          $ninja = Join-Path $env:ChocolateyInstall 'bin/ninja.exe'
+          & $ninja --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Install pinned upstream dependencies
+        id: get-deps
+        uses: ./.github/actions/install-dependencies
+        with:
+          qt-version: ${{ matrix.target.qt-version }}
+          vcpkg-triplet: ${{ matrix.target.vcpkg-triplet }}
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          ${{ matrix.target.generator-args }}
+          -DSKIP_BUILD_TESTS=ON
+          -DDESKFLOW_USE_GIT_VERSION=OFF
+          "-DPACKAGE_VERSION_LABEL=0.2.4"
+          ${{ matrix.target.config-args }}
+          ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
+
+      - name: Verify pinned version metadata
+        run: cmake -DBUILD_DIR=build -P cmake/verify-pinned-package.cmake
+
+      - name: Build all targets
+        run: cmake --build build --parallel 8
+
+      - name: Run upstream unit tests
+        run: ctest --test-dir build/src/unittests --output-on-failure --timeout 120
+
+      - name: Show CTest details after failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $testLog = 'build/src/unittests/Testing/Temporary/LastTest.log'
+          if (Test-Path -LiteralPath $testLog) {
+            Get-Content -LiteralPath $testLog
+          } else {
+            Write-Error "CTest log was not found: $testLog"
+          }
+
+      - name: Package macOS with transient DMG retry
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          packaged=false
+          for i in $(seq 1 5); do
+            if cmake --build build --parallel 8 --target package; then
+              packaged=true
+              break
+            fi
+            echo "Package attempt $i failed"
+            sleep 1
+          done
+          if [[ "$packaged" != true ]]; then
+            echo "Packaging failed after $i attempts" >&2
+            exit 1
+          fi
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        run: cmake --build build --parallel 8 --target package
+
+      - name: Build per-user Windows setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) {
+            $candidate = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+            if (Test-Path -LiteralPath $candidate) { $makensis = $candidate }
+          }
+          if (-not $makensis) { throw 'NSIS 3.x was not found on this Windows runner.' }
+          $portable = @(Get-ChildItem -Path build -Filter 'mono-sync-*-portable.zip' -File)
+          if ($portable.Count -ne 1) { throw "Expected one portable ZIP, found $($portable.Count)." }
+          python deploy/windows/package-standard-user-setup.py `
+            --portable-zip $portable[0].FullName `
+            --output "$PWD/build/MonoSync-Setup-0.2.4.exe" `
+            --makensis "$makensis"
+
+      - name: Smoke-test setup install, update, and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./deploy/windows/smoke-test-setup-lifecycle.ps1 -SetupPath "$PWD/build/MonoSync-Setup-0.2.4.exe"
+
+      - name: Publish the default Setup filename
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item -LiteralPath build/MonoSync-Setup-0.2.4.exe -Destination build/MonoSync-Setup.exe
+
+      - name: Upload macOS package
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mono-sync-${{ matrix.target.name }}-ad-hoc
+          path: build/mono-sync-*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Windows setup
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mono-sync-windows-x64-setup
+          path: |
+            build/MonoSync-Setup-0.2.4.exe
+            build/MonoSync-Setup.exe
+          if-no-files-found: error
+          retention-days: 14

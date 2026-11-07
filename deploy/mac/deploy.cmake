@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: (C) 2024 Chris Rizzitello <sithlord48@gmail.com>
+# SPDX-License-Identifier: MIT
+
+# HACK This is set when the files is included so its the real path
+# calling CMAKE_CURRENT_LIST_DIR after include would return the wrong scope var
+set(MY_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(OSX_BUNDLE ${BUILD_OSX_BUNDLE})
+
+set(OS_STRING "macos-${BUILD_ARCHITECTURE}")
+
+if (OSX_BUNDLE)
+  set(_codesign_identity "-")
+  set(_hardened_runtime "")
+  if (APPLE_CODESIGN_DEV)
+    set(_codesign_identity "${APPLE_CODESIGN_DEV}")
+    # Hardened runtime enforces library validation; ad-hoc Qt frameworks fail to load under it.
+    set(_hardened_runtime "-hardened-runtime")
+  endif()
+  install(CODE "execute_process(COMMAND
+    ${DEPLOYQT}
+    \"\${CMAKE_INSTALL_PREFIX}/MonoSync.app\"
+    ${_hardened_runtime} -timestamp \"-codesign=${_codesign_identity}\"
+  )")
+  set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/src/apps/res/MonoSync.icns")
+  set(CPACK_DMG_VOLUME_NAME "${CMAKE_PROJECT_PROPER_NAME}")
+  set(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE ON)
+  set(CPACK_GENERATOR "DragNDrop")
+endif()

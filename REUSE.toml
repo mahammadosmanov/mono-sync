@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2025 Chris Rizzitello <sithlord48@gmail.com>
+# SPDX-License-Identifier: MIT
+
+version = 1
+SPDX-PackageName = "mono-sync"
+SPDX-PackageSupplier = "Mono Sync contributors"
+SPDX-PackageDownloadLocation = "https://github.com/mahammadosmanov/mono-sync"
+
+[[annotations]]
+path = [
+   ".github/**"
+ , ".clang-format"
+ , ".editorconfig"
+ , ".gitattributes"
+ , ".gitignore"
+ , "cspell.json"
+ , "sonar-project.properties"
+ , "cmake/vcpkg.json.in"
+ , "**/*.md"
+ , "docs/**"
+ , "deploy/linux/flatpak/**"
+ , "deploy/linux/dev.monosync.app.metainfo.xml"
+ , "deploy/windows/wix-patch.xml.in"
+ , "src/apps/deskflow-client/deskflow-client.exe.manifest"
+ , "src/apps/deskflow-core/mono-sync-core.exe.manifest"
+ , "src/apps/deskflow-server/deskflow-server.exe.manifest"
+ , "src/apps/res/manpage.txt"
+ , "src/apps/res/deskflow.plist.in"
+ , "src/apps/res/entitlements-dev.plist"
+ , "translations/*.ts"
+]
+SPDX-FileCopyrightText = "Deskflow Developers"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+   "deploy/mac/dmg-background.tiff"
+ , "deploy/mac/dmg-volume.icns"
+ , "deploy/linux/dev.monosync.app.png"
+ , "src/apps/res/monosync-128.png"
+ , "src/apps/res/monosync-256.png"
+ , "src/apps/res/MonoSync.icns"
+ , "src/apps/res/monosync.ico"
+ , "deploy/windows/wix-banner.png"
+ , "deploy/windows/wix-dialog.png"
+ , "src/apps/res/icons/mono-sync-**/apps/64/dev.monosync.app*.svg"
+ , "src/apps/res/image/welcome.png"
+ , "src/apps/res/Deskflow.icns"
+ , "src/apps/res/deskflow.ico"
+ , "src/apps/res/deskflow.qrc"
+]
+SPDX-FileCopyrightText = "Mono Sync contributors"
+SPDX-License-Identifier = "GPL-2.0-only"
+
+[[annotations]]
+path = "src/apps/res/icons/mono-sync-**/**/**/**.svg"
+SPDX-FileCopyrightText = "Kde Breeze Icons"
+SPDX-License-Identifier = "LGPL-2.1-only"
+
+[[annotations]]
+path = "src/apps/res/icons/mono-sync-**/index.theme"
+SPDX-FileCopyrightText = "Chris Rizzitello <sithlord48@gmail.com>"
+SPDX-License-Identifier = "LGPL-2.1-only"
+
+[[annotations]]
+path = [
+   "src/lib/gui/MainWindow.ui"
+ , "src/lib/gui/dialogs/*.ui"
+]
+SPDX-FileCopyrightText = "Deskflow Developers"
+SPDX-License-Identifier = "GPL-2.0-only WITH LicenseRef-OpenSSL-Exception"

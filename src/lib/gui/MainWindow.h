@@ -1,0 +1,279 @@
+/*
+ * Deskflow -- mouse and keyboard sharing utility
+ * SPDX-FileCopyrightText: (C) 2025 Deskflow Developers
+ * SPDX-FileCopyrightText: (C) 2024 - 2026 Chris Rizzitello <sithord48@gmail.com>
+ * SPDX-FileCopyrightText: (C) 2012 - 2024 Synergy App Ltd
+ * SPDX-FileCopyrightText: (C) 2008 Volker Lanz <vl@fidra.de>
+ * SPDX-License-Identifier: GPL-2.0-only WITH LicenseRef-OpenSSL-Exception
+ */
+
+#pragma once
+
+#include <QMainWindow>
+#include <QHash>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QSystemTrayIcon>
+#include <QUrl>
+
+#include "UpdateDownloader.h"
+#include "VersionChecker.h"
+#include "common/Constants.h"
+#include "config/ServerConfig.h"
+#include "gui/core/CoreProcess.h"
+#include "gui/core/NetworkMonitor.h"
+#include "net/Fingerprint.h"
+
+#ifdef Q_OS_MACOS
+#include "gui/OSXHelpers.h"
+#endif
+
+class QAction;
+class QDragEnterEvent;
+class QDropEvent;
+class QMenu;
+class QLocalServer;
+class QProgressDialog;
+class QTcpSocket;
+class QTimer;
+class QThread;
+class OutgoingFileWorker;
+
+class DeskflowApplication;
+class LogDock;
+class StatusBar;
+
+namespace Ui {
+class MainWindow;
+}
+
+namespace deskflow::gui::ipc {
+class DaemonIpcClient;
+}
+
+class MainWindow : public QMainWindow
+{
+  using ConnectionState = deskflow::core::ConnectionState;
+  using CoreMode = Settings::CoreMode;
+  using CoreProcess = deskflow::gui::CoreProcess;
+  using NetworkMonitor = deskflow::gui::NetworkMonitor;
+  using ProcessState = deskflow::core::ProcessState;
+
+  Q_OBJECT
+
+public:
+  enum class LogLevel
+  {
+    Error,
+    Info
+  };
+
+public:
+  explicit MainWindow();
+  ~MainWindow() override;
+
+  [[nodiscard]] CoreMode coreMode() const
+  {
+    return m_coreProcess.mode();
+  }
+  void open();
+  ServerConfig &serverConfig()
+  {
+    return m_serverConfig;
+  }
+
+  void hide();
+
+protected:
+  void changeEvent(QEvent *e) override;
+  bool eventFilter(QObject *obj, QEvent *event) override;
+
+private:
+  /**
+   * @brief updateText Update all text not in the UI
+   */
+  void updateText();
+  void toggleLogVisible(bool visible);
+
+  void settingsChanged(const QString &key = QString());
+  void serverConfigSaving();
+  void coreProcessError(CoreProcess::Error error);
+  void coreConnectionStateChanged(ConnectionState state);
+  void coreProcessStateChanged(ProcessState state);
+
+  void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
+  void serverConnectionConfigureClient(const QString &clientName);
+
+  void clearSettings();
+  void openAboutDialog();
+  void openGetNewVersionUrl();
+  void checkForUpdates();
+  void onUpdateFound(const QString &version);
+  void onUpToDate();
+  void onUpdateCheckFailed(const QString &error);
+  void onUpdateDownloaded(const QString &path);
+  void onUpdateDownloadFailed(const QString &error);
+  void closeUpdateProgress();
+  void openSettings();
+  void startCore();
+  void stopCore();
+  bool saveServerConfig();
+  void resetCore();
+
+  void showMyFingerprint();
+  void updateSecurityIcon(bool visible);
+  void updateNetworkInfo();
+
+  void coreModeToggled(bool checked);
+  void updateModeControls();
+  void updateModeControlLabels();
+  std::unique_ptr<Ui::MainWindow> ui;
+
+  void createMenuBar();
+  void setupTrayIcon();
+  void applyConfig();
+  void setTrayIcon();
+  void handleUnrecognisedClient(const QString &clientName);
+  void handleConnectionRefused(deskflow::core::ConnectionRefusal reason);
+  void handlePeerFingerprint(const QString &fingerprint);
+  void handleMissingKeyboardLayouts(const QString &layouts);
+  void closeEvent(QCloseEvent *event) override;
+  void dragEnterEvent(QDragEnterEvent *event) override;
+  void dropEvent(QDropEvent *event) override;
+  bool maybeHideToTray();
+  void secureSocket(bool secureSocket);
+  void connectSlots();
+  void handleLogLine(const QString &line);
+  void updateFingerprintButton();
+  void updateComputerName();
+  void saveSettings() const;
+  void showConfigureServer(const QString &message);
+  void showConfigureClient();
+  void restoreWindow();
+  void setupControls();
+  void showFirstConnectedMessage();
+  void updateStatus();
+  void showAndActivate();
+  void showHostNameEditor();
+  void setHostName();
+  void daemonIpcClientConnectionFailed();
+  void toggleCanRunCore(bool enableButtons);
+  void remoteHostChanged(const QString &newRemoteHost);
+  void updateIpLabel(const QStringList &addresses);
+  void copyServerAddress();
+  void useLastSuccessfulServer();
+  void testServerConnection();
+  void updateTimeoutDelay(int newDelay);
+  void setHelpFilePath();
+  void showHelpViewer() const;
+  void startFileWorker();
+  void sendFile();
+  QString pickSendPeer();
+  bool isPeerReadyForFile(const QString &peer) const;
+  void queueFilesToSend(const QStringList &paths);
+  void sendNextQueuedFile();
+  void startSending(const QString &peer, const QString &path);
+  void chooseReceiveFolder();
+  void setAutoAcceptFiles(bool enabled);
+  void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
+  void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
+  void clearFileTransferAvailability(const QString &message);
+  void receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error);
+  void receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes, quint64 received,
+                               quint64 total, const QString &error);
+  void receiveWorkerFinished(OutgoingFileWorker *worker, bool success, const QString &path, const QString &error);
+  void handleFileTransferMessage(const QString &encodedMessage);
+  void clearFileTransfer(const QString &message = QString());
+
+  bool canRunCore() const;
+
+  /**
+   * @brief trustedFingerprintDatabase get the FingerprintDatabase for the trusted clients or trusted servers.
+   * @return The path to the trusted fingerprint file
+   */
+  QString trustedFingerprintDatabase() const;
+
+  /**
+   * @brief generateCertificate Generate a new certificate
+   * @return true when successful
+   */
+  bool generateCertificate();
+
+  Fingerprint m_fingerprint;
+
+  void serverClientsChanged(const QStringList &clients);
+
+  inline static const auto m_guiSocketName = QStringLiteral("%1-gui").arg(kAppId);
+  inline static const auto m_nameRegEx = QRegularExpression(QStringLiteral("^[\\w\\-_\\.]{0,255}$"));
+
+  VersionChecker m_versionChecker;
+  UpdateDownloader m_updateDownloader;
+  QProgressDialog *m_updateProgress = nullptr;
+  bool m_manualUpdateCheck = false;
+  bool m_secureSocket = false;
+  bool m_saveOnExit = true;
+  bool m_clientErrorVisible = false;
+  ServerConfig m_serverConfig;
+  deskflow::gui::CoreProcess m_coreProcess;
+  QSet<QString> m_ignoredClients;
+  bool m_newClientPromptShowing = false;
+  bool m_serverConfigDialogVisible = false;
+  QSize m_expandedSize = QSize();
+  QStringList m_checkedClients;
+  QStringList m_checkedServers;
+  QSystemTrayIcon *m_trayIcon = nullptr;
+  QLocalServer *m_guiDupeChecker = nullptr;
+  deskflow::gui::ipc::DaemonIpcClient *m_daemonIpcClient = nullptr;
+
+  LogDock *m_logDock;
+  StatusBar *m_statusBar = nullptr;
+
+  // Window Menu
+  QMenu *m_menuFile = nullptr;
+  QMenu *m_menuEdit = nullptr;
+  QMenu *m_menuView = nullptr;
+  QMenu *m_menuHelp = nullptr;
+
+  // Window Actions
+  QAction *m_actionAbout = nullptr;
+  QAction *m_actionMinimize = nullptr;
+  QAction *m_actionQuit = nullptr;
+  QAction *m_actionTrayQuit = nullptr;
+  QAction *m_actionRestore = nullptr;
+  QAction *m_actionSettings = nullptr;
+  QAction *m_actionStartCore = nullptr;
+  QAction *m_actionRestartCore = nullptr;
+  QAction *m_actionStopCore = nullptr;
+  QAction *m_actionShowHelp = nullptr;
+  QAction *m_actionCheckUpdates = nullptr;
+  QAction *m_actionSendFile = nullptr;
+  QAction *m_actionReceiveFolder = nullptr;
+  QAction *m_actionAutoAccept = nullptr;
+
+  // Network monitoring
+  NetworkMonitor *m_networkMonitor = nullptr;
+  QTcpSocket *m_connectionProbeSocket = nullptr;
+  QTimer *m_connectionProbeTimer = nullptr;
+  bool m_connectionProbeActive = false;
+  QString m_currentIpAddress;
+
+  QHash<QString, bool> m_fileTransferPeers;
+  QThread *m_fileWorkerThread = nullptr;
+  OutgoingFileWorker *m_fileWorker = nullptr;
+  QProgressDialog *m_fileTransferProgress = nullptr;
+  bool m_receivingFile = false;
+  bool m_closeAfterFileWorkerStops = false;
+  QString m_outgoingTransferId;
+  QString m_outgoingPeer;
+  QString m_outgoingFileName;
+  quint64 m_outgoingSize = 0;
+  QStringList m_sendQueue;
+  QString m_sendQueuePeer;
+  bool m_continueSendQueue = false;
+  bool m_transferAutoAccepted = false;
+
+  // Server IP strategy optimization
+  QStringList m_serverStartIPs;
+  QString m_serverStartSuggestedIP;
+  QUrl m_helpPath;
+};

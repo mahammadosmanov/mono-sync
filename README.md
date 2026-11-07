@@ -1,76 +1,21 @@
-# mono-sync
+# Mono Sync
 
-One keyboard and mouse across several computers on the same network, plus
-quick file and clipboard transfer between them. Windows and macOS first;
-open source; LAN-only; no accounts, no cloud.
+Mono Sync is a Windows and macOS app for sharing one keyboard and mouse across computers, with explicit one-file transfers over the existing authenticated peer connection. Its input engine and native platform backends come from Deskflow `v1.27.0` at commit `081f6478e654a112168879e67a41ce7d7e4ae3af`; Mono Sync-specific changes include product identity, safe profile migration, standard-user Windows packaging, and file transfer.
 
-> **Status: alpha.** Keyboard, mouse, text clipboard and file transfer work
-> between two computers on one LAN. Tested end to end on loopback and Mac to
-> Windows by hand. Not yet: 3+ computers, multi-monitor layouts, auto-start,
-> code signing. Expect rough edges.
-
-## Goals
-
-- Cross-OS compatibility first: physical-key mapping, Cmd/Ctrl profiles, DPI-aware edges.
-- Input that feels local (target < 5 ms added latency on a wired LAN).
-- Safe by default: TLS 1.3 (QUIC), pinned host identity, pairing token.
-- Single binary per OS, installable without admin rights.
-
-Full details: [PRD](docs/prd.md) · [Architecture](docs/architecture.md) ·
-[Roadmap](docs/roadmap.md) · [ADRs](docs/adr/README.md) ·
-[Threat model](docs/threat-model.md) · [Testing](docs/testing.md)
+The Windows x64 host and Apple Silicon Mac client use the same TLS-protected Deskflow peer connection. Receivers either accept each file into a default folder, choose a location, or turn on automatic acceptance. Senders can drag files onto the window. Mono Sync verifies size and SHA-256, writes to a private temporary file, and never overwrites an existing file; a name clash gets a `(2)`, `(3)`, … suffix. Folders, resume, and automatic file opening are not supported.
 
 ## Build
 
-```sh
-cargo build --workspace
-cargo test --workspace
-```
+Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.1`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.
 
-Linux needs `libx11-dev libxi-dev libxtst-dev`. macOS needs Accessibility and
-Input Monitoring permission once input features land.
+For Windows, use the [per-user setup instructions](docs/WINDOWS-PORTABLE.md). The setup, app, and uninstaller run as the current user. They do not install a service or change firewall rules. Windows or organization firewall policy may still block connections. macOS may request its input-control permission; Mono Sync cannot bypass operating-system permission prompts.
 
-## Use it
+Mono Sync asks once whether to check for updates. Checks read the project's GitHub releases. When a newer build is found, the status bar offers to download it. The download is saved to your Downloads folder and must match the SHA-256 digest GitHub publishes for it before it opens. Help > Check for Updates runs a check on demand. Mono Sync does not install updates silently.
 
-1. Install from the latest [release](https://github.com/mahammadosmanov/mono-sync/releases):
-   Windows `mono-sync_*_x64-setup.exe` (installs for your user, no admin) or the
-   portable `mono-sync-portable-windows-x64.exe`; macOS `.dmg`. Needs the WebView2
-   runtime on Windows (already present on Windows 11 and current Windows 10).
-2. Open **mono-sync** on **both** computers.
-3. Computer with the keyboard and mouse: choose **This computer has the keyboard and mouse**,
-   pick the side where the other computer sits, **Save and start**. It shows an
-   address and a pairing code.
-4. Other computer: choose **Control this computer from another**, enter the
-   address and code, **Save and start**.
-5. Push the cursor through the chosen edge. `Ctrl+Alt(Option)+Esc` returns control.
-6. Copied text is shared automatically. Drop files on the window to send them.
-   Closing the window keeps sharing running in the tray icon; Quit is in the tray menu.
+## Verification
 
-Unsigned builds: Windows SmartScreen says More info, Run anyway; macOS says
-right-click, Open (and allow in Privacy & Security). macOS needs **Accessibility**
-and **Input Monitoring** for mono-sync. Windows firewall: allow mono-sync on
-private networks if asked. Settings: `%APPDATA%\mono-sync` or
-`~/Library/Application Support/mono-sync`.
-
-Headless: `mono host --edge left`, `mono guest <ip:port> <code>` (crate `mono-cli`).
-
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `crates/proto` | Wire messages |
-| `crates/net` | QUIC transport, pairing handshake |
-| `crates/input` | Layout router, host/guest engines, stuck-key guard, rdev OS glue |
-| `crates/clip` | Text clipboard sync |
-| `crates/core` | Settings, identity, host/guest loops (no UI) |
-| `crates/app` | Tauri desktop app (window, tray) |
-| `crates/cli` | Headless `mono` command |
-| `docs/` | PRD, architecture, ADRs, threat model, test plan |
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+Builds and unit tests do not prove input or file transfer on actual machines. Follow the [Windows host to Mac client checklist](docs/INPUT-ACCEPTANCE.md) on the intended pair. The user has confirmed the keyboard and mouse workflow works; file-transfer acceptance still needs a real Windows-to-Mac send and receive.
 
 ## License
 
-Licensed under either of [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT) at your option.
+Mono Sync is distributed under GPL-2.0-only with the documented OpenSSL linking exception. See [LICENSE](LICENSE), [LICENSES](LICENSES), and [Deskflow source provenance](docs/UPSTREAM.md). Deskflow and earlier Synergy contributors remain credited in the app and source.

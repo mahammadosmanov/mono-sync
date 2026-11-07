@@ -1,9 +1,0 @@
-[package]
-name = "mono-clip"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-publish = false
-
-[dependencies]
-arboard = { version = "3", default-features = false }
