@@ -1954,7 +1954,7 @@ void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
                       {QStringLiteral("data"), QString::fromLatin1(chunk.toBase64(
                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(message));
-  m_transferPanel->setProgress(m_outgoingTransferId, position + static_cast<quint64>(chunk.size()), m_outgoingSize);
+  m_transferPanel->setProgress(m_outgoingTransferId, position, m_outgoingSize);
 }
 
 void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
