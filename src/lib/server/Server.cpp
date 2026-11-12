@@ -340,7 +340,7 @@ void Server::refreshFileTransferAvailability()
       ++fileTransferPeerCount;
     }
   }
-  LOG_INFO("refreshed file-transfer status for %d connected protocol 1.9 client(s)", fileTransferPeerCount);
+  LOG_INFO("refreshed file-transfer status for %d connected protocol 1.9+ client(s)", fileTransferPeerCount);
 }
 
 void Server::sendConnectedClientsIpc() const
