@@ -30,8 +30,11 @@
 
 class QAction;
 class QDragEnterEvent;
+class QDragLeaveEvent;
 class QDropEvent;
+class QLabel;
 class QMenu;
+class QResizeEvent;
 class QLocalServer;
 class QProgressDialog;
 class QTcpSocket;
@@ -42,6 +45,7 @@ class OutgoingFileWorker;
 class DeskflowApplication;
 class LogDock;
 class StatusBar;
+class TransferPanel;
 
 namespace Ui {
 class MainWindow;
@@ -139,7 +143,9 @@ private:
   void handleMissingKeyboardLayouts(const QString &layouts);
   void closeEvent(QCloseEvent *event) override;
   void dragEnterEvent(QDragEnterEvent *event) override;
+  void dragLeaveEvent(QDragLeaveEvent *event) override;
   void dropEvent(QDropEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
   bool maybeHideToTray();
   void secureSocket(bool secureSocket);
   void connectSlots();
@@ -184,6 +190,12 @@ private:
   void receiveWorkerFinished(OutgoingFileWorker *worker, bool success, const QString &path, const QString &error);
   void handleFileTransferMessage(const QString &encodedMessage);
   void clearFileTransfer(const QString &message = QString());
+  void acceptPendingOffer(const QString &destination);
+  bool isPendingOffer(const QString &rowId) const;
+  QString defaultReceivePath(const QString &name) const;
+  void cancelTransfer(const QString &rowId);
+  void failQueuedRows(const QString &reason);
+  void showInFolder(const QString &path);
 
   bool canRunCore() const;
 
@@ -260,7 +272,11 @@ private:
   QHash<QString, bool> m_fileTransferPeers;
   QThread *m_fileWorkerThread = nullptr;
   OutgoingFileWorker *m_fileWorker = nullptr;
-  QProgressDialog *m_fileTransferProgress = nullptr;
+  TransferPanel *m_transferPanel = nullptr;
+  QLabel *m_dropOverlay = nullptr;
+  bool m_offerPending = false;
+  QString m_outgoingPath;
+  QByteArray m_pendingOfferHash;
   bool m_receivingFile = false;
   bool m_closeAfterFileWorkerStops = false;
   QString m_outgoingTransferId;

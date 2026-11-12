@@ -33,13 +33,19 @@
 #include "gui/widgets/LogDock.h"
 #include "net/FingerprintDatabase.h"
 #include "widgets/StatusBar.h"
+#include "widgets/TransferPanel.h"
 
 #include <QAbstractSocket>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QColor>
 #include <QDragEnterEvent>
+#include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QLabel>
+#include <QPalette>
+#include <QResizeEvent>
 #include <QMimeData>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -187,6 +193,36 @@ MainWindow::MainWindow()
   m_actionAutoAccept->setCheckable(true);
   m_actionAutoAccept->setChecked(Settings::value(Settings::Gui::FileAutoAccept).toBool());
   setAcceptDrops(true);
+
+  m_transferPanel = new TransferPanel(this);
+  ui->topLevelWidget->layout()->addWidget(m_transferPanel);
+  m_dropOverlay = new QLabel(centralWidget());
+  m_dropOverlay->setAlignment(Qt::AlignCenter);
+  m_dropOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
+  m_dropOverlay->setTextFormat(Qt::PlainText);
+  m_dropOverlay->hide();
+  connect(m_transferPanel, &TransferPanel::cancelRequested, this, &MainWindow::cancelTransfer);
+  connect(m_transferPanel, &TransferPanel::acceptRequested, this, [this](const QString &rowId) {
+    if (isPendingOffer(rowId)) {
+      acceptPendingOffer(defaultReceivePath(m_outgoingFileName));
+    }
+  });
+  connect(m_transferPanel, &TransferPanel::chooseLocationRequested, this, [this](const QString &rowId) {
+    if (!isPendingOffer(rowId)) {
+      return;
+    }
+    const QString picked = QFileDialog::getSaveFileName(this, tr("Save file from %1").arg(m_outgoingPeer),
+                                                        QDir::home().filePath(m_outgoingFileName));
+    if (isPendingOffer(rowId) && !picked.isEmpty()) {
+      acceptPendingOffer(picked);
+    }
+  });
+  connect(m_transferPanel, &TransferPanel::declineRequested, this, [this](const QString &rowId) {
+    if (isPendingOffer(rowId)) {
+      acceptPendingOffer(QString());
+    }
+  });
+  connect(m_transferPanel, &TransferPanel::showInFolderRequested, this, &MainWindow::showInFolder);
 
   // Setup the Instance Checking
   // In case of a previous crash remove first
@@ -1646,6 +1682,16 @@ void MainWindow::showHelpViewer() const
   }
 }
 
+namespace {
+
+void addQueuedRow(TransferPanel *panel, const QString &path, const QString &peer)
+{
+  const QFileInfo info(path);
+  panel->addRow(path, info.fileName(), peer, static_cast<quint64>(info.size()), false, TransferPanel::State::Queued);
+}
+
+} // namespace
+
 void MainWindow::startFileWorker()
 {
   if (m_fileWorker != nullptr) {
@@ -1657,8 +1703,8 @@ void MainWindow::startFileWorker()
   m_fileWorker->moveToThread(m_fileWorkerThread);
 
   connect(worker, &OutgoingFileWorker::hashingProgress, this, [this, worker](quint64 processed, quint64 total) {
-    if (m_fileWorker == worker && m_fileTransferProgress && total > 0) {
-      m_fileTransferProgress->setValue(static_cast<int>(processed * 400 / total));
+    if (m_fileWorker == worker && !m_outgoingPath.isEmpty()) {
+      m_transferPanel->setProgress(m_outgoingPath, processed, total);
     }
   });
   connect(worker, &OutgoingFileWorker::prepared, this, [this, worker](const QString &name, quint64 size,
@@ -1768,13 +1814,34 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
   if (event->mimeData()->hasUrls() && m_actionSendFile->isEnabled()) {
     event->acceptProposedAction();
+    QStringList peers;
+    for (auto iterator = m_fileTransferPeers.cbegin(); iterator != m_fileTransferPeers.cend(); ++iterator) {
+      if (iterator.value()) {
+        peers.append(iterator.key());
+      }
+    }
+    m_dropOverlay->setText(peers.size() == 1 ? tr("Drop to send to %1").arg(peers.first()) : tr("Drop to send"));
+    const QColor accent = palette().color(QPalette::Highlight);
+    m_dropOverlay->setStyleSheet(QStringLiteral("QLabel { border: 2px dashed %1; background-color: rgba(%2, %3, %4, 51); }")
+                                     .arg(accent.name(), QString::number(accent.red()),
+                                          QString::number(accent.green()), QString::number(accent.blue())));
+    m_dropOverlay->setGeometry(centralWidget()->rect());
+    m_dropOverlay->raise();
+    m_dropOverlay->show();
   } else {
     event->ignore();
   }
 }
 
+void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)
+{
+  QMainWindow::dragLeaveEvent(event);
+  m_dropOverlay->hide();
+}
+
 void MainWindow::dropEvent(QDropEvent *event)
 {
+  m_dropOverlay->hide();
   QStringList paths;
   for (const auto &url : event->mimeData()->urls()) {
     if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isFile()) {
@@ -1787,6 +1854,12 @@ void MainWindow::dropEvent(QDropEvent *event)
   }
   event->acceptProposedAction();
   queueFilesToSend(paths);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+  QMainWindow::resizeEvent(event);
+  m_dropOverlay->setGeometry(centralWidget()->rect());
 }
 
 void MainWindow::queueFilesToSend(const QStringList &paths)
@@ -1803,6 +1876,9 @@ void MainWindow::queueFilesToSend(const QStringList &paths)
   if (sending) {
     m_sendQueue.append(paths);
     m_sendQueuePeer = peer;
+    for (const auto &path : paths) {
+      addQueuedRow(m_transferPanel, path, peer);
+    }
     statusBar()->showMessage(tr("Queued %1 file(s) to send.").arg(paths.size()), 8000);
     return;
   }
@@ -1812,6 +1888,9 @@ void MainWindow::queueFilesToSend(const QStringList &paths)
   }
   m_sendQueue = paths.mid(1);
   m_sendQueuePeer = peer;
+  for (const auto &path : m_sendQueue) {
+    addQueuedRow(m_transferPanel, path, peer);
+  }
   startSending(peer, paths.first());
 }
 
@@ -1820,34 +1899,25 @@ void MainWindow::sendNextQueuedFile()
   if (m_sendQueue.isEmpty()) {
     return;
   }
-  const QString path = m_sendQueue.takeFirst();
   if (!isPeerReadyForFile(m_sendQueuePeer)) {
+    const QString reason = tr("Queued files were not sent because the peer disconnected.");
+    failQueuedRows(reason);
     m_sendQueue.clear();
-    statusBar()->showMessage(tr("Queued files were not sent because the peer disconnected."), 8000);
+    statusBar()->showMessage(reason, 8000);
     return;
   }
+  const QString path = m_sendQueue.takeFirst();
   startSending(m_sendQueuePeer, path);
 }
 
 void MainWindow::startSending(const QString &peer, const QString &path)
 {
   m_outgoingPeer = peer;
-  m_fileTransferProgress = new QProgressDialog(tr("Preparing file…"), tr("Cancel transfer"), 0, 1000, this);
-  m_fileTransferProgress->setWindowModality(Qt::WindowModal);
-  m_fileTransferProgress->setAutoClose(false);
-  m_fileTransferProgress->setAutoReset(false);
-  connect(m_fileTransferProgress, &QProgressDialog::canceled, this, [this] {
-    if (!m_outgoingTransferId.isEmpty()) {
-      QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
-                         {QStringLiteral("id"), m_outgoingTransferId},
-                         {QStringLiteral("peer"), m_outgoingPeer}};
-      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
-    }
-    clearFileTransfer(tr("File transfer canceled."));
-  });
-
+  m_outgoingPath = path;
+  const QFileInfo info(path);
+  m_transferPanel->addRow(path, info.fileName(), peer, static_cast<quint64>(info.size()), false,
+                          TransferPanel::State::Preparing);
   startFileWorker();
-  m_fileTransferProgress->show();
   auto *worker = m_fileWorker;
   QMetaObject::invokeMethod(worker, [worker, path] { worker->prepare(path); }, Qt::QueuedConnection);
 }
@@ -1861,6 +1931,9 @@ void MainWindow::prepareOutgoingFile(const QString &fileName, quint64 size, cons
   m_outgoingFileName = fileName;
   m_outgoingSize = size;
   m_outgoingTransferId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  m_transferPanel->renameRow(m_outgoingPath, m_outgoingTransferId);
+  m_transferPanel->setProgress(m_outgoingTransferId, 0, m_outgoingSize);
+  m_transferPanel->setState(m_outgoingTransferId, TransferPanel::State::WaitingForPeer);
   QJsonObject offer{{QStringLiteral("action"), QStringLiteral("sendOffer")},
                     {QStringLiteral("id"), m_outgoingTransferId},
                     {QStringLiteral("peer"), m_outgoingPeer},
@@ -1868,9 +1941,6 @@ void MainWindow::prepareOutgoingFile(const QString &fileName, quint64 size, cons
                     {QStringLiteral("size"), QString::number(m_outgoingSize)},
                     {QStringLiteral("sha256"), QString::fromLatin1(sha256.toHex())}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(offer));
-  if (m_fileTransferProgress) {
-    m_fileTransferProgress->setLabelText(tr("Waiting for the receiving peer to accept…"));
-  }
 }
 
 void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
@@ -1884,10 +1954,7 @@ void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
                       {QStringLiteral("data"), QString::fromLatin1(chunk.toBase64(
                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(message));
-  if (m_fileTransferProgress && m_outgoingSize > 0) {
-    m_fileTransferProgress->setLabelText(tr("Sending \"%1\"…").arg(m_outgoingFileName));
-    m_fileTransferProgress->setValue(400 + static_cast<int>(position * 600 / m_outgoingSize));
-  }
+  m_transferPanel->setProgress(m_outgoingTransferId, position + static_cast<quint64>(chunk.size()), m_outgoingSize);
 }
 
 void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
@@ -1924,71 +1991,25 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     }
     const QString name = message.value(QStringLiteral("name")).toString();
     const quint64 size = message.value(QStringLiteral("size")).toString().toULongLong();
-    const QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
     m_outgoingPeer = peer;
     m_outgoingTransferId = id;
-    m_receivingFile = true;
-    const QString saveDirectory = Settings::value(Settings::Gui::FileReceiveDirectory).toString();
-    QDir().mkpath(saveDirectory);
-    const QString defaultPath = FileTransferReceiver::uniqueFilePath(QDir(saveDirectory).filePath(name));
-    m_transferAutoAccepted = Settings::value(Settings::Gui::FileAutoAccept).toBool();
-    QString destination;
-    if (m_transferAutoAccepted) {
-      destination = defaultPath;
-      statusBar()->showMessage(tr("Receiving \"%1\" from %2…").arg(name, peer), 8000);
-    } else {
-      QMessageBox prompt(QMessageBox::Question, kAppName,
-                         tr("%1 wants to send you \"%2\" (%3).")
-                             .arg(peer, name, QLocale().formattedDataSize(static_cast<qint64>(size))),
-                         QMessageBox::NoButton, this);
-      prompt.setTextFormat(Qt::PlainText);
-      prompt.setInformativeText(tr("Save folder: %1").arg(saveDirectory));
-      const auto *save = prompt.addButton(tr("Save"), QMessageBox::AcceptRole);
-      const auto *choose = prompt.addButton(tr("Choose location…"), QMessageBox::ActionRole);
-      prompt.addButton(tr("Decline"), QMessageBox::RejectRole);
-      prompt.exec();
-      const auto *clicked = prompt.clickedButton();
-      if (m_outgoingTransferId != id || m_outgoingPeer != peer) {
-        return;
-      }
-      if (clicked == save) {
-        destination = defaultPath;
-      } else if (clicked == choose) {
-        destination =
-            QFileDialog::getSaveFileName(this, tr("Save file from %1").arg(peer), QDir::home().filePath(name));
-      }
-    }
-    if (destination.isEmpty()) {
-      QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
-                         {QStringLiteral("peer"), peer},
-                         {QStringLiteral("id"), id}};
-      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
-      clearFileTransfer();
-      return;
-    }
+    m_outgoingFileName = name;
     m_outgoingSize = size;
-    m_fileTransferProgress =
-        new QProgressDialog(tr("Receiving \"%1\"…").arg(name), tr("Cancel transfer"), 0, 1000, this);
-    m_fileTransferProgress->setWindowModality(m_transferAutoAccepted ? Qt::NonModal : Qt::WindowModal);
-    m_fileTransferProgress->setAutoClose(false);
-    m_fileTransferProgress->setAutoReset(false);
-    connect(m_fileTransferProgress, &QProgressDialog::canceled, this, [this] {
-      QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
-                         {QStringLiteral("peer"), m_outgoingPeer},
-                         {QStringLiteral("id"), m_outgoingTransferId}};
-      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
-      clearFileTransfer(tr("File transfer canceled."));
-    });
-    m_fileTransferProgress->show();
-    startFileWorker();
-    auto *worker = m_fileWorker;
-    QMetaObject::invokeMethod(worker, [worker, destination, name, size, hash] {
-      const QFileInfo target(destination);
-      worker->beginReceive(target.absolutePath(), target.fileName(), size, hash);
-    }, Qt::QueuedConnection);
+    m_pendingOfferHash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    m_receivingFile = true;
+    m_offerPending = true;
+    m_transferAutoAccepted = Settings::value(Settings::Gui::FileAutoAccept).toBool();
+    if (m_transferAutoAccepted) {
+      m_transferPanel->addRow(id, name, peer, size, true, TransferPanel::State::Transferring);
+      statusBar()->showMessage(tr("Receiving \"%1\" from %2…").arg(name, peer), 8000);
+      acceptPendingOffer(defaultReceivePath(name));
+    } else {
+      m_transferPanel->addRow(id, name, peer, size, true, TransferPanel::State::Offer);
+    }
     return;
   }
   if (action == QStringLiteral("accepted") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
+    m_transferPanel->setState(id, TransferPanel::State::Transferring);
     if (m_outgoingSize == 0) {
       QJsonObject finish{{QStringLiteral("action"), QStringLiteral("sendFinish")},
                          {QStringLiteral("peer"), peer},
@@ -2040,21 +2061,93 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   if (action == QStringLiteral("completed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
     const QString name = m_outgoingFileName;
     m_continueSendQueue = !m_sendQueue.isEmpty();
+    const int queued = m_sendQueue.size();
+    m_transferPanel->setState(id, TransferPanel::State::Done);
     clearFileTransfer();
-    if (m_continueSendQueue) {
-      statusBar()->showMessage(tr("Sent \"%1\". %2 more queued.").arg(name).arg(m_sendQueue.size()), 8000);
+    if (queued > 0) {
+      statusBar()->showMessage(tr("Sent \"%1\". %2 more queued.").arg(name).arg(queued), 8000);
     } else {
-      QMessageBox::information(this, kAppName, tr("File sent and verified by the receiving peer:\n%1").arg(name));
+      statusBar()->showMessage(tr("Sent and verified: %1").arg(name), 8000);
     }
   } else if (action == QStringLiteral("rejected") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    clearFileTransfer();
-    QMessageBox::warning(this, kAppName, tr("The receiving peer declined the file."));
+    clearFileTransfer(tr("The receiving peer declined the file."));
   } else if (action == QStringLiteral("failed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    clearFileTransfer();
-    QMessageBox::warning(this, kAppName, tr("The receiving peer could not complete the transfer."));
+    clearFileTransfer(tr("The receiving peer could not complete the transfer."));
   } else if (action == QStringLiteral("cancelled") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
     clearFileTransfer(tr("The receiving peer cancelled the transfer."));
   }
+}
+
+bool MainWindow::isPendingOffer(const QString &rowId) const
+{
+  return m_offerPending && m_receivingFile && rowId == m_outgoingTransferId;
+}
+
+QString MainWindow::defaultReceivePath(const QString &name) const
+{
+  const QString saveDirectory = Settings::value(Settings::Gui::FileReceiveDirectory).toString();
+  QDir().mkpath(saveDirectory);
+  return FileTransferReceiver::uniqueFilePath(QDir(saveDirectory).filePath(name));
+}
+
+void MainWindow::acceptPendingOffer(const QString &destination)
+{
+  m_offerPending = false;
+  const QString id = m_outgoingTransferId;
+  if (destination.isEmpty()) {
+    const QJsonObject reject{{QStringLiteral("action"), QStringLiteral("reject")},
+                             {QStringLiteral("peer"), m_outgoingPeer},
+                             {QStringLiteral("id"), id}};
+    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
+    clearFileTransfer(tr("Declined"));
+    return;
+  }
+  m_transferPanel->setState(id, TransferPanel::State::Transferring);
+  startFileWorker();
+  auto *worker = m_fileWorker;
+  const quint64 size = m_outgoingSize;
+  const QByteArray hash = m_pendingOfferHash;
+  QMetaObject::invokeMethod(worker, [worker, destination, size, hash] {
+    const QFileInfo target(destination);
+    worker->beginReceive(target.absolutePath(), target.fileName(), size, hash);
+  }, Qt::QueuedConnection);
+}
+
+void MainWindow::cancelTransfer(const QString &rowId)
+{
+  const bool active = m_fileWorker != nullptr && (rowId == m_outgoingTransferId || rowId == m_outgoingPath);
+  if (!active) {
+    if (m_sendQueue.removeAll(rowId) > 0) {
+      m_transferPanel->removeRow(rowId);
+    }
+    return;
+  }
+  if (!m_outgoingTransferId.isEmpty()) {
+    const QJsonObject cancel{{QStringLiteral("action"), QStringLiteral("cancel")},
+                             {QStringLiteral("id"), m_outgoingTransferId},
+                             {QStringLiteral("peer"), m_outgoingPeer}};
+    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(cancel));
+  }
+  m_transferPanel->setState(rowId, TransferPanel::State::Failed, tr("Canceled"));
+  clearFileTransfer(tr("File transfer canceled."));
+}
+
+void MainWindow::failQueuedRows(const QString &reason)
+{
+  for (const auto &path : m_sendQueue) {
+    m_transferPanel->setState(path, TransferPanel::State::Failed, reason);
+  }
+}
+
+void MainWindow::showInFolder(const QString &path)
+{
+#if defined(Q_OS_MACOS)
+  QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), path});
+#elif defined(Q_OS_WIN)
+  QProcess::startDetached(QStringLiteral("explorer"), {QStringLiteral("/select,"), QDir::toNativeSeparators(path)});
+#else
+  QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+#endif
 }
 
 void MainWindow::receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error)
@@ -2067,8 +2160,7 @@ void MainWindow::receiveWorkerReady(OutgoingFileWorker *worker, bool success, co
                              {QStringLiteral("peer"), m_outgoingPeer},
                              {QStringLiteral("id"), m_outgoingTransferId}};
     m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(reject));
-    QMessageBox::warning(this, kAppName, error);
-    clearFileTransfer();
+    clearFileTransfer(error);
     return;
   }
   const QJsonObject accept{{QStringLiteral("action"), QStringLiteral("accept")},
@@ -2091,9 +2183,7 @@ void MainWindow::receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool succes
     clearFileTransfer(error.isEmpty() ? tr("Could not save the received file.") : error);
     return;
   }
-  if (m_fileTransferProgress && total > 0) {
-    m_fileTransferProgress->setValue(static_cast<int>(received * 1000 / total));
-  }
+  m_transferPanel->setProgress(m_outgoingTransferId, received, total);
   const QJsonObject saved{{QStringLiteral("action"), QStringLiteral("chunkSaved")},
                           {QStringLiteral("peer"), m_outgoingPeer},
                           {QStringLiteral("id"), m_outgoingTransferId},
@@ -2112,19 +2202,22 @@ void MainWindow::receiveWorkerFinished(OutgoingFileWorker *worker, bool success,
                            {QStringLiteral("id"), m_outgoingTransferId},
                            {QStringLiteral("success"), success}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(result));
-  const bool quiet = m_transferAutoAccepted;
-  clearFileTransfer();
-  if (success && quiet) {
+  if (success) {
+    m_transferPanel->setState(m_outgoingTransferId, TransferPanel::State::Done, path);
+    clearFileTransfer();
     statusBar()->showMessage(tr("Received and verified: %1").arg(path), 8000);
-  } else if (success) {
-    QMessageBox::information(this, kAppName, tr("File received and verified:\n%1").arg(path));
   } else {
-    QMessageBox::warning(this, kAppName, error);
+    clearFileTransfer(error);
   }
 }
 
 void MainWindow::clearFileTransfer(const QString &message)
 {
+  const QString reason = message.isEmpty() ? tr("Stopped") : message;
+  const QString rowId = m_outgoingTransferId.isEmpty() ? m_outgoingPath : m_outgoingTransferId;
+  if (!rowId.isEmpty()) {
+    m_transferPanel->setState(rowId, TransferPanel::State::Failed, reason);
+  }
   if (m_fileWorker != nullptr) {
     m_fileWorker->requestCancel();
     m_fileWorker = nullptr;
@@ -2133,8 +2226,10 @@ void MainWindow::clearFileTransfer(const QString &message)
     m_fileWorkerThread->quit();
   }
   m_receivingFile = false;
+  m_offerPending = false;
   m_transferAutoAccepted = false;
   if (!m_continueSendQueue) {
+    failQueuedRows(reason);
     m_sendQueue.clear();
   }
   m_continueSendQueue = false;
@@ -2142,12 +2237,8 @@ void MainWindow::clearFileTransfer(const QString &message)
   m_outgoingPeer.clear();
   m_outgoingFileName.clear();
   m_outgoingSize = 0;
-  if (m_fileTransferProgress) {
-    m_fileTransferProgress->disconnect(this);
-    m_fileTransferProgress->close();
-    m_fileTransferProgress->deleteLater();
-    m_fileTransferProgress = nullptr;
-  }
+  m_outgoingPath.clear();
+  m_pendingOfferHash.clear();
   if (!message.isEmpty()) {
     statusBar()->showMessage(message, 8000);
   }
