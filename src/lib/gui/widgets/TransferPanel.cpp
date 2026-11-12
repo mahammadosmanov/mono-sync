@@ -157,6 +157,8 @@ void TransferPanel::addRow(const QString &rowId, const QString &fileName, const 
     row->dismiss->setToolTip(tr("Dismiss"));
     row->dismiss->setAccessibleName(tr("Dismiss"));
     row->dismiss->setAutoRaise(true);
+    // macOS draws a bezel on tool buttons even with autoRaise
+    row->dismiss->setStyleSheet(QStringLiteral("QToolButton { border: none; }"));
     layout->addWidget(row->cancel);
     layout->addWidget(row->save);
     layout->addWidget(row->choose);
