@@ -51,6 +51,7 @@ const char *const kMsgFileResponse = "MSRP%s%1i";
 const char *const kMsgFileChunk = "MSCH%s%s";
 const char *const kMsgFileAck = "MSAK%s%4i%4i";
 const char *const kMsgFileFinish = "MSFN%s";
+const char *const kMsgFileFinishHash = "MSFH%s%s";
 const char *const kMsgFileDone = "MSOK%s";
 const char *const kMsgFileError = "MSER%s%1i";
 const char *const kMsgFileCancel = "MSCA%s";

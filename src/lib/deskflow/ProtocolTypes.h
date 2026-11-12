@@ -1071,6 +1071,8 @@ extern const char *const kMsgFileResponse;
 extern const char *const kMsgFileChunk;
 extern const char *const kMsgFileAck;
 extern const char *const kMsgFileFinish;
+// Protocol 1.10: finish with the SHA-256 digest computed while streaming (replaces MSFN).
+extern const char *const kMsgFileFinishHash;
 extern const char *const kMsgFileDone;
 extern const char *const kMsgFileError;
 extern const char *const kMsgFileCancel;

@@ -183,6 +183,8 @@ private:
   void setAutoAcceptFiles(bool enabled);
   void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
   void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
+  void requestOutgoingFinish();
+  void sendOutgoingFinish(const QByteArray &sha256);
   void clearFileTransferAvailability(const QString &message);
   void receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error);
   void receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes, quint64 received,

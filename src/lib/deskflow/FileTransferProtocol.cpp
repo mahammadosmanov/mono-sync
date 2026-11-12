@@ -27,6 +27,11 @@ constexpr uint32_t kFileNameMaximum = 240;
 constexpr uint32_t kSha256Length = 32;
 constexpr uint32_t kFastWindowChunks = 32;
 
+bool isZeroDigest(const std::string &digest)
+{
+  return std::all_of(digest.cbegin(), digest.cend(), [](char byte) { return byte == 0; });
+}
+
 QString actionName(const char *name)
 {
   return QString::fromLatin1(name);
@@ -75,8 +80,8 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
 {
   const auto isFileMessage =
       std::memcmp(code, "MSOF", 4) == 0 || std::memcmp(code, "MSRP", 4) == 0 || std::memcmp(code, "MSCH", 4) == 0 ||
-      std::memcmp(code, "MSAK", 4) == 0 || std::memcmp(code, "MSFN", 4) == 0 || std::memcmp(code, "MSOK", 4) == 0 ||
-      std::memcmp(code, "MSER", 4) == 0 || std::memcmp(code, "MSCA", 4) == 0;
+      std::memcmp(code, "MSAK", 4) == 0 || std::memcmp(code, "MSFN", 4) == 0 || std::memcmp(code, "MSFH", 4) == 0 ||
+      std::memcmp(code, "MSOK", 4) == 0 || std::memcmp(code, "MSER", 4) == 0 || std::memcmp(code, "MSCA", 4) == 0;
   if (!isFileMessage) {
     return ParseResult::NotFileMessage;
   }
@@ -209,11 +214,43 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
         m_receivedSize != m_expectedSize) {
       throw BadClientException("Unexpected file-transfer completion");
     }
+    if (m_fast && isZeroDigest(m_expectedHash)) {
+      // a fast sender offers a zero digest and must finish with MSFH; the bytes cannot be verified here
+      const uint32_t errorCode = 1;
+      ProtocolUtil::writef(m_stream, kMsgFileError, &id, errorCode);
+      notify({
+          {QStringLiteral("action"), actionName("failed")},
+          {QStringLiteral("id"), QString::fromStdString(id)},
+          {QStringLiteral("reason"), QString::number(errorCode)},
+      });
+      resetTransfer();
+      return ParseResult::Handled;
+    }
     m_state = State::AwaitingLocalFinish;
     notify({
         {QStringLiteral("action"), actionName("finishReceive")},
         {QStringLiteral("id"), QString::fromStdString(id)},
         {QStringLiteral("total"), QString::number(m_expectedSize)},
+    });
+  } else if (std::memcmp(code, "MSFH", 4) == 0) {
+    if (!m_fast) {
+      throw BadClientException("Unexpected file-transfer digest on a protocol 1.9 connection");
+    }
+    std::string id = ProtocolUtil::readBoundedString(m_stream, kTransferIdMaximum);
+    std::string digest = ProtocolUtil::readBoundedString(m_stream, kSha256Length);
+    if (isTerminalTransferId(id)) {
+      return ParseResult::Handled;
+    }
+    if (!isValidTransferId(id) || id != m_transferId || m_state != State::Receiving ||
+        m_receivedSize != m_expectedSize || digest.size() != kSha256Length) {
+      throw BadClientException("Unexpected file-transfer completion");
+    }
+    m_state = State::AwaitingLocalFinish;
+    notify({
+        {QStringLiteral("action"), actionName("finishReceive")},
+        {QStringLiteral("id"), QString::fromStdString(id)},
+        {QStringLiteral("total"), QString::number(m_expectedSize)},
+        {QStringLiteral("sha256"), QString::fromLatin1(QByteArray::fromStdString(digest).toHex())},
     });
   } else if (std::memcmp(code, "MSOK", 4) == 0) {
     std::string id = ProtocolUtil::readBoundedString(m_stream, kTransferIdMaximum);
@@ -285,7 +322,11 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     const auto fileName = message.value(QStringLiteral("name")).toString();
     bool sizeOk = false;
     const uint64_t size = message.value(QStringLiteral("size")).toString().toULongLong(&sizeOk);
-    const QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    if (m_fast) {
+      // fast peers hash while streaming, so the offer carries a zero digest and the real one follows in MSFH
+      hash = QByteArray(static_cast<int>(kSha256Length), '\0');
+    }
     if (m_state != State::Idle || !isValidTransferId(id) || !sizeOk || size > FileTransferReceiver::kMaximumFileSize ||
         hash.size() != static_cast<int>(kSha256Length) || !FileTransferReceiver::isSafeFileName(fileName)) {
       return false;
@@ -375,7 +416,16 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
       return false;
     }
     const std::string idCopy = m_transferId;
-    ProtocolUtil::writef(m_stream, kMsgFileFinish, &idCopy);
+    if (m_fast) {
+      const QByteArray digest = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+      if (digest.size() != static_cast<int>(kSha256Length)) {
+        return false;
+      }
+      const std::string digestCopy = digest.toStdString();
+      ProtocolUtil::writef(m_stream, kMsgFileFinishHash, &idCopy, &digestCopy);
+    } else {
+      ProtocolUtil::writef(m_stream, kMsgFileFinish, &idCopy);
+    }
     m_state = State::AwaitingRemoteFinalResult;
     return true;
   }

@@ -1729,6 +1729,11 @@ void MainWindow::startFileWorker()
       sendOutgoingChunk(chunk, position);
     }
   });
+  connect(worker, &OutgoingFileWorker::sendHashReady, this, [this, worker](const QByteArray &sha256) {
+    if (m_fileWorker == worker) {
+      sendOutgoingFinish(sha256);
+    }
+  });
   connect(worker, &OutgoingFileWorker::receiverReady, this,
           [this, worker](bool success, const QString &error) { receiveWorkerReady(worker, success, error); });
   connect(worker, &OutgoingFileWorker::receiveChunkSaved, this,
@@ -1930,7 +1935,8 @@ void MainWindow::startSending(const QString &peer, const QString &path)
                           TransferPanel::State::Preparing);
   startFileWorker();
   auto *worker = m_fileWorker;
-  QMetaObject::invokeMethod(worker, [worker, path] { worker->prepare(path); }, Qt::QueuedConnection);
+  const bool fast = m_fileTransferFastPeers.value(peer);
+  QMetaObject::invokeMethod(worker, [worker, path, fast] { worker->prepare(path, fast); }, Qt::QueuedConnection);
 }
 
 void MainWindow::prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256)
@@ -1966,6 +1972,28 @@ void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))}};
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(message));
   m_transferPanel->setProgress(m_outgoingTransferId, position, m_outgoingSize);
+}
+
+void MainWindow::requestOutgoingFinish()
+{
+  // a fast peer needs the digest the worker computed while streaming; others get MSFN
+  if (m_fileTransferFastPeers.value(m_outgoingPeer) && m_fileWorker != nullptr) {
+    auto *worker = m_fileWorker;
+    QMetaObject::invokeMethod(worker, [worker] { worker->finishSend(); }, Qt::QueuedConnection);
+    return;
+  }
+  sendOutgoingFinish(QByteArray());
+}
+
+void MainWindow::sendOutgoingFinish(const QByteArray &sha256)
+{
+  QJsonObject finish{{QStringLiteral("action"), QStringLiteral("sendFinish")},
+                     {QStringLiteral("peer"), m_outgoingPeer},
+                     {QStringLiteral("id"), m_outgoingTransferId}};
+  if (!sha256.isEmpty()) {
+    finish.insert(QStringLiteral("sha256"), QString::fromLatin1(sha256.toHex()));
+  }
+  m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(finish));
 }
 
 void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
@@ -2026,10 +2054,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   if (action == QStringLiteral("accepted") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
     m_transferPanel->setState(id, TransferPanel::State::Transferring);
     if (m_outgoingSize == 0) {
-      QJsonObject finish{{QStringLiteral("action"), QStringLiteral("sendFinish")},
-                         {QStringLiteral("peer"), peer},
-                         {QStringLiteral("id"), id}};
-      m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(finish));
+      requestOutgoingFinish();
     } else {
       if (m_fileWorker != nullptr) {
         QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
@@ -2044,10 +2069,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     return;
   }
   if (action == QStringLiteral("sendReadyToFinish") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    QJsonObject finish{{QStringLiteral("action"), QStringLiteral("sendFinish")},
-                       {QStringLiteral("peer"), peer},
-                       {QStringLiteral("id"), id}};
-    m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(finish));
+    requestOutgoingFinish();
     return;
   }
   if (action == QStringLiteral("receiveChunk") && id == m_outgoingTransferId && peer == m_outgoingPeer &&
@@ -2069,8 +2091,9 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
   }
   if (action == QStringLiteral("finishReceive") && id == m_outgoingTransferId && peer == m_outgoingPeer &&
       m_receivingFile && m_fileWorker != nullptr) {
+    const QByteArray sha256 = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
     auto *worker = m_fileWorker;
-    QMetaObject::invokeMethod(worker, [worker] { worker->finishReceive(); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(worker, [worker, sha256] { worker->finishReceive(sha256); }, Qt::QueuedConnection);
     return;
   }
   if (action == QStringLiteral("completed") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
