@@ -394,6 +394,7 @@ void MainWindow::connectSlots()
   // Mac os tray will only show a menu
   if (!deskflow::platform::isMac())
     connect(m_trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::trayIconActivated);
+  connect(m_trayIcon, &QSystemTrayIcon::messageClicked, this, &MainWindow::showAndActivate);
 
   connect(&m_coreProcess, &CoreProcess::connectedClientsChanged, this, &MainWindow::serverClientsChanged);
   connect(&m_coreProcess, &CoreProcess::unrecognisedClient, this, &MainWindow::handleUnrecognisedClient);
@@ -925,9 +926,9 @@ void MainWindow::createMenuBar()
 void MainWindow::setupTrayIcon()
 {
   auto trayMenu = new QMenu(this);
-  trayMenu->addActions(
-      {m_actionStartCore, m_actionRestartCore, m_actionStopCore, m_actionMinimize, m_actionRestore, m_actionTrayQuit}
-  );
+  trayMenu->addActions({m_actionStartCore, m_actionRestartCore, m_actionStopCore, m_actionSendFile, m_actionMinimize,
+                        m_actionRestore, m_actionTrayQuit});
+  trayMenu->insertSeparator(m_actionSendFile);
   trayMenu->insertSeparator(m_actionMinimize);
   trayMenu->insertSeparator(m_actionTrayQuit);
   m_trayIcon->setContextMenu(trayMenu);
@@ -2005,6 +2006,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
       acceptPendingOffer(defaultReceivePath(name));
     } else {
       m_transferPanel->addRow(id, name, peer, size, true, TransferPanel::State::Offer);
+      notifyTransfer(kAppName, tr("%1 wants to send %2").arg(peer, name));
     }
     return;
   }
@@ -2064,6 +2066,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     const int queued = m_sendQueue.size();
     m_transferPanel->setState(id, TransferPanel::State::Done);
     clearFileTransfer();
+    notifyTransfer(kAppName, tr("Sent %1").arg(name));
     if (queued > 0) {
       statusBar()->showMessage(tr("Sent \"%1\". %2 more queued.").arg(name).arg(queued), 8000);
     } else {
@@ -2205,6 +2208,7 @@ void MainWindow::receiveWorkerFinished(OutgoingFileWorker *worker, bool success,
   if (success) {
     m_transferPanel->setState(m_outgoingTransferId, TransferPanel::State::Done, path);
     clearFileTransfer();
+    notifyTransfer(kAppName, tr("Received %1").arg(QFileInfo(path).fileName()));
     statusBar()->showMessage(tr("Received and verified: %1").arg(path), 8000);
   } else {
     clearFileTransfer(error);
@@ -2241,7 +2245,16 @@ void MainWindow::clearFileTransfer(const QString &message)
   m_pendingOfferHash.clear();
   if (!message.isEmpty()) {
     statusBar()->showMessage(message, 8000);
+    notifyTransfer(kAppName, message);
   }
+}
+
+void MainWindow::notifyTransfer(const QString &title, const QString &text)
+{
+  if (!QSystemTrayIcon::supportsMessages() || (isVisible() && !isMinimized() && isActiveWindow())) {
+    return;
+  }
+  m_trayIcon->showMessage(title, text, QSystemTrayIcon::Information, 8000);
 }
 
 bool MainWindow::canRunCore() const

@@ -196,6 +196,7 @@ private:
   void cancelTransfer(const QString &rowId);
   void failQueuedRows(const QString &reason);
   void showInFolder(const QString &path);
+  void notifyTransfer(const QString &title, const QString &text);
 
   bool canRunCore() const;
 
