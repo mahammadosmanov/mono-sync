@@ -22,6 +22,7 @@ private Q_SLOTS:
   void finishedRowsAreTrimmed();
   void saveButtonEmitsAcceptForOfferRow();
   void cancelButtonEmitsCancelForActiveRow();
+  void alwaysAcceptButtonEmitsForOfferRow();
 };
 
 void TransferPanelTests::statusTextCoversEveryState()
@@ -105,6 +106,19 @@ void TransferPanelTests::cancelButtonEmitsCancelForActiveRow()
   panel.findChild<QPushButton *>(QStringLiteral("transferCancel"))->click();
   QCOMPARE(cancelled.count(), 1);
   QCOMPARE(cancelled.first().first().toString(), QStringLiteral("run-1"));
+}
+
+void TransferPanelTests::alwaysAcceptButtonEmitsForOfferRow()
+{
+  TransferPanel panel;
+  QSignalSpy always(&panel, &TransferPanel::acceptAlwaysRequested);
+  panel.addRow(QStringLiteral("offer-2"), QStringLiteral("c.pdf"), QStringLiteral("Office-PC"), 10, true, State::Offer);
+  auto *button = panel.findChild<QPushButton *>(QStringLiteral("transferAlwaysAccept"));
+  QVERIFY(button);
+  QCOMPARE(button->text(), QStringLiteral("Always accept from Office-PC"));
+  button->click();
+  QCOMPARE(always.count(), 1);
+  QCOMPARE(always.first().first().toString(), QStringLiteral("offer-2"));
 }
 
 QTEST_MAIN(TransferPanelTests)

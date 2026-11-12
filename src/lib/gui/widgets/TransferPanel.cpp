@@ -94,6 +94,7 @@ struct TransferPanel::Row
   QPushButton *cancel = nullptr;
   QPushButton *save = nullptr;
   QPushButton *choose = nullptr;
+  QPushButton *alwaysAccept = nullptr;
   QPushButton *decline = nullptr;
   QPushButton *showFolder = nullptr;
   QToolButton *dismiss = nullptr;
@@ -147,6 +148,7 @@ void TransferPanel::addRow(const QString &rowId, const QString &fileName, const 
     row->save = makeButton(row->frame, "transferSave", tr("Save"));
     row->save->setDefault(true);
     row->choose = makeButton(row->frame, "transferChoose", tr("Choose location…"));
+    row->alwaysAccept = makeButton(row->frame, "transferAlwaysAccept", QString());
     row->decline = makeButton(row->frame, "transferDecline", tr("Decline"));
     row->showFolder = makeButton(row->frame, "transferShowInFolder", tr("Show in folder"));
     row->dismiss = new QToolButton(row->frame);
@@ -158,6 +160,7 @@ void TransferPanel::addRow(const QString &rowId, const QString &fileName, const 
     layout->addWidget(row->cancel);
     layout->addWidget(row->save);
     layout->addWidget(row->choose);
+    layout->addWidget(row->alwaysAccept);
     layout->addWidget(row->decline);
     layout->addWidget(row->showFolder);
     layout->addWidget(row->dismiss);
@@ -176,6 +179,11 @@ void TransferPanel::addRow(const QString &rowId, const QString &fileName, const 
     connect(row->choose, &QPushButton::clicked, this, [this, frame] {
       if (const Row *r = rowForFrame(frame)) {
         Q_EMIT chooseLocationRequested(r->id);
+      }
+    });
+    connect(row->alwaysAccept, &QPushButton::clicked, this, [this, frame] {
+      if (const Row *r = rowForFrame(frame)) {
+        Q_EMIT acceptAlwaysRequested(r->id);
       }
     });
     connect(row->decline, &QPushButton::clicked, this, [this, frame] {
@@ -198,6 +206,8 @@ void TransferPanel::addRow(const QString &rowId, const QString &fileName, const 
     m_layout->addWidget(row->frame);
   }
   row->peer = peer;
+  row->alwaysAccept->setText(tr("Always accept from %1").arg(peer));
+  row->alwaysAccept->setToolTip(row->alwaysAccept->text());
   row->incoming = incoming;
   row->state = state;
   row->done = 0;
@@ -336,6 +346,7 @@ void TransferPanel::refreshRow(Row *row)
   row->cancel->setVisible(active);
   row->save->setVisible(state == State::Offer);
   row->choose->setVisible(state == State::Offer);
+  row->alwaysAccept->setVisible(state == State::Offer);
   row->decline->setVisible(state == State::Offer);
   row->showFolder->setVisible(state == State::Done && row->incoming);
   row->dismiss->setVisible(state == State::Done || state == State::Failed);

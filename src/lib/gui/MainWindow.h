@@ -191,6 +191,7 @@ private:
   void handleFileTransferMessage(const QString &encodedMessage);
   void clearFileTransfer(const QString &message = QString());
   void acceptPendingOffer(const QString &destination);
+  void alwaysAcceptPendingOffer(const QString &rowId);
   bool isPendingOffer(const QString &rowId) const;
   QString defaultReceivePath(const QString &name) const;
   void cancelTransfer(const QString &rowId);
@@ -262,6 +263,7 @@ private:
   QAction *m_actionSendFile = nullptr;
   QAction *m_actionReceiveFolder = nullptr;
   QAction *m_actionAutoAccept = nullptr;
+  QAction *m_actionForgetTrusted = nullptr;
 
   // Network monitoring
   NetworkMonitor *m_networkMonitor = nullptr;

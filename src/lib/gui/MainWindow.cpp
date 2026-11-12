@@ -192,6 +192,8 @@ MainWindow::MainWindow()
   m_actionAutoAccept = new QAction(this);
   m_actionAutoAccept->setCheckable(true);
   m_actionAutoAccept->setChecked(Settings::value(Settings::Gui::FileAutoAccept).toBool());
+  m_actionForgetTrusted = new QAction(this);
+  m_actionForgetTrusted->setEnabled(!Settings::value(Settings::Gui::FileAutoAcceptPeers).toStringList().isEmpty());
   setAcceptDrops(true);
 
   m_transferPanel = new TransferPanel(this);
@@ -222,6 +224,7 @@ MainWindow::MainWindow()
       acceptPendingOffer(QString());
     }
   });
+  connect(m_transferPanel, &TransferPanel::acceptAlwaysRequested, this, &MainWindow::alwaysAcceptPendingOffer);
   connect(m_transferPanel, &TransferPanel::showInFolderRequested, this, &MainWindow::showInFolder);
 
   // Setup the Instance Checking
@@ -386,6 +389,10 @@ void MainWindow::connectSlots()
   connect(m_actionCheckUpdates, &QAction::triggered, this, &MainWindow::checkForUpdates);
   connect(m_actionReceiveFolder, &QAction::triggered, this, &MainWindow::chooseReceiveFolder);
   connect(m_actionAutoAccept, &QAction::toggled, this, &MainWindow::setAutoAcceptFiles);
+  connect(m_actionForgetTrusted, &QAction::triggered, this, [this] {
+    Settings::setValue(Settings::Gui::FileAutoAcceptPeers);
+    m_actionForgetTrusted->setEnabled(false);
+  });
   connect(m_actionSendFile, &QAction::triggered, this, &MainWindow::sendFile);
   connect(&m_coreProcess, &CoreProcess::fileTransferMessageReceived, this, &MainWindow::handleFileTransferMessage);
   connect(&m_coreProcess, &CoreProcess::fileTransferIpcUnavailable, this,
@@ -899,6 +906,7 @@ void MainWindow::createMenuBar()
   m_menuFile->addAction(m_actionSendFile);
   m_menuFile->addAction(m_actionReceiveFolder);
   m_menuFile->addAction(m_actionAutoAccept);
+  m_menuFile->addAction(m_actionForgetTrusted);
   m_menuFile->addSeparator();
   m_menuFile->addAction(m_actionStartCore);
   m_menuFile->addAction(m_actionRestartCore);
@@ -1351,6 +1359,7 @@ void MainWindow::updateText()
   m_actionCheckUpdates->setText(tr("Check for &Updates…"));
   m_actionReceiveFolder->setText(tr("Receive folder…"));
   m_actionAutoAccept->setText(tr("Accept files automatically"));
+  m_actionForgetTrusted->setText(tr("Forget trusted senders"));
   m_actionSendFile->setText(tr("Send a file…"));
   m_actionSendFile->setEnabled(false);
 
@@ -1999,7 +2008,9 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     m_pendingOfferHash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
     m_receivingFile = true;
     m_offerPending = true;
-    m_transferAutoAccepted = Settings::value(Settings::Gui::FileAutoAccept).toBool();
+    // ponytail: trust is keyed by screen name; key by certificate fingerprint if names can collide across trusted peers.
+    const QStringList trustedPeers = Settings::value(Settings::Gui::FileAutoAcceptPeers).toStringList();
+    m_transferAutoAccepted = Settings::value(Settings::Gui::FileAutoAccept).toBool() || trustedPeers.contains(peer);
     if (m_transferAutoAccepted) {
       m_transferPanel->addRow(id, name, peer, size, true, TransferPanel::State::Transferring);
       statusBar()->showMessage(tr("Receiving \"%1\" from %2…").arg(name, peer), 8000);
@@ -2114,6 +2125,31 @@ void MainWindow::acceptPendingOffer(const QString &destination)
     const QFileInfo target(destination);
     worker->beginReceive(target.absolutePath(), target.fileName(), size, hash);
   }, Qt::QueuedConnection);
+}
+
+void MainWindow::alwaysAcceptPendingOffer(const QString &rowId)
+{
+  if (!isPendingOffer(rowId)) {
+    return;
+  }
+  const QString peer = m_outgoingPeer;
+  const auto answer = QMessageBox::warning(
+      this, kAppName,
+      tr("Accept files from %1 automatically?\n\n"
+         "%1 can then save files into %2 without asking. "
+         "Existing files are never replaced.")
+          .arg(peer, Settings::value(Settings::Gui::FileReceiveDirectory).toString()),
+      QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+  if (answer != QMessageBox::Yes || !isPendingOffer(rowId)) {
+    return;
+  }
+  QStringList trustedPeers = Settings::value(Settings::Gui::FileAutoAcceptPeers).toStringList();
+  if (!trustedPeers.contains(peer)) {
+    trustedPeers.append(peer);
+    Settings::setValue(Settings::Gui::FileAutoAcceptPeers, trustedPeers);
+  }
+  m_actionForgetTrusted->setEnabled(true);
+  acceptPendingOffer(defaultReceivePath(m_outgoingFileName));
 }
 
 void MainWindow::cancelTransfer(const QString &rowId)
