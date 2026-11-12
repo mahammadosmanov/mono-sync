@@ -273,6 +273,7 @@ private:
   QString m_currentIpAddress;
 
   QHash<QString, bool> m_fileTransferPeers;
+  QHash<QString, bool> m_fileTransferFastPeers;
   QThread *m_fileWorkerThread = nullptr;
   OutgoingFileWorker *m_fileWorker = nullptr;
   TransferPanel *m_transferPanel = nullptr;

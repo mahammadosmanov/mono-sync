@@ -1283,6 +1283,7 @@ void MainWindow::coreConnectionStateChanged(ConnectionState state)
 void MainWindow::clearFileTransferAvailability(const QString &message)
 {
   m_fileTransferPeers.clear();
+  m_fileTransferFastPeers.clear();
   m_actionSendFile->setEnabled(false);
   if (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty()) {
     clearFileTransfer(message);
@@ -1981,6 +1982,7 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     handleLogLine(QStringLiteral("File-transfer availability received: %1.")
                       .arg(available ? QStringLiteral("available") : QStringLiteral("unavailable")));
     m_fileTransferPeers.insert(peer, available);
+    m_fileTransferFastPeers.insert(peer, message.value(QStringLiteral("fast")).toBool());
     if (!available && peer == m_outgoingPeer &&
         (m_fileWorkerThread != nullptr || m_fileWorker != nullptr || !m_outgoingTransferId.isEmpty())) {
       clearFileTransfer(tr("File transfer stopped because the peer disconnected."));
