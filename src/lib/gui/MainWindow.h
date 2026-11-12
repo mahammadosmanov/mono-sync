@@ -81,6 +81,7 @@ public:
     return m_coreProcess.mode();
   }
   void open();
+  void showFilesNeedPeer();
   ServerConfig &serverConfig()
   {
     return m_serverConfig;
@@ -160,6 +161,7 @@ private:
   void showFirstConnectedMessage();
   void updateStatus();
   void showAndActivate();
+  void handleDuplicateInstanceConnection();
   void showHostNameEditor();
   void setHostName();
   void daemonIpcClientConnectionFailed();
@@ -174,9 +176,9 @@ private:
   void showHelpViewer() const;
   void startFileWorker();
   void sendFile();
-  QString pickSendPeer();
+  QString pickSendPeer(bool fromOutside = false);
   bool isPeerReadyForFile(const QString &peer) const;
-  void queueFilesToSend(const QStringList &paths);
+  void queueFilesToSend(const QStringList &paths, bool fromOutside = false);
   void sendNextQueuedFile();
   void startSending(const QString &peer, const QString &path);
   void chooseReceiveFolder();
@@ -291,6 +293,7 @@ private:
   quint64 m_outgoingSize = 0;
   QStringList m_sendQueue;
   QString m_sendQueuePeer;
+  QStringList m_pendingOpenPaths;
   bool m_continueSendQueue = false;
   bool m_transferAutoAccepted = false;
 

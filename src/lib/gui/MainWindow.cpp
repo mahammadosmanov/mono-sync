@@ -26,6 +26,7 @@
 #include "common/UrlConstants.h"
 #include "common/VersionInfo.h"
 #include "deskflow/FileTransferProtocol.h"
+#include "gui/HandOffPaths.h"
 #include "gui/Messages.h"
 #include "gui/TlsUtility.h"
 #include "gui/core/CoreProcess.h"
@@ -76,6 +77,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <utility>
 
 #if defined(Q_OS_MACOS)
 #include <ApplicationServices/ApplicationServices.h>
@@ -231,6 +233,7 @@ MainWindow::MainWindow()
   // In case of a previous crash remove first
   QLocalServer::removeServer(m_guiSocketName);
   m_guiDupeChecker->listen(m_guiSocketName);
+  qApp->installEventFilter(this);
 
   createMenuBar();
   setupControls();
@@ -289,6 +292,7 @@ MainWindow::~MainWindow()
     m_networkMonitor->stopMonitoring();
   }
 
+  qApp->removeEventFilter(this);
   m_guiDupeChecker->close();
   m_coreProcess.cleanup();
 }
@@ -447,7 +451,7 @@ void MainWindow::connectSlots()
   connect(&m_updateDownloader, &UpdateDownloader::finished, this, &MainWindow::onUpdateDownloaded);
   connect(&m_updateDownloader, &UpdateDownloader::failed, this, &MainWindow::onUpdateDownloadFailed);
 
-  connect(m_guiDupeChecker, &QLocalServer::newConnection, this, &MainWindow::showAndActivate);
+  connect(m_guiDupeChecker, &QLocalServer::newConnection, this, &MainWindow::handleDuplicateInstanceConnection);
 
   connect(ui->btnEditName, &QPushButton::clicked, this, &MainWindow::showHostNameEditor);
 
@@ -1325,6 +1329,24 @@ void MainWindow::changeEvent(QEvent *e)
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
+  if (obj == qApp && event->type() == QEvent::FileOpen) {
+    // Files dropped on the Dock icon arrive as one event per file; send them as one batch
+    const bool firstFile = m_pendingOpenPaths.isEmpty();
+    m_pendingOpenPaths.append(static_cast<QFileOpenEvent *>(event)->file());
+    if (firstFile) {
+      QTimer::singleShot(200, this, [this] {
+        const auto pending = std::exchange(m_pendingOpenPaths, {});
+        QStringList paths;
+        for (const auto &path : pending) {
+          if (QFileInfo(path).isFile())
+            paths.append(path);
+        }
+        if (!paths.isEmpty())
+          queueFilesToSend(paths, true);
+      });
+    }
+    return true;
+  }
   if (obj != ui->lineEditName || event->type() != QEvent::KeyPress)
     return false;
   if (const auto keyEvent = static_cast<QKeyEvent *>(event); keyEvent->key() != Qt::Key_Escape)
@@ -1407,6 +1429,46 @@ void MainWindow::updateComputerName()
   ui->lblComputerName->setText(computerName);
   ui->lineEditName->setText(computerName);
   m_serverConfig.updateServerName();
+}
+
+void MainWindow::handleDuplicateInstanceConnection()
+{
+  auto *socket = m_guiDupeChecker->nextPendingConnection();
+  if (!socket)
+    return;
+
+  // The second launch writes paths and disconnects, so collect until disconnect or timeout
+  auto data = std::make_shared<QByteArray>();
+  auto received = std::make_shared<bool>(false);
+  auto finished = std::make_shared<bool>(false);
+
+  auto drain = [socket, data, received] {
+    const auto chunk = socket->readAll();
+    *received = *received || !chunk.isEmpty();
+    data->append(chunk);
+    if (data->size() > kHandOffMaxBytes) {
+      data->clear();
+      socket->abort();
+    }
+  };
+  auto finish = [this, socket, data, received, finished, drain] {
+    if (*finished)
+      return;
+    *finished = true;
+    drain();
+    socket->abort();
+    const auto paths = parseHandOffPaths(*data);
+    if (!paths.isEmpty())
+      queueFilesToSend(paths, true);
+    else if (!*received)
+      showAndActivate();
+    socket->deleteLater();
+  };
+
+  connect(socket, &QLocalSocket::readyRead, socket, drain);
+  connect(socket, &QLocalSocket::disconnected, socket, finish);
+  QTimer::singleShot(2000, socket, finish);
+  drain();
 }
 
 void MainWindow::showAndActivate()
@@ -1800,7 +1862,14 @@ void MainWindow::sendFile()
   startSending(peer, path);
 }
 
-QString MainWindow::pickSendPeer()
+void MainWindow::showFilesNeedPeer()
+{
+  const auto message = tr("Connect to a peer, then send the file again.");
+  statusBar()->showMessage(message, 8000);
+  notifyTransfer(kAppName, message);
+}
+
+QString MainWindow::pickSendPeer(bool fromOutside)
 {
   QStringList peers;
   for (auto iterator = m_fileTransferPeers.cbegin(); iterator != m_fileTransferPeers.cend(); ++iterator) {
@@ -1809,11 +1878,19 @@ QString MainWindow::pickSendPeer()
     }
   }
   if (peers.isEmpty()) {
+    if (fromOutside) {
+      showFilesNeedPeer();
+      return QString();
+    }
     QMessageBox::information(this, kAppName, tr("File transfer is available only with a connected Mono Sync peer."));
     return QString();
   }
   if (peers.size() == 1) {
     return peers.first();
+  }
+  if (fromOutside) {
+    // The peer picker is a modal dialog, so it needs a visible window
+    showAndActivate();
   }
   bool accepted = false;
   const QString peer = QInputDialog::getItem(this, tr("Send file"), tr("Connected peer:"), peers, 0, false, &accepted);
@@ -1878,14 +1955,14 @@ void MainWindow::resizeEvent(QResizeEvent *event)
   m_dropOverlay->setGeometry(centralWidget()->rect());
 }
 
-void MainWindow::queueFilesToSend(const QStringList &paths)
+void MainWindow::queueFilesToSend(const QStringList &paths, bool fromOutside)
 {
   if (m_closeAfterFileWorkerStops || m_receivingFile) {
     statusBar()->showMessage(tr("Wait for the current file operation to finish."), 8000);
     return;
   }
   const bool sending = m_fileWorker != nullptr || m_fileWorkerThread != nullptr || !m_outgoingTransferId.isEmpty();
-  const QString peer = sending ? m_outgoingPeer : pickSendPeer();
+  const QString peer = sending ? m_outgoingPeer : pickSendPeer(fromOutside);
   if (peer.isEmpty()) {
     return;
   }

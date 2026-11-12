@@ -45,3 +45,10 @@ create_test(
   SOURCE TransferPanelTests.cpp
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
 )
+
+create_test(
+  NAME HandOffPathsTests
+  DEPENDS gui
+  SOURCE HandOffPathsTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
+)

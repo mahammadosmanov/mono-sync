@@ -21,6 +21,8 @@ add_library(${target} STATIC
   Diagnostic.h
   FileTail.cpp
   FileTail.h
+  HandOffPaths.cpp
+  HandOffPaths.h
   Logger.cpp
   Logger.h
   MainWindow.cpp
