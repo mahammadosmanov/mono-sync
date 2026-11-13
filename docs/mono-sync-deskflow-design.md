@@ -15,7 +15,7 @@ The app offers one-file transfer over the already authenticated and connected pe
 - Preserve required Deskflow, Synergy, GPL-2.0-only, OpenSSL-exception, and third-party notices. See [UPSTREAM.md](UPSTREAM.md), `LICENSE`, and `LICENSES/`.
 - On first launch only, import allowlisted Deskflow settings, certificate, and trust files if the Mono Sync profile does not exist. Preserve source files, exact certificate/trust bytes, and any existing Mono Sync profile. Never interpret the former Rust app's JSON settings as Qt settings.
 - Windows setup, app, and uninstaller run as the current user. No service, machine-wide firewall rule, or elevation is part of the normal workflow. Operating-system firewall policy and macOS input-control authorization remain controlled by the OS.
-- Automatic update checks are disabled until Mono Sync has an update source.
+- Update checks read Mono Sync GitHub releases, including pre-releases, when the startup check is enabled. A newer release opens a prompt with Install update, Later, and Skip this version; Skip applies only to that exact version. Install update downloads the installer, requires its SHA-256 digest to match, stops sharing, installs, and reopens Mono Sync. An install never starts while sharing is active without the user choosing Install update. Install updates automatically is optional and off by default.
 - Do not start an input-sharing session or trust a new peer automatically.
 
 ## Verification boundary
