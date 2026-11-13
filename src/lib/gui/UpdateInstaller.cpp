@@ -103,7 +103,7 @@ QString windowsHelper(qint64 pid, const QString &installer, const QString &exe)
                                       "The downloaded installer is kept at: ")
                            .append(installer)
                            .replace(QLatin1Char('\''), QStringLiteral("''"));
-  return QStringLiteral(R"(@echo off
+  return QStringLiteral(R"cmd(@echo off
 :wait
 tasklist /FI "PID eq {{PID}}" 2>nul | find "{{PID}}" >nul
 if not errorlevel 1 (ping -n 2 127.0.0.1 >nul & goto wait)
@@ -115,7 +115,7 @@ exit /b 0
 powershell -NoProfile -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('{{MESSAGE}}', 'Mono Sync')"
 start "" "{{EXE}}"
 exit /b 1
-)")
+)cmd")
       .replace(QStringLiteral("{{PID}}"), QString::number(pid))
       .replace(QStringLiteral("{{INSTALLER}}"), installer)
       .replace(QStringLiteral("{{EXE}}"), exe)
