@@ -52,3 +52,10 @@ create_test(
   SOURCE HandOffPathsTests.cpp
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
 )
+
+create_test(
+  NAME UpdateInstallerTests
+  DEPENDS gui
+  SOURCE UpdateInstallerTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
+)

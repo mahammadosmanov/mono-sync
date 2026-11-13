@@ -29,6 +29,7 @@
 #include "gui/HandOffPaths.h"
 #include "gui/Messages.h"
 #include "gui/TlsUtility.h"
+#include "UpdateInstaller.h"
 #include "gui/core/CoreProcess.h"
 #include "gui/ipc/DaemonIpcClient.h"
 #include "gui/widgets/LogDock.h"
@@ -615,7 +616,16 @@ void MainWindow::openGetNewVersionUrl()
     QDesktopServices::openUrl(latest.url.isValid() ? latest.url : QUrl(kUrlDownload));
     return;
   }
+  m_updateConsented = true;
+  startUpdateDownload();
+}
 
+void MainWindow::startUpdateDownload()
+{
+  if (m_updateProgress) {
+    return;
+  }
+  const auto &latest = m_versionChecker.latest();
   m_updateProgress =
       new QProgressDialog(tr("Downloading %1 %2…").arg(kAppName, latest.version), tr("Cancel"), 0, 100, this);
   m_updateProgress->setWindowModality(Qt::WindowModal);
@@ -663,8 +673,51 @@ void MainWindow::checkForUpdates()
 
 void MainWindow::onUpdateFound(const QString &version)
 {
+  const bool manual = m_manualUpdateCheck;
   m_manualUpdateCheck = false;
   m_statusBar->updateFound(version);
+
+  if (manual) {
+    promptForUpdate(version);
+    return;
+  }
+
+  // Automatic checks stay quiet for a version the user skipped. The status bar still offers it.
+  if (!VersionChecker::promptsFor(version, kVersion, Settings::value(Settings::Gui::SkippedUpdateVersion).toString())) {
+    qDebug() << "update" << version << "skipped or not newer";
+    return;
+  }
+
+  if (Settings::value(Settings::Gui::AutoInstallUpdates).toBool() && !m_coreProcess.isStarted()) {
+    startUpdateDownload();
+    return;
+  }
+  promptForUpdate(version);
+}
+
+void MainWindow::promptForUpdate(const QString &version)
+{
+  QMessageBox prompt(this);
+  prompt.setIcon(QMessageBox::Information);
+  prompt.setWindowTitle(kAppName);
+  prompt.setText(tr("%1 %2 is available. You have %3.").arg(kAppName, version, kVersion));
+  prompt.setInformativeText(
+      m_coreProcess.isStarted()
+          ? tr("Mono Sync is sharing. Installing stops sharing, installs the update, and reopens Mono Sync.")
+          : tr("Mono Sync will download the update, install it, and reopen.")
+  );
+  const auto install = prompt.addButton(tr("Install update"), QMessageBox::AcceptRole);
+  prompt.addButton(tr("Later"), QMessageBox::RejectRole);
+  const auto skip = prompt.addButton(tr("Skip this version"), QMessageBox::DestructiveRole);
+  prompt.setDefaultButton(install);
+  prompt.exec();
+
+  if (prompt.clickedButton() == install) {
+    m_updateConsented = true;
+    startUpdateDownload();
+  } else if (prompt.clickedButton() == skip) {
+    Settings::setValue(Settings::Gui::SkippedUpdateVersion, version);
+  }
 }
 
 void MainWindow::onUpToDate()
@@ -686,8 +739,52 @@ void MainWindow::onUpdateCheckFailed(const QString &error)
 void MainWindow::onUpdateDownloaded(const QString &path)
 {
   closeUpdateProgress();
-  statusBar()->showMessage(tr("Update saved to %1. Run it to install.").arg(path), 8000);
-  QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+  const bool consented = m_updateConsented;
+  m_updateConsented = false;
+
+  if (!consented && m_coreProcess.isStarted()) {
+    QMessageBox ask(this);
+    ask.setIcon(QMessageBox::Question);
+    ask.setWindowTitle(kAppName);
+    ask.setText(tr("The update is downloaded. Install it now?"));
+    ask.setInformativeText(tr("Installing stops sharing and reopens Mono Sync."));
+    const auto install = ask.addButton(tr("Install update"), QMessageBox::AcceptRole);
+    ask.addButton(tr("Later"), QMessageBox::RejectRole);
+    ask.setDefaultButton(install);
+    ask.exec();
+    if (ask.clickedButton() != install) {
+      statusBar()->showMessage(tr("Update saved to %1. It installs when you choose.").arg(path), 8000);
+      return;
+    }
+  }
+
+  QString error;
+  if (!UpdateInstaller::launch(path, error)) {
+    showInstallFailed(path, error);
+    return;
+  }
+
+  // The installer helper waits for this process to exit before it replaces the app.
+  m_coreProcess.stop();
+  close();
+}
+
+void MainWindow::showInstallFailed(const QString &path, const QString &error)
+{
+  QMessageBox failed(
+      QMessageBox::Warning, kAppName,
+      tr("Could not install the update:\n%1\n\nThe downloaded file is kept at:\n%2").arg(error, path), QMessageBox::Ok,
+      this
+  );
+#if defined(Q_OS_MACOS)
+  const auto reveal = failed.addButton(tr("Show in Finder"), QMessageBox::ActionRole);
+#else
+  const auto reveal = failed.addButton(tr("Show in Explorer"), QMessageBox::ActionRole);
+#endif
+  failed.exec();
+  if (failed.clickedButton() == reveal) {
+    UpdateInstaller::reveal(path);
+  }
 }
 
 void MainWindow::onUpdateDownloadFailed(const QString &error)

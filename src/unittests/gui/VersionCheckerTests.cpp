@@ -16,6 +16,8 @@ private Q_SLOTS:
   void parsesNewestReleaseAndPicksPlatformInstaller();
   void fallsBackToReleasePageWithoutTrustedInstaller();
   void rejectsMalformedFeed();
+  void comparesNewerVersions();
+  void skippedVersionOnlySuppressesThatVersion();
 };
 
 namespace {
@@ -76,6 +78,24 @@ void VersionCheckerTests::rejectsMalformedFeed()
   QVERIFY(!VersionChecker::parseRelease("<html>maintenance</html>", release));
   QVERIFY(!VersionChecker::parseRelease(R"([{"tag_name": "latest"}])", release));
   QVERIFY(!VersionChecker::parseRelease(R"([{"tag_name": "1.2"}])", release));
+}
+
+void VersionCheckerTests::comparesNewerVersions()
+{
+  QVERIFY(VersionChecker::isNewer(QStringLiteral("0.2.5.0"), QStringLiteral("0.2.4.0")));
+  QVERIFY(VersionChecker::isNewer(QStringLiteral("0.3.0.0"), QStringLiteral("0.2.9.0")));
+  QVERIFY(!VersionChecker::isNewer(QStringLiteral("0.2.4.0"), QStringLiteral("0.2.4.0")));
+  QVERIFY(!VersionChecker::isNewer(QStringLiteral("0.2.3.0"), QStringLiteral("0.2.4.0")));
+}
+
+void VersionCheckerTests::skippedVersionOnlySuppressesThatVersion()
+{
+  const QString current = QStringLiteral("0.2.4.0");
+  QVERIFY(VersionChecker::promptsFor(QStringLiteral("0.2.5.0"), current, QString()));
+  QVERIFY(!VersionChecker::promptsFor(QStringLiteral("0.2.5.0"), current, QStringLiteral("0.2.5.0")));
+  // A newer release after the skipped one still prompts.
+  QVERIFY(VersionChecker::promptsFor(QStringLiteral("0.2.5.1"), current, QStringLiteral("0.2.5.0")));
+  QVERIFY(!VersionChecker::promptsFor(QStringLiteral("0.2.4.0"), current, QString()));
 }
 
 QTEST_GUILESS_MAIN(VersionCheckerTests)

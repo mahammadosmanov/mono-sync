@@ -119,6 +119,9 @@ private:
   void onUpdateDownloaded(const QString &path);
   void onUpdateDownloadFailed(const QString &error);
   void closeUpdateProgress();
+  void startUpdateDownload();
+  void promptForUpdate(const QString &version);
+  void showInstallFailed(const QString &path, const QString &error);
   void openSettings();
   void startCore();
   void stopCore();
@@ -228,6 +231,8 @@ private:
   UpdateDownloader m_updateDownloader;
   QProgressDialog *m_updateProgress = nullptr;
   bool m_manualUpdateCheck = false;
+  // Set when the user chose to install in the update prompt or the status bar button.
+  bool m_updateConsented = false;
   bool m_secureSocket = false;
   bool m_saveOnExit = true;
   bool m_clientErrorVisible = false;

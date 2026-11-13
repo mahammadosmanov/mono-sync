@@ -141,6 +141,13 @@ void SettingsTests::tlsTrustedClientsDb()
   QVERIFY(Settings::tlsTrustedClientsDb().endsWith(m_expectedTlsClientDB));
 }
 
+void SettingsTests::autoInstallUpdatesDefaultsOff()
+{
+  QCOMPARE(Settings::defaultValue(Settings::Gui::AutoInstallUpdates).toBool(), false);
+  QVERIFY(Settings::validKeys().contains(Settings::Gui::AutoInstallUpdates));
+  QVERIFY(Settings::validKeys().contains(Settings::Gui::SkippedUpdateVersion));
+}
+
 void SettingsTests::checkValidSettings()
 {
   QSignalSpy spy(Settings::instance(), &Settings::settingsChanged);

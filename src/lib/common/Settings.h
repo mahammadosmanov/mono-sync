@@ -79,6 +79,8 @@ public:
     inline static const auto AutoStartCore = QStringLiteral("gui/startCoreWithGui");
     inline static const auto AutoUpdateCheck = QStringLiteral("gui/enableUpdateCheck");
     inline static const auto UpdateCheckUrl = QStringLiteral("gui/updateCheckUrl");
+    inline static const auto AutoInstallUpdates = QStringLiteral("gui/autoInstallUpdates");
+    inline static const auto SkippedUpdateVersion = QStringLiteral("gui/skippedUpdateVersion");
     inline static const auto FileReceiveDirectory = QStringLiteral("gui/fileReceiveDirectory");
     inline static const auto FileAutoAccept = QStringLiteral("gui/fileAutoAccept");
     inline static const auto FileAutoAcceptPeers = QStringLiteral("gui/fileAutoAcceptPeers");
@@ -315,6 +317,8 @@ private:
     , Gui::AutoStartCore
     , Gui::AutoUpdateCheck
     , Gui::UpdateCheckUrl
+    , Gui::AutoInstallUpdates
+    , Gui::SkippedUpdateVersion
     , Gui::FileReceiveDirectory
     , Gui::FileAutoAccept
     , Gui::FileAutoAcceptPeers

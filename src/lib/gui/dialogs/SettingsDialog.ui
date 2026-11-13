@@ -86,6 +86,13 @@
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="cbAutoInstallUpdates">
+         <property name="text">
+          <string>Install updates automatically</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QCheckBox" name="cbPreventSleep">
          <property name="text">
           <string>Prevent this computer from going to sleep</string>

@@ -37,6 +37,17 @@ public:
    */
   static bool parseRelease(const QByteArray &json, Release &release);
 
+  /**
+   * \brief True when \a available is newer than \a current
+   */
+  static bool isNewer(const QString &available, const QString &current);
+
+  /**
+   * \brief True when an automatic prompt or install is due for \a available: it is newer than
+   * \a current and the user has not skipped exactly that version
+   */
+  static bool promptsFor(const QString &available, const QString &current, const QString &skipped);
+
 public Q_SLOTS:
   void replyFinished(QNetworkReply *reply);
 Q_SIGNALS:

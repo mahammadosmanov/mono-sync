@@ -24,6 +24,7 @@ private Q_SLOTS:
   void tlsTrustedServersDb();
   void tlsTrustedClientsDb();
   void checkValidSettings();
+  void autoInstallUpdatesDefaultsOff();
   void checkCleanComputerName();
   void checkCleanComputerName_LongName();
   void checkClearState();
