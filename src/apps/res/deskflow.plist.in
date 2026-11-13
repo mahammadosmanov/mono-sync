@@ -33,6 +33,23 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 
+	<!-- Accept files dropped on the Dock icon. LSHandlerRank None keeps Mono Sync from becoming a default opener. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
+
 	<!-- Prevent macOS from terminating during memory pressure -->
 	<key>NSSupportsAutomaticTermination</key>
 	<false/>

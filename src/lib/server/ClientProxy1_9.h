@@ -14,7 +14,10 @@ class IEventQueue;
 class ClientProxy1_9 : public ClientProxy1_8
 {
 public:
-  ClientProxy1_9(const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events);
+  ClientProxy1_9(
+      const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events,
+      bool fastFileTransfer = false
+  );
   ~ClientProxy1_9() override;
   void setFileTransferConnected(bool connected);
   bool parseMessage(const uint8_t *code) override;

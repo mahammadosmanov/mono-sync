@@ -25,6 +25,12 @@ namespace {
 constexpr uint32_t kTransferIdMaximum = 36;
 constexpr uint32_t kFileNameMaximum = 240;
 constexpr uint32_t kSha256Length = 32;
+constexpr uint32_t kFastWindowChunks = 32;
+
+bool isZeroDigest(const std::string &digest)
+{
+  return std::all_of(digest.cbegin(), digest.cend(), [](char byte) { return byte == 0; });
+}
 
 QString actionName(const char *name)
 {
@@ -55,12 +61,13 @@ uint64_t combineSize(uint32_t high, uint32_t low)
 } // namespace
 
 FileTransferProtocol::FileTransferProtocol(
-    deskflow::IStream *stream, bool peerAuthenticated, QString peerName, NotifyFunction notifyFunction
+    deskflow::IStream *stream, bool peerAuthenticated, QString peerName, NotifyFunction notifyFunction, bool fast
 )
     : m_stream(stream),
       m_peerAuthenticated(peerAuthenticated),
       m_peerName(std::move(peerName)),
-      m_notify(std::move(notifyFunction))
+      m_notify(std::move(notifyFunction)),
+      m_fast(fast)
 {
 }
 
@@ -73,8 +80,8 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
 {
   const auto isFileMessage =
       std::memcmp(code, "MSOF", 4) == 0 || std::memcmp(code, "MSRP", 4) == 0 || std::memcmp(code, "MSCH", 4) == 0 ||
-      std::memcmp(code, "MSAK", 4) == 0 || std::memcmp(code, "MSFN", 4) == 0 || std::memcmp(code, "MSOK", 4) == 0 ||
-      std::memcmp(code, "MSER", 4) == 0 || std::memcmp(code, "MSCA", 4) == 0;
+      std::memcmp(code, "MSAK", 4) == 0 || std::memcmp(code, "MSFN", 4) == 0 || std::memcmp(code, "MSFH", 4) == 0 ||
+      std::memcmp(code, "MSOK", 4) == 0 || std::memcmp(code, "MSER", 4) == 0 || std::memcmp(code, "MSCA", 4) == 0;
   if (!isFileMessage) {
     return ParseResult::NotFileMessage;
   }
@@ -133,6 +140,8 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
     }
     if (result == 1) {
       m_state = State::SenderReadyForChunk;
+      // the GUI reads the first chunk in response to this notification
+      m_nextRequested = true;
       notify({{QStringLiteral("action"), actionName("accepted")}, {QStringLiteral("id"), QString::fromStdString(id)}});
     } else {
       notify({{QStringLiteral("action"), actionName("rejected")}, {QStringLiteral("id"), QString::fromStdString(id)}});
@@ -144,11 +153,13 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
     if (isTerminalTransferId(id)) {
       return ParseResult::Handled;
     }
-    if (!isValidTransferId(id) || id != m_transferId || m_state != State::Receiving || chunk.empty() ||
-        chunk.size() > m_expectedSize - m_receivedSize) {
+    const bool receiving = m_state == State::Receiving || m_state == State::AwaitingLocalChunkCommit;
+    if (!isValidTransferId(id) || id != m_transferId || !receiving || chunk.empty() ||
+        m_pendingChunks.size() >= window() ||
+        chunk.size() > m_expectedSize - m_receivedSize - inFlightBytes(m_pendingChunks)) {
       throw BadClientException("Unexpected file-transfer chunk");
     }
-    m_pendingChunkSize = static_cast<uint32_t>(chunk.size());
+    m_pendingChunks.push_back(static_cast<uint32_t>(chunk.size()));
     m_state = State::AwaitingLocalChunkCommit;
     notify({
         {QStringLiteral("action"), actionName("receiveChunk")},
@@ -167,12 +178,21 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
     if (isTerminalTransferId(id)) {
       return ParseResult::Handled;
     }
+    // the acknowledgement is cumulative and must end exactly on a chunk boundary
+    uint64_t covered = m_sentSize;
+    size_t acknowledgedChunks = 0;
+    while (acknowledgedChunks < m_inFlightChunks.size() && covered < acknowledged) {
+      covered += m_inFlightChunks[acknowledgedChunks];
+      ++acknowledgedChunks;
+    }
     if (!isValidTransferId(id) || id != m_transferId || m_state != State::AwaitingChunkAck ||
-        acknowledged != m_sentSize + m_pendingChunkSize) {
+        acknowledged <= m_sentSize || covered != acknowledged) {
       throw BadClientException("Unexpected file-transfer acknowledgement");
     }
+    for (size_t i = 0; i < acknowledgedChunks; ++i) {
+      m_inFlightChunks.pop_front();
+    }
     m_sentSize = acknowledged;
-    m_pendingChunkSize = 0;
     if (m_sentSize == m_expectedSize) {
       notify({
           {QStringLiteral("action"), actionName("sendReadyToFinish")},
@@ -182,13 +202,8 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
       });
       m_state = State::SenderReadyForChunk;
     } else {
-      m_state = State::SenderReadyForChunk;
-      notify({
-          {QStringLiteral("action"), actionName("sendNextChunk")},
-          {QStringLiteral("id"), QString::fromStdString(id)},
-          {QStringLiteral("sent"), QString::number(m_sentSize)},
-          {QStringLiteral("total"), QString::number(m_expectedSize)},
-      });
+      m_state = m_inFlightChunks.empty() ? State::SenderReadyForChunk : State::AwaitingChunkAck;
+      requestNextIfRoom();
     }
   } else if (std::memcmp(code, "MSFN", 4) == 0) {
     std::string id = ProtocolUtil::readBoundedString(m_stream, kTransferIdMaximum);
@@ -199,11 +214,43 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
         m_receivedSize != m_expectedSize) {
       throw BadClientException("Unexpected file-transfer completion");
     }
+    if (m_fast && isZeroDigest(m_expectedHash)) {
+      // a fast sender offers a zero digest and must finish with MSFH; the bytes cannot be verified here
+      const uint32_t errorCode = 1;
+      ProtocolUtil::writef(m_stream, kMsgFileError, &id, errorCode);
+      notify({
+          {QStringLiteral("action"), actionName("failed")},
+          {QStringLiteral("id"), QString::fromStdString(id)},
+          {QStringLiteral("reason"), QString::number(errorCode)},
+      });
+      resetTransfer();
+      return ParseResult::Handled;
+    }
     m_state = State::AwaitingLocalFinish;
     notify({
         {QStringLiteral("action"), actionName("finishReceive")},
         {QStringLiteral("id"), QString::fromStdString(id)},
         {QStringLiteral("total"), QString::number(m_expectedSize)},
+    });
+  } else if (std::memcmp(code, "MSFH", 4) == 0) {
+    if (!m_fast) {
+      throw BadClientException("Unexpected file-transfer digest on a protocol 1.9 connection");
+    }
+    std::string id = ProtocolUtil::readBoundedString(m_stream, kTransferIdMaximum);
+    std::string digest = ProtocolUtil::readBoundedString(m_stream, kSha256Length);
+    if (isTerminalTransferId(id)) {
+      return ParseResult::Handled;
+    }
+    if (!isValidTransferId(id) || id != m_transferId || m_state != State::Receiving ||
+        m_receivedSize != m_expectedSize || digest.size() != kSha256Length) {
+      throw BadClientException("Unexpected file-transfer completion");
+    }
+    m_state = State::AwaitingLocalFinish;
+    notify({
+        {QStringLiteral("action"), actionName("finishReceive")},
+        {QStringLiteral("id"), QString::fromStdString(id)},
+        {QStringLiteral("total"), QString::number(m_expectedSize)},
+        {QStringLiteral("sha256"), QString::fromLatin1(QByteArray::fromStdString(digest).toHex())},
     });
   } else if (std::memcmp(code, "MSOK", 4) == 0) {
     std::string id = ProtocolUtil::readBoundedString(m_stream, kTransferIdMaximum);
@@ -259,6 +306,7 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
           {QStringLiteral("action"), actionName("availability")},
           {QStringLiteral("available"), m_peerAuthenticated},
           {QStringLiteral("peer"), m_peerName},
+          {QStringLiteral("fast"), m_fast},
       });
     }
     return true;
@@ -274,7 +322,11 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     const auto fileName = message.value(QStringLiteral("name")).toString();
     bool sizeOk = false;
     const uint64_t size = message.value(QStringLiteral("size")).toString().toULongLong(&sizeOk);
-    const QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    QByteArray hash = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+    if (m_fast) {
+      // fast peers hash while streaming, so the offer carries a zero digest and the real one follows in MSFH
+      hash = QByteArray(static_cast<int>(kSha256Length), '\0');
+    }
     if (m_state != State::Idle || !isValidTransferId(id) || !sizeOk || size > FileTransferReceiver::kMaximumFileSize ||
         hash.size() != static_cast<int>(kSha256Length) || !FileTransferReceiver::isSafeFileName(fileName)) {
       return false;
@@ -284,7 +336,8 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     m_expectedHash = hash.toStdString();
     m_fileName = fileName.toUtf8().toStdString();
     m_sentSize = 0;
-    m_pendingChunkSize = 0;
+    m_inFlightChunks.clear();
+    m_nextRequested = false;
     m_sending = true;
     m_state = State::AwaitingOfferResponse;
     const uint32_t sizeHigh = static_cast<uint32_t>(size >> 32);
@@ -320,7 +373,8 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     return true;
   }
   if (action == QStringLiteral("sendChunk")) {
-    if (!m_sending || m_state != State::SenderReadyForChunk) {
+    const bool canSend = m_state == State::SenderReadyForChunk || m_state == State::AwaitingChunkAck;
+    if (!m_sending || !canSend || m_inFlightChunks.size() >= window()) {
       return false;
     }
     const QByteArray chunk = QByteArray::fromBase64(
@@ -328,31 +382,33 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
         QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors
     );
     if (chunk.isEmpty() || chunk.size() > FileTransferReceiver::kMaximumChunkSize ||
-        static_cast<uint64_t>(chunk.size()) > m_expectedSize - m_sentSize) {
+        static_cast<uint64_t>(chunk.size()) > m_expectedSize - m_sentSize - inFlightBytes(m_inFlightChunks)) {
       return false;
     }
     const std::string idCopy = m_transferId;
     const std::string data = chunk.toStdString();
-    m_pendingChunkSize = static_cast<uint32_t>(chunk.size());
+    m_inFlightChunks.push_back(static_cast<uint32_t>(chunk.size()));
+    m_nextRequested = false;
     m_state = State::AwaitingChunkAck;
     ProtocolUtil::writef(m_stream, kMsgFileChunk, &idCopy, &data);
+    requestNextIfRoom();
     return true;
   }
   if (action == QStringLiteral("chunkSaved")) {
-    if (m_sending || m_state != State::AwaitingLocalChunkCommit) {
+    if (m_sending || m_state != State::AwaitingLocalChunkCommit || m_pendingChunks.empty()) {
       return false;
     }
     const auto bytes = message.value(QStringLiteral("bytes")).toString().toULongLong();
-    if (bytes != m_pendingChunkSize) {
+    if (bytes != m_pendingChunks.front()) {
       return false;
     }
-    m_receivedSize += m_pendingChunkSize;
-    m_pendingChunkSize = 0;
+    m_receivedSize += m_pendingChunks.front();
+    m_pendingChunks.pop_front();
     const uint32_t sizeHigh = static_cast<uint32_t>(m_receivedSize >> 32);
     const uint32_t sizeLow = static_cast<uint32_t>(m_receivedSize & 0xffffffffU);
     const std::string idCopy = m_transferId;
     ProtocolUtil::writef(m_stream, kMsgFileAck, &idCopy, sizeHigh, sizeLow);
-    m_state = State::Receiving;
+    m_state = m_pendingChunks.empty() ? State::Receiving : State::AwaitingLocalChunkCommit;
     return true;
   }
   if (action == QStringLiteral("sendFinish")) {
@@ -360,7 +416,16 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
       return false;
     }
     const std::string idCopy = m_transferId;
-    ProtocolUtil::writef(m_stream, kMsgFileFinish, &idCopy);
+    if (m_fast) {
+      const QByteArray digest = QByteArray::fromHex(message.value(QStringLiteral("sha256")).toString().toLatin1());
+      if (digest.size() != static_cast<int>(kSha256Length)) {
+        return false;
+      }
+      const std::string digestCopy = digest.toStdString();
+      ProtocolUtil::writef(m_stream, kMsgFileFinishHash, &idCopy, &digestCopy);
+    } else {
+      ProtocolUtil::writef(m_stream, kMsgFileFinish, &idCopy);
+    }
     m_state = State::AwaitingRemoteFinalResult;
     return true;
   }
@@ -414,6 +479,7 @@ void FileTransferProtocol::setConnected(bool connected)
         {QStringLiteral("action"), actionName("availability")},
         {QStringLiteral("available"), connected},
         {QStringLiteral("peer"), m_peerName},
+        {QStringLiteral("fast"), m_fast},
     });
   }
   if (!connected && m_state != State::Idle) {
@@ -488,8 +554,39 @@ void FileTransferProtocol::resetTransfer()
   m_expectedSize = 0;
   m_sentSize = 0;
   m_receivedSize = 0;
-  m_pendingChunkSize = 0;
+  m_inFlightChunks.clear();
+  m_pendingChunks.clear();
+  m_nextRequested = false;
   m_sending = false;
+}
+
+uint32_t FileTransferProtocol::window() const
+{
+  return m_fast ? kFastWindowChunks : 1;
+}
+
+uint64_t FileTransferProtocol::inFlightBytes(const std::deque<uint32_t> &chunks) const
+{
+  uint64_t total = 0;
+  for (const auto size : chunks) {
+    total += size;
+  }
+  return total;
+}
+
+void FileTransferProtocol::requestNextIfRoom()
+{
+  const uint64_t queued = m_sentSize + inFlightBytes(m_inFlightChunks);
+  if (m_nextRequested || m_inFlightChunks.size() >= window() || queued >= m_expectedSize) {
+    return;
+  }
+  m_nextRequested = true;
+  notify({
+      {QStringLiteral("action"), actionName("sendNextChunk")},
+      {QStringLiteral("id"), QString::fromStdString(m_transferId)},
+      {QStringLiteral("sent"), QString::number(m_sentSize)},
+      {QStringLiteral("total"), QString::number(m_expectedSize)},
+  });
 }
 
 bool FileTransferProtocol::isTerminalTransferId(const std::string &id) const

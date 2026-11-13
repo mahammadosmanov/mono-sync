@@ -29,7 +29,9 @@ public:
 
   using NotifyFunction = std::function<void(const QString &encodedMessage)>;
 
-  FileTransferProtocol(deskflow::IStream *stream, bool peerAuthenticated, QString peerName, NotifyFunction notify);
+  // fast: protocol 1.10 peer. Allows a window of chunks in flight instead of one.
+  FileTransferProtocol(deskflow::IStream *stream, bool peerAuthenticated, QString peerName, NotifyFunction notify,
+                       bool fast = false);
   FileTransferProtocol(const FileTransferProtocol &) = delete;
   FileTransferProtocol &operator=(const FileTransferProtocol &) = delete;
   ~FileTransferProtocol();
@@ -61,6 +63,9 @@ private:
 
   void notify(QJsonObject message) const;
   void resetTransfer();
+  uint32_t window() const;
+  uint64_t inFlightBytes(const std::deque<uint32_t> &chunks) const;
+  void requestNextIfRoom();
   bool isValidTransferId(const std::string &id) const;
   bool isTerminalTransferId(const std::string &id) const;
   bool isAuthenticatedFileMessage() const;
@@ -78,6 +83,9 @@ private:
   uint64_t m_expectedSize = 0;
   uint64_t m_sentSize = 0;
   uint64_t m_receivedSize = 0;
-  uint32_t m_pendingChunkSize = 0;
+  std::deque<uint32_t> m_inFlightChunks; // sender: chunks sent, not yet acknowledged
+  std::deque<uint32_t> m_pendingChunks;  // receiver: chunks received, not yet saved
+  bool m_nextRequested = false;          // sender: a sendNextChunk request is outstanding
+  bool m_fast = false;
   bool m_sending = false;
 };

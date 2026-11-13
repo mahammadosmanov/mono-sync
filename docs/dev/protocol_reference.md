@@ -292,6 +292,16 @@ A modifier (modifier mask) represents the state of modifier keys (like Shift, Co
 | **1.6** | Jan 2014 | Synergy | Clipboard streaming | 1.6+ |
 | **1.7** | Sep 2021 | Synergy | Secure input notifications | 1.7+ |
 | **1.8** | Nov 2021 | Synergy | Language synchronization | 1.8+ |
+| **1.10** | 2026 | Mono Sync | Windowed file transfer acknowledgements and streamed SHA-256 (`MSFH`) | 1.10+ |
+
+### Protocol 1.10
+
+Protocol 1.10 changes file transfer only. Peers negotiate it through the usual hello exchange: a 1.9 peer on either side downgrades the connection to 1.9 and keeps the one-chunk flow and `MSFN`.
+
+- **Window.** A 1.10 sender may have up to 32 chunks (`MSCH`) unacknowledged. A 1.9 connection uses a window of 1. The receiver accepts a `MSCH` only while fewer than 32 saved chunks are pending, and rejects the 33rd with a protocol error.
+- **Cumulative `MSAK`.** `MSAK` carries the total number of bytes the receiver has saved, not a per-chunk count. It must end exactly on a chunk boundary. The sender frees every chunk it covers. A misaligned acknowledgement is a protocol error.
+- **Streamed digest (`MSFH`).** A 1.10 sender writes 32 zero bytes in the `MSOF` hash field, streams the file, and ends with `MSFH` (transfer id, then the 32 raw SHA-256 bytes) instead of `MSFN`. The receiver accepts `MSFH` where it accepts `MSFN`, and reports the digest in its `finishReceive` notification. The receiver never publishes a file with an all-zero digest. A plain `MSFN` after a zero offer digest fails the transfer with `MSER`.
+- **1.9 peers.** A 1.9 sender hashes the whole file before the offer and finishes with `MSFN`. A 1.9 receiver treats `MSFH` as a protocol error.
 
 ### Version Migration Guide
 

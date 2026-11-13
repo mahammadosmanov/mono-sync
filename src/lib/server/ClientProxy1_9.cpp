@@ -14,12 +14,13 @@
 #include <cstring>
 
 ClientProxy1_9::ClientProxy1_9(
-    const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events
+    const std::string &name, deskflow::IStream *stream, Server *server, IEventQueue *events, bool fastFileTransfer
 )
     : ClientProxy1_8(name, stream, server, events),
-      m_fileTransfer(stream, stream->isPeerAuthenticated(), QString::fromStdString(name), [](const QString &message) {
-        ipcSendToClient(QStringLiteral("fileTransfer"), message);
-      })
+      m_fileTransfer(
+          stream, stream->isPeerAuthenticated(), QString::fromStdString(name),
+          [](const QString &message) { ipcSendToClient(QStringLiteral("fileTransfer"), message); }, fastFileTransfer
+      )
 {
 }
 

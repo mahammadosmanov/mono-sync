@@ -23,7 +23,7 @@ void OutgoingFileWorker::requestCancel()
   m_cancelled.store(true, std::memory_order_release);
 }
 
-void OutgoingFileWorker::prepare(const QString &path)
+void OutgoingFileWorker::prepare(const QString &path, bool streamingHash)
 {
   Q_ASSERT(QThread::currentThread() == thread());
   const QFileInfo info(path);
@@ -35,9 +35,17 @@ void OutgoingFileWorker::prepare(const QString &path)
   }
 
   m_size = static_cast<quint64>(info.size());
+  m_streamingHash = streamingHash;
+  m_streamedBytes = 0;
+  m_streamHash.reset();
   m_file.setFileName(path);
   if (!m_file.open(QIODevice::ReadOnly)) {
     Q_EMIT failed(QStringLiteral("The selected file could not be opened."));
+    return;
+  }
+  if (m_streamingHash) {
+    // placeholder digest; the real one is sent in MSFH after the last chunk
+    Q_EMIT prepared(info.fileName(), m_size, QByteArray(32, '\0'));
     return;
   }
 
@@ -100,7 +108,24 @@ void OutgoingFileWorker::readNextChunk()
     Q_EMIT failed(QStringLiteral("The selected file changed during transfer."));
     return;
   }
+  if (m_streamingHash) {
+    m_streamHash.addData(chunk);
+    m_streamedBytes += static_cast<quint64>(chunk.size());
+  }
   Q_EMIT chunkReady(chunk, static_cast<quint64>(m_file.pos()));
+}
+
+void OutgoingFileWorker::finishSend()
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  if (m_cancelled.load(std::memory_order_acquire)) {
+    return;
+  }
+  if (!m_streamingHash || m_streamedBytes != m_size) {
+    Q_EMIT failed(QStringLiteral("The selected file changed during transfer."));
+    return;
+  }
+  Q_EMIT sendHashReady(m_streamHash.result());
 }
 
 void OutgoingFileWorker::beginReceive(const QString &directory, const QString &fileName, quint64 size,
@@ -135,11 +160,14 @@ void OutgoingFileWorker::appendReceivedChunk(const QByteArray &chunk)
   }
 }
 
-void OutgoingFileWorker::finishReceive()
+void OutgoingFileWorker::finishReceive(const QByteArray &sha256)
 {
   Q_ASSERT(QThread::currentThread() == thread());
   if (m_cancelled.load(std::memory_order_acquire) || m_receiver == nullptr) {
     return;
+  }
+  if (!sha256.isEmpty()) {
+    m_receiver->setExpectedSha256(sha256);
   }
   QString error;
   const QString path = m_receiver->destinationPath();

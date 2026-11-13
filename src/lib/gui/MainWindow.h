@@ -30,8 +30,11 @@
 
 class QAction;
 class QDragEnterEvent;
+class QDragLeaveEvent;
 class QDropEvent;
+class QLabel;
 class QMenu;
+class QResizeEvent;
 class QLocalServer;
 class QProgressDialog;
 class QTcpSocket;
@@ -42,6 +45,7 @@ class OutgoingFileWorker;
 class DeskflowApplication;
 class LogDock;
 class StatusBar;
+class TransferPanel;
 
 namespace Ui {
 class MainWindow;
@@ -77,6 +81,7 @@ public:
     return m_coreProcess.mode();
   }
   void open();
+  void showFilesNeedPeer();
   ServerConfig &serverConfig()
   {
     return m_serverConfig;
@@ -139,7 +144,9 @@ private:
   void handleMissingKeyboardLayouts(const QString &layouts);
   void closeEvent(QCloseEvent *event) override;
   void dragEnterEvent(QDragEnterEvent *event) override;
+  void dragLeaveEvent(QDragLeaveEvent *event) override;
   void dropEvent(QDropEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
   bool maybeHideToTray();
   void secureSocket(bool secureSocket);
   void connectSlots();
@@ -154,6 +161,7 @@ private:
   void showFirstConnectedMessage();
   void updateStatus();
   void showAndActivate();
+  void handleDuplicateInstanceConnection();
   void showHostNameEditor();
   void setHostName();
   void daemonIpcClientConnectionFailed();
@@ -168,15 +176,17 @@ private:
   void showHelpViewer() const;
   void startFileWorker();
   void sendFile();
-  QString pickSendPeer();
+  QString pickSendPeer(bool fromOutside = false);
   bool isPeerReadyForFile(const QString &peer) const;
-  void queueFilesToSend(const QStringList &paths);
+  void queueFilesToSend(const QStringList &paths, bool fromOutside = false);
   void sendNextQueuedFile();
   void startSending(const QString &peer, const QString &path);
   void chooseReceiveFolder();
   void setAutoAcceptFiles(bool enabled);
   void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
   void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
+  void requestOutgoingFinish();
+  void sendOutgoingFinish(const QByteArray &sha256);
   void clearFileTransferAvailability(const QString &message);
   void receiveWorkerReady(OutgoingFileWorker *worker, bool success, const QString &error);
   void receiveWorkerChunkSaved(OutgoingFileWorker *worker, bool success, quint64 bytes, quint64 received,
@@ -184,6 +194,14 @@ private:
   void receiveWorkerFinished(OutgoingFileWorker *worker, bool success, const QString &path, const QString &error);
   void handleFileTransferMessage(const QString &encodedMessage);
   void clearFileTransfer(const QString &message = QString());
+  void acceptPendingOffer(const QString &destination);
+  void alwaysAcceptPendingOffer(const QString &rowId);
+  bool isPendingOffer(const QString &rowId) const;
+  QString defaultReceivePath(const QString &name) const;
+  void cancelTransfer(const QString &rowId);
+  void failQueuedRows(const QString &reason);
+  void showInFolder(const QString &path);
+  void notifyTransfer(const QString &title, const QString &text);
 
   bool canRunCore() const;
 
@@ -249,6 +267,7 @@ private:
   QAction *m_actionSendFile = nullptr;
   QAction *m_actionReceiveFolder = nullptr;
   QAction *m_actionAutoAccept = nullptr;
+  QAction *m_actionForgetTrusted = nullptr;
 
   // Network monitoring
   NetworkMonitor *m_networkMonitor = nullptr;
@@ -258,9 +277,14 @@ private:
   QString m_currentIpAddress;
 
   QHash<QString, bool> m_fileTransferPeers;
+  QHash<QString, bool> m_fileTransferFastPeers;
   QThread *m_fileWorkerThread = nullptr;
   OutgoingFileWorker *m_fileWorker = nullptr;
-  QProgressDialog *m_fileTransferProgress = nullptr;
+  TransferPanel *m_transferPanel = nullptr;
+  QLabel *m_dropOverlay = nullptr;
+  bool m_offerPending = false;
+  QString m_outgoingPath;
+  QByteArray m_pendingOfferHash;
   bool m_receivingFile = false;
   bool m_closeAfterFileWorkerStops = false;
   QString m_outgoingTransferId;
@@ -269,6 +293,7 @@ private:
   quint64 m_outgoingSize = 0;
   QStringList m_sendQueue;
   QString m_sendQueuePeer;
+  QStringList m_pendingOpenPaths;
   bool m_continueSendQueue = false;
   bool m_transferAutoAccepted = false;
 
