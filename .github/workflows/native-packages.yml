@@ -64,6 +64,35 @@ jobs:
           qt-version: ${{ matrix.target.qt-version }}
           vcpkg-triplet: ${{ matrix.target.vcpkg-triplet }}
 
+      - name: Import stable macOS signing certificate
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          P12_BASE64: ${{ secrets.MACOS_SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          # Ad-hoc signatures change every build and invalidate users' Accessibility approval.
+          if [[ -z "$P12_BASE64" || -z "$P12_PASSWORD" ]]; then
+            echo "MACOS_SIGNING_P12_BASE64 and MACOS_SIGNING_P12_PASSWORD secrets are required" >&2
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/signing.p12"
+          identity="$(security find-certificate -c "Mono Sync Code Signing" -Z "$keychain" | awk '/SHA-1/ {print $3}')"
+          if [[ -z "$identity" ]]; then
+            echo "Signing certificate was not found after import" >&2
+            exit 1
+          fi
+          echo "MACOS_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
       - name: Configure
         run: >-
           cmake -S . -B build
@@ -71,6 +100,7 @@ jobs:
           -DSKIP_BUILD_TESTS=ON
           -DDESKFLOW_USE_GIT_VERSION=OFF
           "-DPACKAGE_VERSION_LABEL=0.2.6"
+          "-DMACOS_CODESIGN_IDENTITY=${{ env.MACOS_CODESIGN_IDENTITY }}"
           ${{ matrix.target.config-args }}
           ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
 
@@ -111,6 +141,17 @@ jobs:
             echo "Packaging failed after $i attempts" >&2
             exit 1
           fi
+          dmg="$(ls build/mono-sync-*.dmg)"
+          mount="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg"
+          codesign --verify --deep --strict "$mount/MonoSync.app"
+          requirement="$(codesign -d -r- "$mount/MonoSync.app" 2>&1)"
+          hdiutil detach "$mount" -quiet
+          echo "$requirement"
+          if ! grep -q 'certificate' <<< "$requirement"; then
+            echo "MonoSync.app is not signed with the stable certificate" >&2
+            exit 1
+          fi
 
       - name: Package Windows
         if: runner.os == 'Windows'
@@ -147,7 +188,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: mono-sync-${{ matrix.target.name }}-ad-hoc
+          name: mono-sync-${{ matrix.target.name }}
           path: build/mono-sync-*.dmg
           if-no-files-found: error
           retention-days: 14

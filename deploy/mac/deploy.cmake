@@ -11,6 +11,11 @@ set(OS_STRING "macos-${BUILD_ARCHITECTURE}")
 if (OSX_BUNDLE)
   set(_codesign_identity "-")
   set(_hardened_runtime "")
+  # A stable identity keeps the macOS code requirement identical across releases, so
+  # Accessibility (TCC) approval survives updates. Ad-hoc signatures change every build.
+  if (MACOS_CODESIGN_IDENTITY)
+    set(_codesign_identity "${MACOS_CODESIGN_IDENTITY}")
+  endif()
   if (APPLE_CODESIGN_DEV)
     set(_codesign_identity "${APPLE_CODESIGN_DEV}")
     # Hardened runtime enforces library validation; ad-hoc Qt frameworks fail to load under it.
