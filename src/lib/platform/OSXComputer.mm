@@ -645,6 +645,15 @@ void OSXComputer::fakeMouseWheel(ScrollDelta delta) const
 
 void OSXComputer::showCursor()
 {
+  // CGDisplayHideCursor/CGDisplayShowCursor are reference counted per process, so an
+  // unbalanced extra hide (e.g. leave() while already left) would keep the cursor
+  // invisible after the next show. Only toggle on an actual state change.
+  if (!m_cursorHidden) {
+    // still re-couple the mouse, it may have been frozen by leave()
+    CGAssociateMouseAndMouseCursorPosition(true);
+    return;
+  }
+
   LOG_DEBUG("showing cursor");
 
   CFStringRef propertyString = CFStringCreateWithCString(nullptr, "SetsCursorInBackground", kCFStringEncodingMacRoman);
@@ -668,6 +677,10 @@ void OSXComputer::showCursor()
 
 void OSXComputer::hideCursor()
 {
+  if (m_cursorHidden) {
+    return;
+  }
+
   LOG_DEBUG("hiding cursor");
 
   CFStringRef propertyString = CFStringCreateWithCString(nullptr, "SetsCursorInBackground", kCFStringEncodingMacRoman);
@@ -683,8 +696,6 @@ void OSXComputer::hideCursor()
 
   // appears to fix "mouse randomly not hiding" bug
   CGAssociateMouseAndMouseCursorPosition(true);
-
-  logCursorVisibility();
 
   m_cursorHidden = true;
 }
