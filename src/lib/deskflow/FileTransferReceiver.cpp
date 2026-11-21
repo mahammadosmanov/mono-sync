@@ -122,10 +122,22 @@ bool FileTransferReceiver::appendChunk(const QByteArray &chunk, QString *error)
   return true;
 }
 
+void FileTransferReceiver::setExpectedSha256(const QByteArray &sha256)
+{
+  m_expectedSha256 = sha256;
+}
+
 bool FileTransferReceiver::finish(QString *error)
 {
   if (!m_active) {
     return fail(QStringLiteral("there is no active file transfer"), error);
+  }
+  // an all-zero digest is never a real hash, so it can never verify
+  if (m_expectedSha256.size() != 32 || std::all_of(m_expectedSha256.cbegin(), m_expectedSha256.cend(), [](char byte) {
+        return byte == 0;
+      })) {
+    cancel();
+    return fail(QStringLiteral("the expected SHA-256 digest is missing"), error);
   }
   if (m_receivedSize != m_expectedSize) {
     cancel();

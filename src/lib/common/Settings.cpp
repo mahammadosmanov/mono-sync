@@ -440,7 +440,7 @@ QVariant Settings::defaultValue(const QString &key)
   if (key == Client::LastSuccessfulRemoteHost)
     return QString();
 
-  if (key == Gui::AutoUpdateCheck || key == Gui::FileAutoAccept)
+  if (key == Gui::AutoUpdateCheck || key == Gui::AutoInstallUpdates || key == Gui::FileAutoAccept)
     return false;
 
   if (key == Gui::FileReceiveDirectory)

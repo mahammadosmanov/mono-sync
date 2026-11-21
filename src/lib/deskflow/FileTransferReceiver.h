@@ -32,6 +32,8 @@ public:
   FileTransferReceiver &operator=(const FileTransferReceiver &) = delete;
 
   bool begin(QString *error = nullptr);
+  // Digest for finish(), used when the peer sends it after the bytes (protocol 1.10 MSFH).
+  void setExpectedSha256(const QByteArray &sha256);
   bool appendChunk(const QByteArray &chunk, QString *error = nullptr);
   bool finish(QString *error = nullptr);
   void cancel();

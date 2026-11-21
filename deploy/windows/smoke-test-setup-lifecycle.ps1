@@ -16,6 +16,7 @@ $customFile = Join-Path $installDir 'user-owned-smoke-test.txt'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Mono Sync'
 $userShortcut = Join-Path $startMenu 'user-owned-smoke-test.lnk'
 $deskflowStartMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Deskflow'
+$sendToShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\SendTo\Mono Sync.lnk'
 $uninstallKey = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mono Sync'
 $legacyInstallFiles = @(
   'deskflow.exe',
@@ -51,6 +52,9 @@ if (Test-Path -LiteralPath $uninstallKey) {
 if ((Test-Path -LiteralPath $startMenu) -or (Test-Path -LiteralPath $deskflowStartMenu)) {
   throw 'Refusing to overwrite a pre-existing Start menu folder.'
 }
+if (Test-Path -LiteralPath $sendToShortcut) {
+  throw 'Refusing to overwrite a pre-existing Send to shortcut.'
+}
 
 try {
   New-Item -ItemType Directory -Path (Join-Path $installDir 'translations') -Force | Out-Null
@@ -80,7 +84,8 @@ try {
     (Join-Path $installDir 'mono-sync-core.exe'),
     (Join-Path $installDir 'Uninstall Mono Sync.exe'),
     (Join-Path $startMenu 'Mono Sync.lnk'),
-    (Join-Path $startMenu 'Uninstall Mono Sync.lnk')
+    (Join-Path $startMenu 'Uninstall Mono Sync.lnk'),
+    $sendToShortcut
   )) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Setup did not create $path" }
   }
@@ -166,7 +171,8 @@ try {
   }
   foreach ($shortcut in @(
     (Join-Path $startMenu 'Mono Sync.lnk'),
-    (Join-Path $startMenu 'Uninstall Mono Sync.lnk')
+    (Join-Path $startMenu 'Uninstall Mono Sync.lnk'),
+    $sendToShortcut
   )) {
     if (Test-Path -LiteralPath $shortcut) { throw "Uninstaller left its shortcut behind: $shortcut" }
   }
@@ -210,6 +216,7 @@ finally {
     if ($remainingProfileFiles.Count -eq 0) { Remove-Item -LiteralPath $profileDir -Force }
   }
   if (Test-Path -LiteralPath $customFile) { Remove-Item -LiteralPath $customFile -Force }
+  if (Test-Path -LiteralPath $sendToShortcut) { Remove-Item -LiteralPath $sendToShortcut -Force }
   if (Test-Path -LiteralPath $installDir) {
     $remaining = @(Get-ChildItem -LiteralPath $installDir -Force)
     if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $installDir -Force }

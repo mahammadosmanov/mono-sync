@@ -27,7 +27,55 @@ private Q_SLOTS:
   void cancellationRemovesPartial();
   void preservesDestinationCreatedDuringTransfer();
   void uniqueFilePathAddsCounterBeforeExtension();
+  void finishRejectsAllZeroExpectedDigest();
+  void finishAcceptsDigestSetAfterReceiving();
+  void finishRejectsWrongDigestSetAfterReceiving();
 };
+
+void FileTransferReceiverTests::finishRejectsAllZeroExpectedDigest()
+{
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QByteArray contents("abc");
+  FileTransferReceiver receiver(directory.path(), QStringLiteral("zero.bin"), contents.size(), QByteArray(32, '\0'));
+
+  QVERIFY(receiver.begin());
+  QVERIFY(receiver.appendChunk(contents));
+  QVERIFY(!receiver.finish());
+  QVERIFY(!QFileInfo::exists(receiver.destinationPath()));
+  QVERIFY(QDir(directory.path()).entryList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
+}
+
+void FileTransferReceiverTests::finishAcceptsDigestSetAfterReceiving()
+{
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QByteArray contents("abc");
+  FileTransferReceiver receiver(directory.path(), QStringLiteral("streamed.bin"), contents.size(), QByteArray(32, '\0'));
+
+  QVERIFY(receiver.begin());
+  QVERIFY(receiver.appendChunk(contents));
+  receiver.setExpectedSha256(QCryptographicHash::hash(contents, QCryptographicHash::Sha256));
+  QVERIFY(receiver.finish());
+  QFile received(receiver.destinationPath());
+  QVERIFY(received.open(QIODevice::ReadOnly));
+  QCOMPARE(received.readAll(), contents);
+}
+
+void FileTransferReceiverTests::finishRejectsWrongDigestSetAfterReceiving()
+{
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QByteArray contents("abc");
+  FileTransferReceiver receiver(directory.path(), QStringLiteral("streamed-bad.bin"), contents.size(), QByteArray(32, '\0'));
+
+  QVERIFY(receiver.begin());
+  QVERIFY(receiver.appendChunk(contents));
+  receiver.setExpectedSha256(QByteArray(32, '\x01'));
+  QVERIFY(!receiver.finish());
+  QVERIFY(!QFileInfo::exists(receiver.destinationPath()));
+  QVERIFY(QDir(directory.path()).entryList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
+}
 
 void FileTransferReceiverTests::uniqueFilePathAddsCounterBeforeExtension()
 {

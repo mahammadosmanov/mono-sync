@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 #include <memory>
 
@@ -126,6 +127,120 @@ std::string offerPayload()
   return bytes;
 }
 
+std::string offerPayloadFor(const std::string &id, uint32_t size, const std::string &hash = std::string(32, 'h'))
+{
+  std::string bytes;
+  appendString(bytes, id);
+  append32(bytes, 0);
+  append32(bytes, size);
+  appendString(bytes, hash);
+  appendString(bytes, "sample.txt");
+  return bytes;
+}
+
+// Payload of an MSRP accepted response (the code bytes are passed to parseMessage separately).
+std::string acceptedPayload(const std::string &id)
+{
+  std::string bytes;
+  appendString(bytes, id);
+  bytes.push_back('\x01');
+  return bytes;
+}
+
+std::string ackPayload(const std::string &id, uint32_t acknowledged)
+{
+  std::string bytes;
+  appendString(bytes, id);
+  append32(bytes, 0);
+  append32(bytes, acknowledged);
+  return bytes;
+}
+
+std::string digestPayload(const std::string &id, const std::string &digest)
+{
+  std::string bytes;
+  appendString(bytes, id);
+  appendString(bytes, digest);
+  return bytes;
+}
+
+std::string idPayload(const std::string &id)
+{
+  std::string bytes;
+  appendString(bytes, id);
+  return bytes;
+}
+
+std::string chunkPayload(const std::string &id, const std::string &data)
+{
+  std::string bytes;
+  appendString(bytes, id);
+  appendString(bytes, data);
+  return bytes;
+}
+
+FileTransferProtocol::NotifyFunction recordNotices(QList<QJsonObject> &notices)
+{
+  return [&notices](const QString &encoded) {
+    QJsonObject message;
+    if (FileTransferProtocol::decodeMessage(encoded, message)) {
+      notices.append(message);
+    }
+  };
+}
+
+int countActions(const QList<QJsonObject> &notices, const QString &action)
+{
+  return static_cast<int>(std::count_if(notices.cbegin(), notices.cend(), [&](const QJsonObject &notice) {
+    return notice.value(QStringLiteral("action")).toString() == action;
+  }));
+}
+
+const char kTransferId[] = "12345678-1234-1234-1234-123456789abc";
+
+QString offerMessage(uint32_t size)
+{
+  return FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("sendOffer")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("name"), QStringLiteral("sample.txt")},
+      {QStringLiteral("size"), QString::number(size)},
+      {QStringLiteral("sha256"), QString::fromLatin1(QByteArray(32, '\x01').toHex())},
+  });
+}
+
+// One byte, base64url of "a".
+QString oneByteChunkMessage()
+{
+  return FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("sendChunk")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("data"), QStringLiteral("YQ")},
+  });
+}
+
+QString acceptMessage()
+{
+  return FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("accept")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+  });
+}
+
+QString savedMessage(uint32_t bytes)
+{
+  return FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("chunkSaved")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("bytes"), QString::number(bytes)},
+  });
+}
+
+const uint8_t kOfferCode[] = {'M', 'S', 'O', 'F'};
+const uint8_t kResponseCode[] = {'M', 'S', 'R', 'P'};
+const uint8_t kChunkCode[] = {'M', 'S', 'C', 'H'};
+const uint8_t kAckCode[] = {'M', 'S', 'A', 'K'};
+
 } // namespace
 
 class FileTransferProtocolTests : public QObject
@@ -143,6 +258,17 @@ private Q_SLOTS:
   void refreshReportsUnauthenticatedPeerAsUnavailable();
   void peerlessRefreshSelectsServerFanoutOnly();
   void singleFileMessageRoundTripUsesExistingPeerStream();
+  void fastSenderKeepsThirtyTwoChunksInFlight();
+  void fastSenderCumulativeAckFreesWindowSlots();
+  void fastSenderAckMustLandOnChunkBoundary();
+  void fastReceiverAcknowledgesSavedChunksCumulatively();
+  void fastReceiverRejectsChunkBeyondWindow();
+  void legacySenderRejectsSecondChunkBeforeAck();
+  void legacyReceiverRejectsSecondChunkBeforeSave();
+  void fastSenderFinishesWithStreamedDigest();
+  void fastReceiverSurfacesDigestFromFinishHash();
+  void fastReceiverRejectsPlainFinishAfterZeroDigest();
+  void legacyReceiverRejectsDigestMessage();
 
 private:
   Log m_log;
@@ -368,6 +494,219 @@ void FileTransferProtocolTests::singleFileMessageRoundTripUsesExistingPeerStream
   QJsonObject complete;
   QVERIFY(FileTransferProtocol::decodeMessage(senderNotice, complete));
   QCOMPARE(complete.value(QStringLiteral("action")).toString(), QStringLiteral("completed"));
+}
+
+void FileTransferProtocolTests::fastSenderKeepsThirtyTwoChunksInFlight()
+{
+  MemoryStream stream(acceptedPayload(kTransferId));
+  QList<QJsonObject> notices;
+  FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
+  sender.setConnected(true);
+  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+
+  const auto chunk = oneByteChunkMessage();
+  for (int i = 0; i < 32; ++i) {
+    QVERIFY(sender.handleLocalMessage(chunk));
+  }
+  QVERIFY(!sender.handleLocalMessage(chunk));
+  // one request per send that still leaves room in the window
+  QCOMPARE(countActions(notices, QStringLiteral("sendNextChunk")), 31);
+}
+
+void FileTransferProtocolTests::fastSenderCumulativeAckFreesWindowSlots()
+{
+  MemoryStream stream(acceptedPayload(kTransferId) + ackPayload(kTransferId, 3));
+  QList<QJsonObject> notices;
+  FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
+  sender.setConnected(true);
+  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+
+  const auto chunk = oneByteChunkMessage();
+  for (int i = 0; i < 32; ++i) {
+    QVERIFY(sender.handleLocalMessage(chunk));
+  }
+  QCOMPARE(sender.parseMessage(kAckCode), FileTransferProtocol::ParseResult::Handled);
+  for (int i = 0; i < 3; ++i) {
+    QVERIFY(sender.handleLocalMessage(chunk));
+  }
+  QVERIFY(!sender.handleLocalMessage(chunk));
+}
+
+void FileTransferProtocolTests::fastSenderAckMustLandOnChunkBoundary()
+{
+  // chunks of 1 and 2 bytes: boundaries are at 1 and 3, so an ack of 2 is invalid
+  MemoryStream stream(acceptedPayload(kTransferId) + ackPayload(kTransferId, 2) + ackPayload(kTransferId, 3));
+  FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), {}, true);
+  sender.setConnected(true);
+  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(sender.handleLocalMessage(oneByteChunkMessage()));
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("sendChunk")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("data"), QStringLiteral("YWI")},
+  })));
+  QVERIFY_THROWS_EXCEPTION(BadClientException, sender.parseMessage(kAckCode));
+  // a valid cumulative ack after the rejected one still lands
+  QCOMPARE(sender.parseMessage(kAckCode), FileTransferProtocol::ParseResult::Handled);
+}
+
+void FileTransferProtocolTests::fastReceiverAcknowledgesSavedChunksCumulatively()
+{
+  MemoryStream stream(offerPayloadFor(kTransferId, 100) + chunkPayload(kTransferId, "a") +
+                      chunkPayload(kTransferId, "b") + chunkPayload(kTransferId, "c"));
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), {}, true);
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  for (int i = 0; i < 3; ++i) {
+    QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  }
+  for (uint32_t i = 1; i <= 3; ++i) {
+    QVERIFY(receiver.handleLocalMessage(savedMessage(1)));
+  }
+
+  std::string expected;
+  expected += "MSRP";
+  expected += acceptedPayload(kTransferId);
+  for (uint32_t total = 1; total <= 3; ++total) {
+    expected += "MSAK";
+    expected += ackPayload(kTransferId, total);
+  }
+  QVERIFY(stream.output() == expected);
+}
+
+void FileTransferProtocolTests::fastReceiverRejectsChunkBeyondWindow()
+{
+  std::string input = offerPayloadFor(kTransferId, 100);
+  for (int i = 0; i < 33; ++i) {
+    input += chunkPayload(kTransferId, "a");
+  }
+  MemoryStream stream(std::move(input));
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), {}, true);
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  for (int i = 0; i < 32; ++i) {
+    QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  }
+  QVERIFY_THROWS_EXCEPTION(BadClientException, receiver.parseMessage(kChunkCode));
+}
+
+void FileTransferProtocolTests::legacySenderRejectsSecondChunkBeforeAck()
+{
+  MemoryStream stream(acceptedPayload(kTransferId));
+  QList<QJsonObject> notices;
+  FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices));
+  sender.setConnected(true);
+  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(sender.handleLocalMessage(oneByteChunkMessage()));
+  QVERIFY(!sender.handleLocalMessage(oneByteChunkMessage()));
+  QCOMPARE(countActions(notices, QStringLiteral("sendNextChunk")), 0);
+}
+
+void FileTransferProtocolTests::legacyReceiverRejectsSecondChunkBeforeSave()
+{
+  MemoryStream stream(offerPayloadFor(kTransferId, 100) + chunkPayload(kTransferId, "a") +
+                      chunkPayload(kTransferId, "b"));
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), {});
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY_THROWS_EXCEPTION(BadClientException, receiver.parseMessage(kChunkCode));
+}
+
+void FileTransferProtocolTests::fastSenderFinishesWithStreamedDigest()
+{
+  const std::string digest = QCryptographicHash::hash("abc", QCryptographicHash::Sha256).toStdString();
+  MemoryStream stream(acceptedPayload(kTransferId) + ackPayload(kTransferId, 3));
+  QList<QJsonObject> notices;
+  FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
+  sender.setConnected(true);
+  QVERIFY(sender.handleLocalMessage(offerMessage(3)));
+  QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("sendChunk")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("data"), QStringLiteral("YWJj")},
+  })));
+  QCOMPARE(sender.parseMessage(kAckCode), FileTransferProtocol::ParseResult::Handled);
+  QCOMPARE(countActions(notices, QStringLiteral("sendReadyToFinish")), 1);
+
+  QVERIFY(sender.handleLocalMessage(FileTransferProtocol::encodeMessage({
+      {QStringLiteral("action"), QStringLiteral("sendFinish")},
+      {QStringLiteral("id"), QStringLiteral("12345678-1234-1234-1234-123456789abc")},
+      {QStringLiteral("sha256"), QString::fromLatin1(QByteArray::fromStdString(digest).toHex())},
+  })));
+  // the offer carried a zero digest; the real one follows in MSFH
+  QVERIFY(stream.output().find(std::string(32, '\0')) != std::string::npos);
+  const std::string finish = "MSFH" + digestPayload(kTransferId, digest);
+  QVERIFY(stream.output().size() >= finish.size());
+  QVERIFY(stream.output().compare(stream.output().size() - finish.size(), finish.size(), finish) == 0);
+}
+
+void FileTransferProtocolTests::fastReceiverSurfacesDigestFromFinishHash()
+{
+  const std::string digest = QCryptographicHash::hash("abc", QCryptographicHash::Sha256).toStdString();
+  MemoryStream stream(offerPayloadFor(kTransferId, 3, std::string(32, '\0')) + chunkPayload(kTransferId, "abc") +
+                      digestPayload(kTransferId, digest));
+  QList<QJsonObject> notices;
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(savedMessage(3)));
+  const uint8_t finishCode[] = {'M', 'S', 'F', 'H'};
+  QCOMPARE(receiver.parseMessage(finishCode), FileTransferProtocol::ParseResult::Handled);
+
+  QCOMPARE(countActions(notices, QStringLiteral("finishReceive")), 1);
+  const auto finish = notices.last();
+  QCOMPARE(finish.value(QStringLiteral("action")).toString(), QStringLiteral("finishReceive"));
+  QCOMPARE(finish.value(QStringLiteral("sha256")).toString(),
+           QString::fromLatin1(QByteArray::fromStdString(digest).toHex()));
+}
+
+void FileTransferProtocolTests::fastReceiverRejectsPlainFinishAfterZeroDigest()
+{
+  MemoryStream stream(offerPayloadFor(kTransferId, 3, std::string(32, '\0')) + chunkPayload(kTransferId, "abc") +
+                      idPayload(kTransferId));
+  QList<QJsonObject> notices;
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(savedMessage(3)));
+  const uint8_t finishCode[] = {'M', 'S', 'F', 'N'};
+  QCOMPARE(receiver.parseMessage(finishCode), FileTransferProtocol::ParseResult::Handled);
+
+  QCOMPARE(countActions(notices, QStringLiteral("finishReceive")), 0);
+  QCOMPARE(countActions(notices, QStringLiteral("failed")), 1);
+  std::string error = "MSER";
+  appendString(error, kTransferId);
+  error.push_back('\x01');
+  QVERIFY(stream.output().size() >= error.size());
+  QVERIFY(stream.output().compare(stream.output().size() - error.size(), error.size(), error) == 0);
+}
+
+void FileTransferProtocolTests::legacyReceiverRejectsDigestMessage()
+{
+  const std::string digest(32, '\x02');
+  MemoryStream stream(offerPayloadFor(kTransferId, 3) + chunkPayload(kTransferId, "abc") +
+                      digestPayload(kTransferId, digest));
+  FileTransferProtocol receiver(&stream, true, QStringLiteral("peer"), {});
+  receiver.setConnected(true);
+  QCOMPARE(receiver.parseMessage(kOfferCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(acceptMessage()));
+  QCOMPARE(receiver.parseMessage(kChunkCode), FileTransferProtocol::ParseResult::Handled);
+  QVERIFY(receiver.handleLocalMessage(savedMessage(3)));
+  const uint8_t finishCode[] = {'M', 'S', 'F', 'H'};
+  QVERIFY_THROWS_EXCEPTION(BadClientException, receiver.parseMessage(finishCode));
 }
 
 QTEST_APPLESS_MAIN(FileTransferProtocolTests)

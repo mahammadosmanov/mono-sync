@@ -21,6 +21,8 @@ add_library(${target} STATIC
   Diagnostic.h
   FileTail.cpp
   FileTail.h
+  HandOffPaths.cpp
+  HandOffPaths.h
   Logger.cpp
   Logger.h
   MainWindow.cpp
@@ -34,7 +36,9 @@ add_library(${target} STATIC
   TlsUtility.cpp
   TlsUtility.h
   UpdateDownloader.cpp
+  UpdateInstaller.cpp
   UpdateDownloader.h
+  UpdateInstaller.h
   VersionChecker.cpp
   VersionChecker.h
   config/ComputerConfig.h
@@ -117,6 +121,8 @@ add_library(${target} STATIC
   widgets/SearchWidget.cpp
   widgets/StatusBar.cpp
   widgets/StatusBar.h
+  widgets/TransferPanel.cpp
+  widgets/TransferPanel.h
   widgets/SettingsDialogButtonBox.cpp
   widgets/SettingsDialogButtonBox.h
 )

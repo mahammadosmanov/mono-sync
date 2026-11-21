@@ -12,7 +12,7 @@
 class ServerProxy1_9 : public ServerProxy1_8
 {
 public:
-  ServerProxy1_9(Client *client, deskflow::IStream *stream, IEventQueue *events);
+  ServerProxy1_9(Client *client, deskflow::IStream *stream, IEventQueue *events, bool fastFileTransfer = false);
   ~ServerProxy1_9() override = default;
   void connectionReady() override;
   bool handleFileTransferMessage(const QString &message) override;

@@ -493,6 +493,9 @@ bool Client::setupComputer(int16_t protocolMinor)
   case 9:
     m_server = new ServerProxy1_9(this, m_stream, m_events);
     break;
+  case 10:
+    m_server = new ServerProxy1_9(this, m_stream, m_events, true);
+    break;
   default:
     break;
   }

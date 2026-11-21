@@ -19,6 +19,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QFileInfo>
 #include <QLocalSocket>
 #include <QMessageBox>
 #include <QSharedMemory>
@@ -106,14 +107,26 @@ int main(int argc, char *argv[])
     sharedMemory.detach();
 
   // If we can create 1 byte of SHM we are the only instance
+  // Positional arguments are files to send (e.g. from the Windows "Send to" menu)
+  QStringList handOffPaths;
+  for (const auto &arg : parser.positionalArguments()) {
+    const auto path = QFileInfo(arg).absoluteFilePath();
+    if (QFileInfo(path).isFile() && !path.contains(QLatin1Char('\n')))
+      handOffPaths.append(path);
+  }
+
   if (!sharedMemory.create(1)) {
-    // Ping the running instance to have it show itself
+    // Ping the running instance to have it show itself, or hand it the files to send
     QLocalSocket socket;
-    socket.connectToServer(shmId, QLocalSocket::ReadOnly);
+    socket.connectToServer(shmId, handOffPaths.isEmpty() ? QLocalSocket::ReadOnly : QLocalSocket::ReadWrite);
     if (!socket.waitForConnected()) {
       // If we can't connect to the other instance tell the user its running.
       // This should never happen but just incase we should show something
       QMessageBox::information(nullptr, kAppName, QObject::tr("%1 is already running").arg(kAppName));
+    } else if (!handOffPaths.isEmpty()) {
+      socket.write(handOffPaths.join(QLatin1Char('\n')).toUtf8() + '\n');
+      socket.flush();
+      socket.waitForBytesWritten(1000);
     }
     socket.disconnectFromServer();
     return s_exitDuplicate;
@@ -152,6 +165,8 @@ int main(int argc, char *argv[])
 
   MainWindow mainWindow;
   mainWindow.open();
+  if (!handOffPaths.isEmpty())
+    mainWindow.showFilesNeedPeer();
 
   return QApplication::exec();
 }

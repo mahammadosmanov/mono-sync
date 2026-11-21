@@ -85,6 +85,16 @@ bool VersionChecker::parseRelease(const QByteArray &json, Release &release)
   return true;
 }
 
+bool VersionChecker::isNewer(const QString &available, const QString &current)
+{
+  return compareVersions(current, available) > 0;
+}
+
+bool VersionChecker::promptsFor(const QString &available, const QString &current, const QString &skipped)
+{
+  return isNewer(available, current) && available != skipped;
+}
+
 void VersionChecker::replyFinished(QNetworkReply *reply)
 {
   reply->deleteLater();

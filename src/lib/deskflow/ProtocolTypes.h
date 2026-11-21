@@ -45,7 +45,7 @@ static const int16_t kProtocolMajorVersion = 1;
  * @note When incrementing the minor version, the Deskflow application version should also increment
  * @since Protocol version 1.0
  */
-static const int16_t kProtocolMinorVersion = 9;
+static const int16_t kProtocolMinorVersion = 10;
 
 /**
  * @brief Default TCP port for Deskflow connections
@@ -1071,6 +1071,8 @@ extern const char *const kMsgFileResponse;
 extern const char *const kMsgFileChunk;
 extern const char *const kMsgFileAck;
 extern const char *const kMsgFileFinish;
+// Protocol 1.10: finish with the SHA-256 digest computed while streaming (replaces MSFN).
+extern const char *const kMsgFileFinishHash;
 extern const char *const kMsgFileDone;
 extern const char *const kMsgFileError;
 extern const char *const kMsgFileCancel;
