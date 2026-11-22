@@ -22,6 +22,8 @@
 #include <QFileInfo>
 #include <QLocalSocket>
 #include <QMessageBox>
+#include <QProcess>
+#include <QSettings>
 #include <QSharedMemory>
 
 #if defined(Q_OS_MACOS)
@@ -182,6 +184,27 @@ bool checkMacAssistiveDevices()
 
   if (AXIsProcessTrusted()) {
     return true;
+  }
+
+  // An Accessibility entry approved for a differently signed build of this bundle
+  // (an ad-hoc local build, or a release before the stable certificate) stays
+  // enabled in System Settings but does not match this binary, so the app is
+  // never trusted until the entry is removed and added again. Remove it once per
+  // installed binary, so the prompt below creates an entry that matches this build.
+  const QFileInfo binary(QCoreApplication::applicationFilePath());
+  const auto installKey =
+      QStringLiteral("%1@%2").arg(binary.absoluteFilePath(), binary.lastModified().toString(Qt::ISODateWithMs));
+  QSettings state;
+  if (state.value(QStringLiteral("macAccessibilityResetFor")).toString() != installKey) {
+    const auto bundleId = QString::fromCFString(CFBundleGetIdentifier(CFBundleGetMainBundle()));
+    if (!bundleId.isEmpty()) {
+      qInfo("resetting stale accessibility entry for %s", qPrintable(bundleId));
+      QProcess::execute(
+          QStringLiteral("/usr/bin/tccutil"), {QStringLiteral("reset"), QStringLiteral("Accessibility"), bundleId}
+      );
+    }
+    state.setValue(QStringLiteral("macAccessibilityResetFor"), installKey);
+    state.sync();
   }
 
   const void *keys[] = {kAXTrustedCheckOptionPrompt};
