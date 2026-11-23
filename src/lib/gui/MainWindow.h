@@ -179,6 +179,7 @@ private:
   void showHelpViewer() const;
   void startFileWorker();
   void sendFile();
+  void showRemoteScreen();
   QString pickSendPeer(bool fromOutside = false);
   bool isPeerReadyForFile(const QString &peer) const;
   void queueFilesToSend(const QStringList &paths, bool fromOutside = false);
@@ -270,6 +271,7 @@ private:
   QAction *m_actionShowHelp = nullptr;
   QAction *m_actionCheckUpdates = nullptr;
   QAction *m_actionSendFile = nullptr;
+  QAction *m_actionRemoteScreen = nullptr;
   QAction *m_actionReceiveFolder = nullptr;
   QAction *m_actionAutoAccept = nullptr;
   QAction *m_actionForgetTrusted = nullptr;

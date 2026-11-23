@@ -84,6 +84,8 @@ public:
     inline static const auto FileReceiveDirectory = QStringLiteral("gui/fileReceiveDirectory");
     inline static const auto FileAutoAccept = QStringLiteral("gui/fileAutoAccept");
     inline static const auto FileAutoAcceptPeers = QStringLiteral("gui/fileAutoAcceptPeers");
+    inline static const auto MoonlightPath = QStringLiteral("gui/moonlightPath");
+    inline static const auto ScreenViewHost = QStringLiteral("gui/screenViewHost");
     inline static const auto CloseReminder = QStringLiteral("gui/closeReminder");
     inline static const auto CloseToTray = QStringLiteral("gui/closeToTray");
     inline static const auto LogExpanded = QStringLiteral("gui/logExpanded");
@@ -322,6 +324,8 @@ private:
     , Gui::FileReceiveDirectory
     , Gui::FileAutoAccept
     , Gui::FileAutoAcceptPeers
+    , Gui::MoonlightPath
+    , Gui::ScreenViewHost
     , Gui::CloseReminder
     , Gui::CloseToTray
     , Gui::LogExpanded
