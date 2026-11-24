@@ -18,7 +18,7 @@ Mono Sync streams Sunshine's `Desktop` app with `--display-mode fullscreen`. To 
 
 ## Build
 
-Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.10`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.
+Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.11`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.
 
 For Windows, use the [per-user setup instructions](docs/WINDOWS-PORTABLE.md). The setup, app, and uninstaller run as the current user. They do not install a service or change firewall rules. Windows or organization firewall policy may still block connections. macOS may request its input-control permission; Mono Sync cannot bypass operating-system permission prompts.
 
