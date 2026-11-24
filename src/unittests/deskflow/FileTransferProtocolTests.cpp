@@ -189,6 +189,17 @@ FileTransferProtocol::NotifyFunction recordNotices(QList<QJsonObject> &notices)
   };
 }
 
+// the "count" credit of the first notice with this action, or -1 when there is none
+int noticeCount(const QList<QJsonObject> &notices, const QString &action)
+{
+  for (const auto &notice : notices) {
+    if (notice.value(QStringLiteral("action")).toString() == action) {
+      return notice.value(QStringLiteral("count")).toString().toInt();
+    }
+  }
+  return -1;
+}
+
 int countActions(const QList<QJsonObject> &notices, const QString &action)
 {
   return static_cast<int>(std::count_if(notices.cbegin(), notices.cend(), [&](const QJsonObject &notice) {
@@ -502,16 +513,18 @@ void FileTransferProtocolTests::fastSenderKeepsThirtyTwoChunksInFlight()
   QList<QJsonObject> notices;
   FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
   sender.setConnected(true);
-  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QVERIFY(sender.handleLocalMessage(offerMessage(100 * FileTransferReceiver::kMaximumChunkSize)));
   QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
+  // the whole window is granted at once so the GUI can read ahead
+  QCOMPARE(noticeCount(notices, QStringLiteral("accepted")), 32);
 
   const auto chunk = oneByteChunkMessage();
   for (int i = 0; i < 32; ++i) {
     QVERIFY(sender.handleLocalMessage(chunk));
   }
   QVERIFY(!sender.handleLocalMessage(chunk));
-  // one request per send that still leaves room in the window
-  QCOMPARE(countActions(notices, QStringLiteral("sendNextChunk")), 31);
+  // the window is full, so nothing more is requested
+  QCOMPARE(countActions(notices, QStringLiteral("sendNextChunk")), 0);
 }
 
 void FileTransferProtocolTests::fastSenderCumulativeAckFreesWindowSlots()
@@ -520,7 +533,7 @@ void FileTransferProtocolTests::fastSenderCumulativeAckFreesWindowSlots()
   QList<QJsonObject> notices;
   FileTransferProtocol sender(&stream, true, QStringLiteral("peer"), recordNotices(notices), true);
   sender.setConnected(true);
-  QVERIFY(sender.handleLocalMessage(offerMessage(100)));
+  QVERIFY(sender.handleLocalMessage(offerMessage(100 * FileTransferReceiver::kMaximumChunkSize)));
   QCOMPARE(sender.parseMessage(kResponseCode), FileTransferProtocol::ParseResult::Handled);
 
   const auto chunk = oneByteChunkMessage();
@@ -528,6 +541,8 @@ void FileTransferProtocolTests::fastSenderCumulativeAckFreesWindowSlots()
     QVERIFY(sender.handleLocalMessage(chunk));
   }
   QCOMPARE(sender.parseMessage(kAckCode), FileTransferProtocol::ParseResult::Handled);
+  // the three freed slots are granted in one request
+  QCOMPARE(noticeCount(notices, QStringLiteral("sendNextChunk")), 3);
   for (int i = 0; i < 3; ++i) {
     QVERIFY(sender.handleLocalMessage(chunk));
   }

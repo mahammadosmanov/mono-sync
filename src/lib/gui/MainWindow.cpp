@@ -2178,6 +2178,18 @@ void MainWindow::prepareOutgoingFile(const QString &fileName, quint64 size, cons
   m_coreProcess.sendFileTransferMessage(FileTransferProtocol::encodeMessage(offer));
 }
 
+void MainWindow::queueOutgoingChunkReads(const QJsonObject &message)
+{
+  if (m_fileWorker == nullptr) {
+    return;
+  }
+  // the core grants as many chunks as its window has room for; a missing count means one (older core)
+  const auto count = std::clamp(message.value(QStringLiteral("count")).toString(QStringLiteral("1")).toInt(), 1, 64);
+  for (int i = 0; i < count; ++i) {
+    QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
+  }
+}
+
 void MainWindow::sendOutgoingChunk(const QByteArray &chunk, quint64 position)
 {
   if (m_fileWorker == nullptr || m_outgoingTransferId.isEmpty() || chunk.isEmpty()) {
@@ -2274,16 +2286,12 @@ void MainWindow::handleFileTransferMessage(const QString &encodedMessage)
     if (m_outgoingSize == 0) {
       requestOutgoingFinish();
     } else {
-      if (m_fileWorker != nullptr) {
-        QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
-      }
+      queueOutgoingChunkReads(message);
     }
     return;
   }
   if (action == QStringLiteral("sendNextChunk") && id == m_outgoingTransferId && peer == m_outgoingPeer) {
-    if (m_fileWorker != nullptr) {
-      QMetaObject::invokeMethod(m_fileWorker, "readNextChunk", Qt::QueuedConnection);
-    }
+    queueOutgoingChunkReads(message);
     return;
   }
   if (action == QStringLiteral("sendReadyToFinish") && id == m_outgoingTransferId && peer == m_outgoingPeer) {

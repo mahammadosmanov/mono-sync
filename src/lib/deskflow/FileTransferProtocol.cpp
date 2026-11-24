@@ -140,9 +140,13 @@ FileTransferProtocol::ParseResult FileTransferProtocol::parseMessage(const uint8
     }
     if (result == 1) {
       m_state = State::SenderReadyForChunk;
-      // the GUI reads the first chunk in response to this notification
-      m_nextRequested = true;
-      notify({{QStringLiteral("action"), actionName("accepted")}, {QStringLiteral("id"), QString::fromStdString(id)}});
+      // the GUI reads the first chunks in response to this notification
+      const uint32_t credits = grantChunkCredits();
+      notify({
+          {QStringLiteral("action"), actionName("accepted")},
+          {QStringLiteral("id"), QString::fromStdString(id)},
+          {QStringLiteral("count"), QString::number(credits)},
+      });
     } else {
       notify({{QStringLiteral("action"), actionName("rejected")}, {QStringLiteral("id"), QString::fromStdString(id)}});
       resetTransfer();
@@ -337,7 +341,7 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     m_fileName = fileName.toUtf8().toStdString();
     m_sentSize = 0;
     m_inFlightChunks.clear();
-    m_nextRequested = false;
+    m_requestedChunks = 0;
     m_sending = true;
     m_state = State::AwaitingOfferResponse;
     const uint32_t sizeHigh = static_cast<uint32_t>(size >> 32);
@@ -388,7 +392,9 @@ bool FileTransferProtocol::handleLocalMessage(const QString &encodedMessage)
     const std::string idCopy = m_transferId;
     const std::string data = chunk.toStdString();
     m_inFlightChunks.push_back(static_cast<uint32_t>(chunk.size()));
-    m_nextRequested = false;
+    if (m_requestedChunks > 0) {
+      --m_requestedChunks;
+    }
     m_state = State::AwaitingChunkAck;
     ProtocolUtil::writef(m_stream, kMsgFileChunk, &idCopy, &data);
     requestNextIfRoom();
@@ -556,7 +562,7 @@ void FileTransferProtocol::resetTransfer()
   m_receivedSize = 0;
   m_inFlightChunks.clear();
   m_pendingChunks.clear();
-  m_nextRequested = false;
+  m_requestedChunks = 0;
   m_sending = false;
 }
 
@@ -574,18 +580,36 @@ uint64_t FileTransferProtocol::inFlightBytes(const std::deque<uint32_t> &chunks)
   return total;
 }
 
+uint32_t FileTransferProtocol::grantChunkCredits()
+{
+  // chunks the GUI may still be asked for: what the window has room for, capped by what is left to read
+  const uint64_t queued = m_sentSize + inFlightBytes(m_inFlightChunks);
+  const uint64_t used = m_inFlightChunks.size() + static_cast<uint64_t>(m_requestedChunks);
+  if (queued >= m_expectedSize || used >= window()) {
+    return 0;
+  }
+  const auto maximum = static_cast<uint64_t>(FileTransferReceiver::kMaximumChunkSize);
+  const uint64_t chunksLeft = (m_expectedSize - queued + maximum - 1) / maximum;
+  if (chunksLeft <= m_requestedChunks) {
+    return 0;
+  }
+  const auto grant = static_cast<uint32_t>(std::min<uint64_t>(window() - used, chunksLeft - m_requestedChunks));
+  m_requestedChunks += grant;
+  return grant;
+}
+
 void FileTransferProtocol::requestNextIfRoom()
 {
-  const uint64_t queued = m_sentSize + inFlightBytes(m_inFlightChunks);
-  if (m_nextRequested || m_inFlightChunks.size() >= window() || queued >= m_expectedSize) {
+  const uint32_t credits = grantChunkCredits();
+  if (credits == 0) {
     return;
   }
-  m_nextRequested = true;
   notify({
       {QStringLiteral("action"), actionName("sendNextChunk")},
       {QStringLiteral("id"), QString::fromStdString(m_transferId)},
       {QStringLiteral("sent"), QString::number(m_sentSize)},
       {QStringLiteral("total"), QString::number(m_expectedSize)},
+      {QStringLiteral("count"), QString::number(credits)},
   });
 }
 
