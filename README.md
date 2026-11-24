@@ -4,6 +4,18 @@ Mono Sync is a Windows and macOS app for sharing one keyboard and mouse across c
 
 The Windows x64 host and Apple Silicon Mac client use the same TLS-protected Deskflow peer connection. Receivers either accept each file into a default folder, choose a location, or turn on automatic acceptance. Senders can drag files onto the window. Mono Sync verifies size and SHA-256, writes to a private temporary file, and never overwrites an existing file; a name clash gets a `(2)`, `(3)`, … suffix. Folders, resume, and automatic file opening are not supported.
 
+## Show the other computer's screen
+
+File > Show other computer's screen (Ctrl+M, also in the tray menu) shows the other computer's desktop full screen over the network. Mono Sync starts [Moonlight](https://github.com/moonlight-stream/moonlight-qt) as a separate program; the other computer must run [Sunshine](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html). No Moonlight or Sunshine code is included in Mono Sync.
+
+One-time setup:
+
+1. On the Mac, install Sunshine (`brew tap LizardByte/homebrew` and `brew install sunshine`, or the DMG), start it, and grant screen recording access. Sunshine on macOS is experimental and needs macOS 14.2 or later.
+2. On Windows, install Moonlight and pair it with the Mac once.
+3. In Mono Sync, select the menu item. The first time, choose `Moonlight.exe` if Mono Sync cannot find it, and type the Mac's name or IP address as paired in Moonlight.
+
+Mono Sync streams Sunshine's `Desktop` app with `--display-mode fullscreen`. To change the saved Moonlight path or host, remove `gui/moonlightPath` or `gui/screenViewHost` from the Mono Sync settings.
+
 ## Build
 
 Build requirements and platform options are in [the upstream-derived developer guide](docs/dev/build.md). The product version is `0.2.9`; the source foundation remains pinned to Deskflow `v1.27.0`. GitHub Actions builds and tests Windows x64 and macOS ARM64 packages and uploads artifacts only. It does not publish releases.

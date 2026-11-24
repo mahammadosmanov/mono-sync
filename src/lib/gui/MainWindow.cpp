@@ -60,6 +60,8 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QProgressDialog>
 #include <QNetworkAccessManager>
 #include <QNetworkInterface>
@@ -191,6 +193,7 @@ MainWindow::MainWindow()
   m_actionCheckUpdates->setIcon(QIcon::fromTheme(QStringLiteral("software-updates-release")));
   m_actionCheckUpdates->setMenuRole(QAction::NoRole);
 
+  m_actionRemoteScreen = new QAction(this);
   m_actionReceiveFolder = new QAction(this);
   m_actionAutoAccept = new QAction(this);
   m_actionAutoAccept->setCheckable(true);
@@ -399,6 +402,7 @@ void MainWindow::connectSlots()
     m_actionForgetTrusted->setEnabled(false);
   });
   connect(m_actionSendFile, &QAction::triggered, this, &MainWindow::sendFile);
+  connect(m_actionRemoteScreen, &QAction::triggered, this, &MainWindow::showRemoteScreen);
   connect(&m_coreProcess, &CoreProcess::fileTransferMessageReceived, this, &MainWindow::handleFileTransferMessage);
   connect(&m_coreProcess, &CoreProcess::fileTransferIpcUnavailable, this,
           [this] { clearFileTransferAvailability(tr("The local core connection closed.")); });
@@ -1009,6 +1013,8 @@ void MainWindow::createMenuBar()
   m_menuFile->addAction(m_actionAutoAccept);
   m_menuFile->addAction(m_actionForgetTrusted);
   m_menuFile->addSeparator();
+  m_menuFile->addAction(m_actionRemoteScreen);
+  m_menuFile->addSeparator();
   m_menuFile->addAction(m_actionStartCore);
   m_menuFile->addAction(m_actionRestartCore);
   m_menuFile->addAction(m_actionStopCore);
@@ -1035,7 +1041,7 @@ void MainWindow::createMenuBar()
 void MainWindow::setupTrayIcon()
 {
   auto trayMenu = new QMenu(this);
-  trayMenu->addActions({m_actionStartCore, m_actionRestartCore, m_actionStopCore, m_actionSendFile, m_actionMinimize,
+  trayMenu->addActions({m_actionStartCore, m_actionRestartCore, m_actionStopCore, m_actionSendFile, m_actionRemoteScreen, m_actionMinimize,
                         m_actionRestore, m_actionTrayQuit});
   trayMenu->insertSeparator(m_actionSendFile);
   trayMenu->insertSeparator(m_actionMinimize);
@@ -1481,6 +1487,8 @@ void MainWindow::updateText()
   m_actionAutoAccept->setText(tr("Accept files automatically"));
   m_actionForgetTrusted->setText(tr("Forget trusted senders"));
   m_actionSendFile->setText(tr("Send a file…"));
+  m_actionRemoteScreen->setText(tr("Show other computer's screen"));
+  m_actionRemoteScreen->setShortcut(QKeySequence(tr("Ctrl+M")));
   m_actionSendFile->setEnabled(false);
 
   //: start / restart core shortcut
@@ -1928,6 +1936,42 @@ void MainWindow::startFileWorker()
     }
   });
   m_fileWorkerThread->start();
+}
+
+// Opens the other computer's desktop full screen through Moonlight (client) and Sunshine (host, set up and
+// paired by the user once). Moonlight runs as a separate program; no Moonlight or Sunshine code is linked.
+void MainWindow::showRemoteScreen()
+{
+  auto moonlight = Settings::value(Settings::Gui::MoonlightPath).toString();
+  if (moonlight.isEmpty() || !QFileInfo::exists(moonlight)) {
+    moonlight = QStandardPaths::findExecutable(QStringLiteral("Moonlight"));
+    if (moonlight.isEmpty())
+      moonlight = QFileDialog::getOpenFileName(this, tr("Find the Moonlight program"));
+    if (moonlight.isEmpty())
+      return;
+    Settings::setValue(Settings::Gui::MoonlightPath, moonlight);
+  }
+
+  auto host = Settings::value(Settings::Gui::ScreenViewHost).toString();
+  if (host.isEmpty()) {
+    bool ok = false;
+    host = QInputDialog::getText(
+               this, tr("Show other computer's screen"),
+               tr("Name or IP address of the computer that runs Sunshine (as paired in Moonlight):"),
+               QLineEdit::Normal, {}, &ok
+    )
+               .trimmed();
+    if (!ok || host.isEmpty())
+      return;
+    Settings::setValue(Settings::Gui::ScreenViewHost, host);
+  }
+
+  const QStringList args{QStringLiteral("stream"), host, QStringLiteral("Desktop"), QStringLiteral("--display-mode"),
+                         QStringLiteral("fullscreen")};
+  if (!QProcess::startDetached(moonlight, args)) {
+    Settings::setValue(Settings::Gui::MoonlightPath); // ask again next time
+    QMessageBox::warning(this, tr("Show other computer's screen"), tr("Mono Sync could not start %1.").arg(moonlight));
+  }
 }
 
 void MainWindow::sendFile()
