@@ -65,6 +65,7 @@ private:
   void resetTransfer();
   uint32_t window() const;
   uint64_t inFlightBytes(const std::deque<uint32_t> &chunks) const;
+  uint32_t grantChunkCredits();
   void requestNextIfRoom();
   bool isValidTransferId(const std::string &id) const;
   bool isTerminalTransferId(const std::string &id) const;
@@ -85,7 +86,7 @@ private:
   uint64_t m_receivedSize = 0;
   std::deque<uint32_t> m_inFlightChunks; // sender: chunks sent, not yet acknowledged
   std::deque<uint32_t> m_pendingChunks;  // receiver: chunks received, not yet saved
-  bool m_nextRequested = false;          // sender: a sendNextChunk request is outstanding
+  uint32_t m_requestedChunks = 0;        // sender: chunks the GUI was asked for and has not sent yet
   bool m_fast = false;
   bool m_sending = false;
 };

@@ -32,6 +32,7 @@ class QAction;
 class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDropEvent;
+class QJsonObject;
 class QLabel;
 class QMenu;
 class QResizeEvent;
@@ -188,6 +189,7 @@ private:
   void chooseReceiveFolder();
   void setAutoAcceptFiles(bool enabled);
   void prepareOutgoingFile(const QString &fileName, quint64 size, const QByteArray &sha256);
+  void queueOutgoingChunkReads(const QJsonObject &message);
   void sendOutgoingChunk(const QByteArray &chunk, quint64 position);
   void requestOutgoingFinish();
   void sendOutgoingFinish(const QByteArray &sha256);
